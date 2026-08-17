@@ -101,6 +101,11 @@ var app = builder.Build();
 // to every log entry. This runs first so that nothing is logged without one.
 app.UseMiddleware<CorrelationIdMiddleware>();
 
+// One structured entry per request with status and duration. Sits inside the correlation
+// middleware so its entries carry the ID, and outside the exception handler so a failed
+// request is still logged with its duration.
+app.UseMiddleware<RequestLoggingMiddleware>();
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

@@ -1,6 +1,7 @@
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Infrastructure.Integration.Bi;
 using Bitstream.Infrastructure.Integration.Crm;
+using Bitstream.Infrastructure.Integration.Http;
 using Bitstream.Infrastructure.Integration.Mail;
 using Bitstream.Infrastructure.Integration.Sap;
 using Microsoft.Extensions.Configuration;
@@ -38,9 +39,18 @@ public static class DependencyInjection
 
         // Named clients so that timeouts and certificates are configured per target system
         // rather than globally (TR-INT-08).
-        services.AddHttpClient<ICrmGateway, CrmHttpGateway>(ConfigureCrmClient);
-        services.AddHttpClient<IBiGateway, BiGateway>(ConfigureBiClient);
-        services.AddHttpClient<ISapGateway, SapGateway>(ConfigureSapClient);
+        // TR-ARC-04 / TR-INT-02 / TR-INT-09: the handler puts the correlation ID on every
+        // outbound call and logs its outcome and duration, so no adapter can forget to.
+        services.AddTransient<CorrelationPropagationHandler>();
+
+        services.AddHttpClient<ICrmGateway, CrmHttpGateway>(ConfigureCrmClient)
+            .AddHttpMessageHandler<CorrelationPropagationHandler>();
+
+        services.AddHttpClient<IBiGateway, BiGateway>(ConfigureBiClient)
+            .AddHttpMessageHandler<CorrelationPropagationHandler>();
+
+        services.AddHttpClient<ISapGateway, SapGateway>(ConfigureSapClient)
+            .AddHttpMessageHandler<CorrelationPropagationHandler>();
 
         services.AddSingleton<IEmailGateway, SmtpEmailGateway>();
 

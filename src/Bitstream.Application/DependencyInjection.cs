@@ -43,6 +43,9 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(WorkingCalendarOptions.SectionName));
         services.AddSingleton<IValidateOptions<WorkingCalendarOptions>, WorkingCalendarOptionsValidator>();
 
+        // TR-ARC-04. Singleton because the value it holds is per-async-flow, not per-instance.
+        services.AddSingleton<Abstractions.ICorrelationContext, CorrelationContext>();
+
         // Application service implementations are registered here as modules are built.
         return services;
     }
