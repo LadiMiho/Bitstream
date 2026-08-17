@@ -159,3 +159,9 @@ internal static class RateLimitPolicies
 
     public const string Administration = "administration";
 }
+
+/// <summary>
+/// Entry point marker. Declared explicitly so that <c>WebApplicationFactory&lt;Program&gt;</c>
+/// can bootstrap the real pipeline in tests rather than a re-declared approximation of it.
+/// </summary>
+public partial class Program;
