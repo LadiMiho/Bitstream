@@ -171,3 +171,58 @@ internal sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.HasIndex(x => x.CorrelationId).HasDatabaseName("IX_AuditLog_CorrelationId");
     }
 }
+
+internal sealed class UserSessionConfiguration : IEntityTypeConfiguration<UserSession>
+{
+    public void Configure(EntityTypeBuilder<UserSession> builder)
+    {
+        builder.ToTable("UserSession", Schemas.Security);
+        builder.HasKey(x => x.SessionId);
+
+        builder.Property(x => x.SessionId).UseIdentityColumn();
+        builder.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.IssuedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.LastActivityAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.IssuedFromIp).HasMaxLength(64);
+        builder.Property(x => x.RevokedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.RevokedReason).HasMaxLength(50);
+
+        // The lookup key: every authenticated request looks a session up by the hash of its
+        // cookie value (TR-SEC-07).
+        builder.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("UX_UserSession_TokenHash");
+
+        // TR-SEC-13: the bulk revoke-on-ISP-lock query filters to a user's still-active sessions.
+        builder.HasIndex(x => new { x.UserId, x.RevokedAt }).HasDatabaseName("IX_UserSession_UserId_RevokedAt");
+
+        builder.HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class TwoFactorChallengeConfiguration : IEntityTypeConfiguration<TwoFactorChallenge>
+{
+    public void Configure(EntityTypeBuilder<TwoFactorChallenge> builder)
+    {
+        builder.ToTable("TwoFactorChallenge", Schemas.Security);
+        builder.HasKey(x => x.ChallengeId);
+
+        builder.Property(x => x.ChallengeId).UseIdentityColumn();
+        builder.Property(x => x.ChallengeToken).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.CodeHash).HasMaxLength(64);
+        builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ConsumedAt).HasColumnType("datetimeoffset(7)");
+
+        // TR-SEC-04: the lookup key for the second-factor verification call.
+        builder.HasIndex(x => x.ChallengeToken).IsUnique().HasDatabaseName("UX_TwoFactorChallenge_ChallengeToken");
+
+        builder.HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

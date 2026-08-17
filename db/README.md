@@ -24,11 +24,12 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |
+| `0009_sessions_and_two_factor.sql` | UserSession, TwoFactorChallenge — TRD 4 access management (schema version 2) |
 
 ## Checking where a database actually is
 
 ```powershell
-.\Get-SchemaStatus.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -ExpectedVersion 1
+.\Get-SchemaStatus.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -ExpectedVersion 2
 ```
 
 Compares the files in `mssql/` with the rows in `ops.SchemaVersion` and lists what is pending.
@@ -86,6 +87,9 @@ attributes and constraints.
 | AuditLog | `sec.AuditLog` |
 | IntegrationMessage | `ops.IntegrationMessage` |
 
+`sec.UserSession` and `sec.TwoFactorChallenge` are not TRD §3.1 entities — see
+"Tables beyond §3.1" below.
+
 ### Columns beyond §3.1
 
 §3.1 lists key attributes, not a complete column list. These additions each exist to satisfy
@@ -104,6 +108,20 @@ a specific "Must", and nothing else has been added:
 | `ops.IntegrationMessage.InterfaceCode`, `MessageType`, `ResponsePayload`, `CorrelationId` | TR-INT-02, TR-INT-25 |
 | `ops.PublicIdentifierSeries` (whole table) | TR-DAT-02b, TR-DAT-03 |
 | `ops.SchemaVersion` (whole table) | TR-ARC-08, TR-NFR-19 |
+
+### Tables beyond §3.1
+
+| Table | Required by |
+| --- | --- |
+| `sec.UserSession` | TR-SEC-07 — a session token must be invalidated at logout and at lock, which only a server-side record can be |
+| `sec.TwoFactorChallenge` | TR-SEC-04 — the second-factor state between the password check and the code submission must survive across requests and worker processes |
+
+Neither carries a no-delete trigger the way `sec.Isp` and `sec.[User]` do: TR-DAT-07 binds
+business and identity data, and a session or a 2FA challenge is neither — both are meaningless
+once expired or revoked. The application account is still denied DELETE at the schema level
+(`0008_permissions.sql`), so nothing in the running application can remove a row from either
+table regardless; a future retention job (TRD 11.4 open item 10) is the intended place to prune
+them.
 
 ## Things worth knowing before you change anything
 

@@ -32,13 +32,13 @@
         Environment = 'UAT'
         # Names of the secrets the application pool must carry. Values come from the secret
         # store, never from this file.
-        RequiredSecrets = @('CrmClientSecret', 'SmtpPassword')
+        RequiredSecrets = @('CrmClientSecret', 'SmtpPassword', 'TotpEncryptionKey')
     }
 
     Database = @{
         ServerInstance = 'SQLUAT01'
         Name           = 'BitstreamPortal'
         AppUser        = 'CORP\svc_bitstream_uat'
-        SchemaVersion  = 1
+        SchemaVersion  = 2
     }
 }

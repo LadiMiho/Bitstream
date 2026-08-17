@@ -15,8 +15,11 @@ namespace Bitstream.Infrastructure.Persistence;
 /// </summary>
 public sealed class BitstreamDbContext : DbContext
 {
-    /// <summary>Schema version this build is written against; see <c>ops.SchemaVersion</c>.</summary>
-    public const int ExpectedSchemaVersion = 1;
+    /// <summary>
+    /// Schema version this build is written against; see <c>ops.SchemaVersion</c>. Bumped from 1
+    /// to 2 when db/mssql/0009_sessions_and_two_factor.sql (TRD 4 access management) was added.
+    /// </summary>
+    public const int ExpectedSchemaVersion = 2;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -30,6 +33,10 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<UserPasswordHistory> UserPasswordHistory => Set<UserPasswordHistory>();
 
     public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
+
+    public DbSet<TwoFactorChallenge> TwoFactorChallenges => Set<TwoFactorChallenge>();
 
     public DbSet<Permission> Permissions => Set<Permission>();
 

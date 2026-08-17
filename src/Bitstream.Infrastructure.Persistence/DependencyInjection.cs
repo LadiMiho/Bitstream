@@ -1,4 +1,6 @@
+using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence.HealthChecks;
+using Bitstream.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +47,18 @@ public static class DependencyInjection
 
         // Deployed schema versus expected schema, checked once at start-up (ADR-0002).
         services.AddHostedService<SchemaVersionGuard>();
+
+        // TRD 4 — identity and access data access, and the unit of work and audit writer every
+        // application service in that module depends on. Scoped: each tracks changes on the
+        // same per-request BitstreamDbContext instance (also scoped), so a repository's tracked
+        // entity and IUnitOfWork.SaveChangesAsync agree on what is being persisted.
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IIspRepository, IspRepository>();
+        services.AddScoped<IUserSessionStore, UserSessionStore>();
+        services.AddScoped<ITwoFactorChallengeStore, TwoFactorChallengeStore>();
 
         return services;
     }

@@ -23,13 +23,13 @@
 
     Application = @{
         Environment     = 'Production'
-        RequiredSecrets = @('CrmClientSecret', 'SmtpPassword')
+        RequiredSecrets = @('CrmClientSecret', 'SmtpPassword', 'TotpEncryptionKey')
     }
 
     Database = @{
         ServerInstance = 'SQLPROD01'
         Name           = 'BitstreamPortal'
         AppUser        = 'CORP\svc_bitstream_prod'
-        SchemaVersion  = 1
+        SchemaVersion  = 2
     }
 }
