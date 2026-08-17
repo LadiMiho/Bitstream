@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Bitstream.Infrastructure.Persistence;
 
@@ -10,9 +11,10 @@ namespace Bitstream.Infrastructure.Persistence;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the EF Core context against the connection string named
-    /// <c>BitstreamDb</c>. The connection string is supplied per environment and its
-    /// credential comes from the secret store, never from a checked-in file (TR-SEC-28).
+    /// Registers the EF Core context. The connection string is named by
+    /// <see cref="DatabaseOptions.ConnectionStringName"/> and supplied per environment; its
+    /// credential comes from the secret store or from Integrated Security, never from a
+    /// checked-in file (TR-SEC-28).
     /// </summary>
     public static IServiceCollection AddBitstreamPersistence(
         this IServiceCollection services,
@@ -21,16 +23,28 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var connectionString = configuration.GetConnectionString("BitstreamDb");
+        services.AddOptions<DatabaseOptions>().Bind(configuration.GetSection(DatabaseOptions.SectionName));
+        services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptionsValidator>();
 
-        services.AddDbContext<BitstreamDbContext>(options =>
-            options.UseSqlServer(connectionString, sql =>
+        services.AddDbContext<BitstreamDbContext>((provider, builder) =>
+        {
+            var options = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            var connectionString = configuration.GetConnectionString(options.ConnectionStringName);
+
+            builder.UseSqlServer(connectionString, sql =>
             {
                 // TR-NFR-07: transient faults are retried rather than surfaced to the user.
-                sql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
-                sql.CommandTimeout(30);
-            }));
+                sql.EnableRetryOnFailure(
+                    maxRetryCount: options.MaxRetryCount,
+                    maxRetryDelay: options.MaxRetryDelay,
+                    errorNumbersToAdd: null);
+                sql.CommandTimeout(options.CommandTimeoutSeconds);
+            });
+        });
 
         return services;
     }
+
+    /// <summary>Persistence option types validated eagerly at start-up.</summary>
+    public static IReadOnlyList<Type> ValidatedOptionTypes { get; } = [typeof(DatabaseOptions)];
 }

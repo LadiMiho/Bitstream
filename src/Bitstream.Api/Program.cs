@@ -1,18 +1,46 @@
+using Bitstream.Api.Configuration;
 using Bitstream.Api.Endpoints;
 using Bitstream.Api.Middleware;
 using Bitstream.Application;
+using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Infrastructure.Integration;
 using Bitstream.Infrastructure.Persistence;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// --- Configuration ---------------------------------------------------------------------
+// TR-ARC-06: everything environment-specific is configuration. Environment variables are
+// added last so that IIS application-pool settings override the shipped defaults without any
+// file on the server being edited by hand (TR-ARC-08).
+builder.Configuration.AddEnvironmentVariables(prefix: "BITSTREAM_");
+
 // --- Composition root ------------------------------------------------------------------
 // The only place in the solution that knows all four layers exist (TRD 2.1).
-builder.Services.AddBitstreamApplication();
+builder.Services.AddBitstreamApplication(builder.Configuration);
 builder.Services.AddBitstreamPersistence(builder.Configuration);
 builder.Services.AddBitstreamIntegration(builder.Configuration);
+
+// TR-SEC-28: adapters ask for a secret by name; this decides where names resolve on this host.
+builder.Services.AddSingleton<ISecretResolver, ConfigurationSecretResolver>();
+
+builder.Services.AddOptions<RateLimitOptions>()
+    .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName));
+builder.Services.AddSingleton<IValidateOptions<RateLimitOptions>, RateLimitOptionsValidator>();
+
+// Every options set is resolved once before the first request, so a configuration mistake
+// fails the deployment rather than the first user who touches the affected feature.
+builder.Services.AddSingleton<IHostedService>(provider => new OptionsStartupValidator(
+    provider,
+    [
+        .. DependencyInjection.ValidatedOptionTypes,
+        .. Bitstream.Infrastructure.Persistence.DependencyInjection.ValidatedOptionTypes,
+        .. Bitstream.Infrastructure.Integration.DependencyInjection.ValidatedOptionTypes,
+        typeof(RateLimitOptions)
+    ],
+    provider.GetRequiredService<ILogger<OptionsStartupValidator>>()));
 
 // --- Presentation ----------------------------------------------------------------------
 builder.Services.AddProblemDetails();
@@ -39,19 +67,23 @@ builder.Services.AddOpenApi("v1", options =>
 
 // TR-SEC-29 and TR-INT-30: rate limiting on authentication, on creation endpoints and on
 // the CRM inbound interface. Limits are configuration, not code (TR-ARC-06).
+var rateLimits = builder.Configuration
+    .GetSection(RateLimitOptions.SectionName)
+    .Get<RateLimitOptions>() ?? new RateLimitOptions();
+
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter(RateLimitPolicies.CrmInbound, limiter =>
     {
-        limiter.PermitLimit = builder.Configuration.GetValue("RateLimits:CrmInbound:PermitLimit", 200);
-        limiter.Window = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimits:CrmInbound:WindowSeconds", 1));
+        limiter.PermitLimit = rateLimits.CrmInbound.PermitLimit;
+        limiter.Window = TimeSpan.FromSeconds(rateLimits.CrmInbound.WindowSeconds);
         limiter.QueueLimit = 0;
     });
 
     options.AddFixedWindowLimiter(RateLimitPolicies.Administration, limiter =>
     {
-        limiter.PermitLimit = builder.Configuration.GetValue("RateLimits:Administration:PermitLimit", 60);
-        limiter.Window = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimits:Administration:WindowSeconds", 60));
+        limiter.PermitLimit = rateLimits.Administration.PermitLimit;
+        limiter.Window = TimeSpan.FromSeconds(rateLimits.Administration.WindowSeconds);
         limiter.QueueLimit = 0;
     });
 

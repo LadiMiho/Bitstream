@@ -5,6 +5,7 @@ using Bitstream.Infrastructure.Integration.Mail;
 using Bitstream.Infrastructure.Integration.Sap;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Bitstream.Infrastructure.Integration;
 
@@ -21,19 +22,73 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.Configure<CrmOptions>(configuration.GetSection(CrmOptions.SectionName));
-        services.Configure<BiOptions>(configuration.GetSection(BiOptions.SectionName));
-        services.Configure<SapOptions>(configuration.GetSection(SapOptions.SectionName));
-        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        // TR-ARC-06: endpoints, timeouts, retry budgets, distribution groups and the redirect
+        // mailbox are all configuration. Nothing here is a literal in an adapter.
+        services.AddOptions<CrmOptions>().Bind(configuration.GetSection(CrmOptions.SectionName));
+        services.AddSingleton<IValidateOptions<CrmOptions>, CrmOptionsValidator>();
 
-        // Named clients so that timeouts, certificates and resilience handlers are configured
-        // per target system rather than globally (TR-INT-08).
-        services.AddHttpClient<ICrmGateway, CrmHttpGateway>();
-        services.AddHttpClient<IBiGateway, BiGateway>();
-        services.AddHttpClient<ISapGateway, SapGateway>();
+        services.AddOptions<BiOptions>().Bind(configuration.GetSection(BiOptions.SectionName));
+        services.AddSingleton<IValidateOptions<BiOptions>, BiOptionsValidator>();
+
+        services.AddOptions<SapOptions>().Bind(configuration.GetSection(SapOptions.SectionName));
+        services.AddSingleton<IValidateOptions<SapOptions>, SapOptionsValidator>();
+
+        services.AddOptions<SmtpOptions>().Bind(configuration.GetSection(SmtpOptions.SectionName));
+        services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+
+        // Named clients so that timeouts and certificates are configured per target system
+        // rather than globally (TR-INT-08).
+        services.AddHttpClient<ICrmGateway, CrmHttpGateway>(ConfigureCrmClient);
+        services.AddHttpClient<IBiGateway, BiGateway>(ConfigureBiClient);
+        services.AddHttpClient<ISapGateway, SapGateway>(ConfigureSapClient);
 
         services.AddSingleton<IEmailGateway, SmtpEmailGateway>();
 
         return services;
+    }
+
+    /// <summary>Adapter option types validated eagerly at start-up.</summary>
+    public static IReadOnlyList<Type> ValidatedOptionTypes { get; } =
+    [
+        typeof(CrmOptions),
+        typeof(BiOptions),
+        typeof(SapOptions),
+        typeof(SmtpOptions)
+    ];
+
+    private static void ConfigureCrmClient(IServiceProvider provider, HttpClient client)
+    {
+        var options = provider.GetRequiredService<IOptions<CrmOptions>>().Value;
+
+        if (options.BaseAddress is not null)
+        {
+            client.BaseAddress = options.BaseAddress;
+        }
+
+        client.Timeout = options.Timeout;
+    }
+
+    private static void ConfigureBiClient(IServiceProvider provider, HttpClient client)
+    {
+        var options = provider.GetRequiredService<IOptions<BiOptions>>().Value;
+
+        if (options.BaseAddress is not null)
+        {
+            client.BaseAddress = options.BaseAddress;
+        }
+
+        client.Timeout = options.Timeout;
+    }
+
+    private static void ConfigureSapClient(IServiceProvider provider, HttpClient client)
+    {
+        var options = provider.GetRequiredService<IOptions<SapOptions>>().Value;
+
+        if (options.BaseAddress is not null)
+        {
+            client.BaseAddress = options.BaseAddress;
+        }
+
+        client.Timeout = options.Timeout;
     }
 }

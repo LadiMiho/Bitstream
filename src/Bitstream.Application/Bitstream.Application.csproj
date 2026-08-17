@@ -9,8 +9,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- DI abstractions only, so that each layer can publish its own registration extension. -->
+    <!-- DI and options abstractions only, so that each layer can publish its own registration
+         extension and bind its own configuration. Neither is infrastructure: no transport,
+         no database driver. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
   <!--
