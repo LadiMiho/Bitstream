@@ -3,8 +3,9 @@
 Project scaffold for the ISP Platform (Bitstream Portal), built to
 *Technical Requirements Document v1.0, August 2026*.
 
-**Scaffold stage: no feature code.** Structure, contracts, schema and build are in place;
-application services are unimplemented and every endpoint answers `501 Not Implemented`.
+**Foundation stage: no feature code.** Structure, contracts, schema, configuration, logging,
+health, CI and deployment are in place. Application services are unimplemented, no
+authentication exists yet, and every business endpoint answers `501 Not Implemented`.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
@@ -24,15 +25,20 @@ src/
   Bitstream.Web                         HTML, ES modules, Tailwind CLI build
 tests/
   Bitstream.ArchitectureTests           layering rules, enforced at build time
+  Bitstream.Api.Tests                   middleware, health endpoints, config validators
+deploy/
+  environments/                         one file per environment, values only
+  *.ps1                                 prerequisites, site, secrets, deployment
 db/
   mssql/                                numbered, idempotent T-SQL
-  Deploy-Database.ps1
+  Deploy-Database.ps1, Get-SchemaStatus.ps1
 docs/
   architecture.md                       layers, ports, message flow
   open-items.md                         which TRD §11.4 answers block what
   deployment-iis.md                     Windows Server / IIS
   integration/interface-inventory.md    every TRD §7.1 row mapped
   adr/                                  the two decisions the brief asked us to state
+.github/workflows/ci.yml                build, lint, test, publish — no container step
 ```
 
 ## Getting started
@@ -52,7 +58,31 @@ cd src/Bitstream.Web && npm ci && npm run build:css
 dotnet run --project src/Bitstream.Api
 ```
 
-## The four deliverables
+## Foundation layer (TRD §2.4)
+
+| Requirement | Where |
+| --- | --- |
+| TR-ARC-06 externalised configuration | `Configuration/` in Application and Api, per-adapter options, validators run at start-up |
+| TR-ARC-04 correlation and structured logging | `ICorrelationContext`, `CorrelationIdMiddleware`, `RequestLoggingMiddleware`, `CorrelationPropagationHandler` |
+| TR-ARC-05 health endpoints | `/health/live`, `/health/ready`, checks in the layer that owns each dependency |
+| TR-NFR-17 CI | `.github/workflows/ci.yml` — build, format, test, publish; no container step |
+| TR-ARC-07/08 provisioning | `deploy/` — idempotent PowerShell, one definition file per environment |
+| Migration tooling | `SchemaVersionGuard`, `db/Get-SchemaStatus.ps1` |
+
+Three of these encode a requirement rather than merely satisfying it, which is worth knowing
+before changing them:
+
+- **Reminders cannot be switched off** while auto-confirmation is enabled (TR-PAS-21b). The
+  timings are configuration, so the rule is only real if the configuration refuses to load
+  without them — otherwise a settings change could start closing ISPs out silently, which is
+  the objection the whole mechanism exists to answer.
+- **Secrets are named, never valued.** Options carry a secret *name*; `ISecretResolver` fetches
+  the value, and refuses one that came from a JSON file outside Development. A credential pasted
+  into `appsettings.json` fails loudly rather than shipping (TR-SEC-28).
+- **Liveness consults nothing.** TR-NFR-07 requires the portal to stay usable in read mode when
+  CRM or BI is down, so a dependency outage must not make IIS recycle a working portal.
+
+## The four Phase 0 deliverables
 
 **1. Layered solution (TRD §2.1, TR-ARC-01/02).** Five projects with the reference direction
 running one way only: Domain ← Application ← Infrastructure ← Api. The application layer
@@ -113,11 +143,15 @@ Honest accounting of what has and has not been run:
 | | |
 | --- | --- |
 | Tailwind build | **Verified** — `npm run build:css` runs clean and emits the expected classes |
+| CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
 | C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
+| Tests | **Not run** — they need the SDK |
 | T-SQL execution | **Not verified** — no SQL Server instance available |
-| Architecture tests | **Not run** — they need the SDK |
+| PowerShell deployment scripts | **Not run** — they need Windows, IIS and SQL Server |
 
 So the first thing to do on a machine with the .NET 10 SDK is `dotnet build` and
 `dotnet test`, and to apply `db/mssql` against a scratch database. Expect small fixes —
-package versions and a stray using are the usual candidates. Nothing in the design depends on
-that pass; it is a compile-and-run check of code that has been written but not executed.
+package versions and a stray using are the usual candidates, and
+`dotnet format --verify-no-changes` will likely want a first formatting pass, since the code
+was written by hand rather than emitted by the formatter. Nothing in the design depends on that
+pass; it is a compile-and-run check of code that has been written but not executed.
