@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bitstream.Domain\Bitstream.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- DI abstractions only, so that each layer can publish its own registration extension. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <!--
+    TR-ARC-01 / TR-ARC-02: application services may only talk to external systems
+    through the ports in Abstractions/Integration. This project must never reference
+    Bitstream.Infrastructure.Integration, Bitstream.Infrastructure.Persistence,
+    an HTTP client package, or a database driver.
+  -->
+
+</Project>

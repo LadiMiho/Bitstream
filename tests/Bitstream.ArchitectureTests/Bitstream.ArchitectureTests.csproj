@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.ArchitectureTests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitstream.Api\Bitstream.Api.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Application\Bitstream.Application.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Domain\Bitstream.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Infrastructure.Integration\Bitstream.Infrastructure.Integration.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Infrastructure.Persistence\Bitstream.Infrastructure.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+</Project>

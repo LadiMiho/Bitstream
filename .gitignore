@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+publish/
+TestResults/
+
+## Node / Tailwind
+node_modules/
+npm-debug.log*
+
+## Generated frontend CSS (built by `npm run build:css`)
+src/Bitstream.Web/wwwroot/css/app.css
+
+## Local secrets — never commit (TR-SEC-28)
+appsettings.Local.json
+appsettings.*.Local.json
+*.pfx
+*.snk
+.env

@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.Api</RootNamespace>
+    <UserSecretsId>bitstream-portal-api</UserSecretsId>
+    <!-- Windows Server / IIS hosting. No container targets are imported anywhere. -->
+    <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bitstream.Application\Bitstream.Application.csproj" />
+    <ProjectReference Include="..\Bitstream.Domain\Bitstream.Domain.csproj" />
+    <!-- Composition root only: the two Infrastructure projects are referenced here
+         so their DI registration extensions can be called from Program.cs. No
+         endpoint or service in this project may use their types directly. -->
+    <ProjectReference Include="..\Bitstream.Infrastructure.Persistence\Bitstream.Infrastructure.Persistence.csproj" />
+    <ProjectReference Include="..\Bitstream.Infrastructure.Integration\Bitstream.Infrastructure.Integration.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <!--
+    Frontend assets.
+
+    The vanilla-JS frontend has no .csproj: it is HTML, ES modules and a Tailwind CLI build.
+    On publish its wwwroot is folded into this application's wwwroot so the portal deploys as
+    a single IIS site with no cross-origin configuration.
+
+    Set BuildFrontend=true on a host that has Node installed (the CI agent) to run the
+    Tailwind build as part of publish:
+        dotnet publish src/Bitstream.Api -c Release -p:BuildFrontend=true
+    Left false by default so that a backend-only build never depends on Node.
+  -->
+  <PropertyGroup>
+    <FrontendDirectory>$(MSBuildThisFileDirectory)..\Bitstream.Web\</FrontendDirectory>
+    <BuildFrontend Condition="'$(BuildFrontend)' == ''">false</BuildFrontend>
+  </PropertyGroup>
+
+  <Target Name="BuildFrontendAssets" Condition="'$(BuildFrontend)' == 'true'">
+    <Exec Command="npm ci" WorkingDirectory="$(FrontendDirectory)" />
+    <Exec Command="npm run build:css" WorkingDirectory="$(FrontendDirectory)" />
+  </Target>
+
+  <Target Name="AddFrontendToPublish"
+          DependsOnTargets="BuildFrontendAssets"
+          BeforeTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_FrontendAsset Include="$(FrontendDirectory)wwwroot\**\*" />
+      <ResolvedFileToPublish Include="@(_FrontendAsset)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+
+    <Warning Condition="!Exists('$(FrontendDirectory)wwwroot\css\app.css')"
+             Text="Frontend stylesheet not found. Run 'npm run build:css' in src/Bitstream.Web, or publish with -p:BuildFrontend=true." />
+  </Target>
+
+</Project>

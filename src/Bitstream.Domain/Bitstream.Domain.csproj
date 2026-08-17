@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    TRD 2.1 — innermost layer.
+    Deliberately has NO package and NO project references: no EF Core, no HTTP,
+    no configuration. Entities and enumerations only.
+  -->
+
+</Project>
