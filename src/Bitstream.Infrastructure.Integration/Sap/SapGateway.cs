@@ -17,6 +17,12 @@ public sealed class SapOptions
     /// must tolerate (TR-INT-14).
     /// </summary>
     public bool Enabled { get; set; }
+
+    /// <summary>Path probed by the health check, relative to <see cref="BaseAddress"/>.</summary>
+    public string? HealthPath { get; set; }
+
+    /// <summary>Timeout for the health probe.</summary>
+    public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>

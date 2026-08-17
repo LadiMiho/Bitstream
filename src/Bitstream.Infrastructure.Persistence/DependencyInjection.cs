@@ -1,3 +1,4 @@
+using Bitstream.Infrastructure.Persistence.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +44,17 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the database reachability check (TR-ARC-05). Tagged "database" so that
+    /// readiness includes it and liveness does not.
+    /// </summary>
+    public static IHealthChecksBuilder AddBitstreamPersistenceHealthChecks(this IHealthChecksBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        return builder.AddCheck<DatabaseHealthCheck>(DatabaseHealthCheck.Name, tags: ["dependency", "database"]);
     }
 
     /// <summary>Persistence option types validated eagerly at start-up.</summary>

@@ -1,6 +1,7 @@
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Infrastructure.Integration.Bi;
 using Bitstream.Infrastructure.Integration.Crm;
+using Bitstream.Infrastructure.Integration.HealthChecks;
 using Bitstream.Infrastructure.Integration.Http;
 using Bitstream.Infrastructure.Integration.Mail;
 using Bitstream.Infrastructure.Integration.Sap;
@@ -54,7 +55,36 @@ public static class DependencyInjection
 
         services.AddSingleton<IEmailGateway, SmtpEmailGateway>();
 
+        // Probe clients, separate from the adapters' own clients so that a short health-check
+        // timeout never shortens a real integration call (TR-ARC-05, TR-INT-08).
+        services.AddHttpClient(CrmHealthCheck.ClientName, (provider, client) =>
+            client.Timeout = provider.GetRequiredService<IOptions<CrmOptions>>().Value.HealthCheckTimeout);
+
+        services.AddHttpClient(BiHealthCheck.ClientName, (provider, client) =>
+            client.Timeout = provider.GetRequiredService<IOptions<BiOptions>>().Value.HealthCheckTimeout);
+
+        services.AddHttpClient(SapHealthCheck.ClientName, (provider, client) =>
+            client.Timeout = provider.GetRequiredService<IOptions<SapOptions>>().Value.HealthCheckTimeout);
+
         return services;
+    }
+
+    /// <summary>
+    /// Registers the dependency reachability checks (TR-ARC-05).
+    /// Separate from <see cref="AddBitstreamIntegration"/> so that a host which does not expose
+    /// health endpoints — a job runner, a test host — is not forced to take them.
+    /// </summary>
+    public static IHealthChecksBuilder AddBitstreamIntegrationHealthChecks(this IHealthChecksBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        // Tagged "dependency" so that readiness can select them and liveness can exclude them:
+        // TR-NFR-07 requires the portal to stay usable when CRM or BI is down.
+        return builder
+            .AddCheck<CrmHealthCheck>(CrmHealthCheck.Name, tags: ["dependency", "crm"])
+            .AddCheck<BiHealthCheck>(BiHealthCheck.Name, tags: ["dependency", "bi"])
+            .AddCheck<SapHealthCheck>(SapHealthCheck.Name, tags: ["dependency", "sap"])
+            .AddCheck<SmtpHealthCheck>(SmtpHealthCheck.Name, tags: ["dependency", "smtp"]);
     }
 
     /// <summary>Adapter option types validated eagerly at start-up.</summary>

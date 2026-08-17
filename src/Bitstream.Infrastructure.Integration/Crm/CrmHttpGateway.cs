@@ -27,6 +27,15 @@ public sealed class CrmOptions
 
     /// <summary>Client certificate thumbprint, when the agreed method is mutual TLS.</summary>
     public string? ClientCertificateThumbprint { get; set; }
+
+    /// <summary>
+    /// Path probed by the health check, relative to <see cref="BaseAddress"/>. Configurable
+    /// because the path is CRM's to choose and is not yet agreed (TR-ARC-05, TR-ARC-06).
+    /// </summary>
+    public string? HealthPath { get; set; }
+
+    /// <summary>Timeout for the health probe. Short, so readiness stays responsive.</summary>
+    public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>

@@ -38,6 +38,9 @@ public sealed class SmtpOptions
     /// </summary>
     public IDictionary<string, string[]> DistributionGroups { get; set; } =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Timeout for the health probe's TCP connect (TR-ARC-05).</summary>
+    public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>

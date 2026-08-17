@@ -90,9 +90,11 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// TR-ARC-05: health endpoints report the reachability of the dependencies. Individual
-// checks for database, CRM, BI and SMTP are registered by each adapter as it is built.
-builder.Services.AddHealthChecks();
+// TR-ARC-05: each layer contributes the checks for the dependencies it owns. The presentation
+// layer only decides which of them liveness and readiness consult.
+builder.Services.AddHealthChecks()
+    .AddBitstreamPersistenceHealthChecks()
+    .AddBitstreamIntegrationHealthChecks();
 
 var app = builder.Build();
 

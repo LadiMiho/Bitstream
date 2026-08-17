@@ -21,6 +21,12 @@ public sealed class BiOptions
 
     /// <summary>Consecutive failed cycles before an alert is raised (TR-PAS-07).</summary>
     public int FailureAlertThreshold { get; set; } = 2;
+
+    /// <summary>Path probed by the health check, relative to <see cref="BaseAddress"/>.</summary>
+    public string? HealthPath { get; set; }
+
+    /// <summary>Timeout for the health probe.</summary>
+    public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>
