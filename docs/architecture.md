@@ -114,8 +114,41 @@ Two design choices worth knowing before extending this module:
   This is what makes TR-SEC-19's not-found (rather than forbidden) response possible: the
   decision is identity-only, made before the database is even asked whether the record exists.
 
+## Activation requests (TRD 5)
+
+The second fully implemented module. `ActivationRequestService` owns the TRD 5.3 state machine
+end to end for the steps that do not require CRM to have answered: submission, the GIS
+verification admin screen, and applying a sales order once one exists. CRM itself is not called
+— see "CRM stays a stub here" below.
+
+| Concern | Where | Requirement |
+| --- | --- | --- |
+| Public identifier | `SqlPublicIdentifierGenerator`, calling `ops.usp_NextPublicIdentifier` inside the caller's transaction | TR-DAT-01 to TR-DAT-02e |
+| Submission validation | `ActivationRequestService.SubmitAsync` — package, location, classification, contract duration, comment length, against `CatalogueOptions` | TR-ACT-01, TR-ACT-04, TR-ACT-05 |
+| Coordinate parsing | `CoordinateParser` — a bare pair or a map URL's `@lat,lng` / `q=`/`ll=` parameter, normalised and range-checked | TR-ACT-02, TR-ACT-03 |
+| State machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change in the service goes through it | TRD 5.3 |
+| GIS verification | `RecordGisOutcomeAsync` — the no-line and line-exists branches, only permitted from `AwaitingGisVerification` | TR-ACT-12 to TR-ACT-19 |
+| Outbound CRM messages | Enqueued on `IIntegrationOutbox`, never called directly | TR-ARC-03, TR-INT-02 |
+
+**CRM stays a stub here, deliberately.** `SubmitAsync` enqueues INT-CRM-01 (create customer) and
+INT-CRM-02 (create activation ticket) on the outbox and stops; it does not call `ICrmGateway`.
+`IIntegrationOutbox` is implemented (`Infrastructure.Persistence/IntegrationOutbox.cs`) as pure
+storage — enqueue, claim, mark succeeded or failed, replay — but nothing claims a message and
+dispatches it to a gateway yet. That dispatcher, and the transitions that follow from CRM's
+response (`PendingCrmSync` onward to `Completed`, driven by the inbound event API), are Phase 4.
+Until then, a request that reaches `AwaitingGisVerification` gets there by direct seeding in
+tests, not by a real CRM round trip — consistent with `CrmHttpGateway` throwing
+`NotSupportedException` for the same reason (TRD 11.4 open item 1).
+
+**The state machine is proven exhaustively, not just at the paths this module drives.**
+`ActivationRequestTransitionsTests` checks every ordered pair of the ten statuses against an
+independently restated copy of the TRD 5.3 table — every permitted transition and every
+rejection, including self-transitions and skipped steps — so the table in
+`ActivationRequestTransitions` cannot silently drift from the design without a test failing.
+
 ## Deliberate gaps
 
-Every application service besides identity and administration is still a stub, and the CRM,
-BI and SAP adapters still throw. That is not an oversight — see [`open-items.md`](open-items.md)
-for which TRD §11.4 answers are needed before which piece can be built.
+Every application service besides identity, administration and activation requests is still a
+stub, and the CRM, BI and SAP adapters still throw. That is not an oversight — see
+[`open-items.md`](open-items.md) for which TRD §11.4 answers are needed before which piece can be
+built.

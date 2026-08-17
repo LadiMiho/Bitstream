@@ -3,11 +3,14 @@
 Project scaffold for the ISP Platform (Bitstream Portal), built to
 *Technical Requirements Document v1.0, August 2026*.
 
-**Foundation and Access Management (TRD §4) are built.** Structure, contracts, schema,
-configuration, logging, health, CI and deployment are in place, and so is the first full
-application module: authentication, 2FA, sessions, RBAC and ISP/user administration. Every
-other application service — activation requests, complaint tickets, reporting, the CRM/BI/SAP
-adapters — is still unimplemented, and their endpoints still answer `501 Not Implemented`.
+**Foundation, Access Management (TRD §4) and Activation Requests (TRD §5) are built.**
+Structure, contracts, schema, configuration, logging, health, CI and deployment are in place,
+and so are the first two full application modules: authentication, 2FA, sessions, RBAC and
+ISP/user administration; and activation request submission, the GIS verification admin screen
+and the TRD §5.3 state machine. Every other application service — complaint tickets, reporting,
+the CRM/BI/SAP adapters — is still unimplemented, and their endpoints still answer
+`501 Not Implemented`. CRM is deliberately still a stub even for what activation requests
+enqueue: see "Activation Requests" below.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
@@ -29,6 +32,7 @@ tests/
   Bitstream.ArchitectureTests           layering rules, enforced at build time
   Bitstream.Api.Tests                   middleware, health endpoints, config validators
     Identity/                           auth, RBAC, lockout, sessions — see below
+    Activation/                         submission, state machine, GIS verification — see below
 deploy/
   environments/                         one file per environment, values only
   *.ps1                                 prerequisites, site, secrets, deployment
@@ -123,6 +127,33 @@ the idle and absolute session timeouts from each other. The lock-cascade logic
 it calls a bulk `ExecuteUpdateAsync`, which EF Core's InMemory provider (standing in for SQL
 Server, which is unavailable in this environment) does not support.
 
+## Activation Requests (TRD §5)
+
+`ActivationRequestService` drives the TRD §5.3 state machine — Submitted through Completed — for
+every step that does not require CRM to have actually answered. Full write-up in
+[`docs/architecture.md`](docs/architecture.md#activation-requests-trd-5).
+
+| Requirement | Where |
+| --- | --- |
+| TR-DAT-01 to TR-DAT-02e identifier | `SqlPublicIdentifierGenerator`, calling `ops.usp_NextPublicIdentifier` inside the caller's transaction — gap-free, `PREFIX_NUMBER`, never zero-padded |
+| TR-ACT-01 to TR-ACT-06 submission | `ActivationRequestService.SubmitAsync` — package, location, classification and contract duration validated against `CatalogueOptions`; the identifier is issued and the record persisted before any CRM call is enqueued |
+| TR-ACT-02/03 coordinates | `CoordinateParser` — a bare `lat,lng` pair or a map URL's `@lat,lng` marker or `q=`/`ll=` parameter, normalised and range-checked |
+| TRD §5.3 state machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change goes through it, so an invalid jump fails rather than corrupting the record |
+| TR-ACT-12 to TR-ACT-19 GIS verification | `RecordGisOutcomeAsync` — the no-line and line-exists branches, only permitted from `AwaitingGisVerification`; a no-line outcome requires a reason |
+
+**CRM is enqueued, never called.** `SubmitAsync` puts INT-CRM-01 and INT-CRM-02 on
+`IIntegrationOutbox` and stops — `IIntegrationOutbox` is now implemented
+(`Infrastructure.Persistence/IntegrationOutbox.cs`), but as storage only: enqueue, claim, mark
+succeeded or failed, replay. Nothing yet claims a message and dispatches it through
+`ICrmGateway`; that dispatcher, and the transitions that follow from CRM's response
+(`PendingCrmSync` onward), are Phase 4, blocked on TRD §11.4 open item 1 exactly as `CrmHttpGateway`
+already documents.
+
+**The state table is tested exhaustively, not just along the paths this module drives.**
+`ActivationRequestTransitionsTests` checks all 100 ordered pairs of the ten TRD §5.3 statuses —
+every permitted transition and every rejection — against an independently restated copy of the
+table, so a rejected transition is proven rejected, not merely unasserted.
+
 ## The four Phase 0 deliverables
 
 **1. Layered solution (TRD §2.1, TR-ARC-01/02).** Five projects with the reference direction
@@ -186,7 +217,7 @@ Honest accounting of what has and has not been run:
 | Tailwind build | **Verified** — `npm run build:css` runs clean and emits the expected classes |
 | CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
 | C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
-| Tests, including `Identity/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
+| Tests, including `Identity/*` and `Activation/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
 | T-SQL execution, incl. `0009_sessions_and_two_factor.sql` | **Not verified** — no SQL Server instance available |
 | PowerShell deployment scripts | **Not run** — they need Windows, IIS and SQL Server |
 

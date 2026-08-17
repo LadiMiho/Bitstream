@@ -21,8 +21,11 @@ it has already refused, or silently drops requests it would have accepted. TR-IN
 requires the field mapping to be signed off by both teams *before* development.
 
 **What exists:** `ICrmGateway` with the full operation set, `CrmHttpGateway` throwing
-`NotSupportedException`, and the outbox that will dispatch to it. Wiring the real calls touches
-that one class and nothing else.
+`NotSupportedException`, and `IIntegrationOutbox` (storage only — enqueue, claim, mark succeeded
+or failed, replay) that a dispatcher will drain once this item is answered. The activation
+request module (TRD 5, built) already enqueues INT-CRM-01 and INT-CRM-02 on submission and stops
+there; nothing claims or dispatches a message yet. Wiring the real calls touches `CrmHttpGateway`
+and adds the dispatcher — the application services that enqueue do not change.
 
 ### Item 5 — Where the SAP financial code is populated
 *From: Wholesale / Finance.*
