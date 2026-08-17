@@ -90,10 +90,23 @@ placeholder template; it just must not go live against one.
 ### Item 13 — 2FA delivery channel for production
 *From: Security.*
 
-**Blocks:** completing the login flow. TOTP, SMS OTP and email OTP differ in enrolment,
-recovery and in what has to be stored — `User.TotpSecret` exists for the TOTP case and stays
-null otherwise. TR-SEC-05 also forbids production falling back to a weaker channel than the
-configured one, which needs a channel to be configured first.
+**Blocks:** which channel is live in production, not the login flow itself any more — the
+Access Management module (TRD §4) is now built against all three, and `Security:TwoFactor:Channel`
+switches between them without a code change (TR-ARC-06). TOTP, SMS OTP and email OTP differ in
+enrolment, recovery and in what has to be stored — `User.TotpSecret` exists for the TOTP case
+and stays null otherwise. TR-SEC-05 also forbids production falling back to a weaker channel
+than the configured one, which needs a channel to be configured first.
+
+**What exists:** `Totp` (RFC 6238, `TotpService`) is fully implemented and is the scaffold
+default, precisely because it needs no delivery channel and so is not itself blocked by this
+item. `EmailOtp` is fully implemented and switches on with one configuration value, but is only
+actually usable once `SmtpEmailGateway` is built (open item 1's sibling gap — SMTP has no
+adapter contract of its own to be blocked on, it is simply not written yet). `SmsOtp` throws
+`NotSupportedException`: no SMS provider is named anywhere in the TRD, so there is nothing to
+implement against yet, consistent with how CRM and SAP are left unimplemented pending their own
+open items. Whichever channel is confirmed, provisioning a user for it is already wired
+(`AdministrationService.CreateUserAsync` generates and encrypts a TOTP secret at creation time
+when the configured channel is `Totp`).
 
 ## Not blocking design — configuration or content
 
@@ -149,7 +162,7 @@ depends on it — no line selection means no complaint ticket. `IBiGateway` and
 | 4 CRM status / event type list | Status projection, notifications, dashboard | Partly |
 | 8 Category catalogue | Complaint ticket form | Partly |
 | 6, 7 Recipients and email sample | Correct notifications | Yes, not go-live |
-| 13 2FA channel | Login flow completion | Partly |
+| 13 2FA channel | Which channel is live in production | Built (Totp default), yes |
 | 2 Identifier prefix | Go-live only | Yes |
 | 9 Auto-confirmation approval | Nothing; configurable | Yes |
 | 10 Retention periods | Archival job | Yes |
