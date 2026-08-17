@@ -1,3 +1,4 @@
+using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence.HealthChecks;
 using Bitstream.Infrastructure.Persistence.Repositories;
@@ -59,6 +60,14 @@ public static class DependencyInjection
         services.AddScoped<IIspRepository, IspRepository>();
         services.AddScoped<IUserSessionStore, UserSessionStore>();
         services.AddScoped<ITwoFactorChallengeStore, TwoFactorChallengeStore>();
+
+        // TRD 5 — activation request lifecycle. The identifier generator and the outbox are
+        // both persistence-backed (no adapter, no HttpClient): the former calls a stored
+        // procedure, the latter only stores and claims rows for a dispatcher that does not exist
+        // yet (Phase 4).
+        services.AddScoped<IActivationRequestRepository, ActivationRequestRepository>();
+        services.AddScoped<IPublicIdentifierGenerator, SqlPublicIdentifierGenerator>();
+        services.AddScoped<IIntegrationOutbox, IntegrationOutbox>();
 
         return services;
     }
