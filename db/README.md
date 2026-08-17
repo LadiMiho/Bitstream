@@ -25,6 +25,37 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |
 
+## Checking where a database actually is
+
+```powershell
+.\Get-SchemaStatus.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -ExpectedVersion 1
+```
+
+Compares the files in `mssql/` with the rows in `ops.SchemaVersion` and lists what is pending.
+Exit code 0 means the database matches the application build, 1 means scripts are pending or
+the version differs, 2 means the database is unreachable — so it works as a deployment gate.
+
+It also flags the reverse case: applied scripts with no matching file, which means the database
+is *ahead* of the checkout and deploying this build would move the application backwards.
+
+## Changing the schema
+
+1. Add a new numbered script. Never edit an applied one — an idempotent script that has already
+   run is history, and editing it means two environments silently differ.
+2. Keep it backward compatible with the previous application version: add columns nullable, add
+   tables, do not drop or rename. The deployment order is database first, then application, and
+   TR-NFR-19 requires that to work without downtime.
+3. Bump `BitstreamDbContext.ExpectedSchemaVersion` and pass the same value as
+   `-SchemaVersion` to `Deploy-Database.ps1`.
+4. Update the EF configuration in `src/Bitstream.Infrastructure.Persistence/Configurations/`
+   to match, including index names and filter predicates.
+
+`SchemaVersionGuard` compares the two at start-up and refuses to start on a mismatch, so an
+application deployed ahead of its schema fails immediately rather than on the first request that
+touches a new column. An unreachable database at start-up is treated differently — the host
+starts and the readiness probe reports it, because a database that is not up yet is not the same
+fault as a wrong schema and must not crash-loop the site under IIS.
+
 ## Schema layout
 
 | Schema | Holds | Why separate |

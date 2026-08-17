@@ -43,6 +43,9 @@ public static class DependencyInjection
             });
         });
 
+        // Deployed schema versus expected schema, checked once at start-up (ADR-0002).
+        services.AddHostedService<SchemaVersionGuard>();
+
         return services;
     }
 
