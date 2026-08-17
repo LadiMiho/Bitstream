@@ -1,10 +1,14 @@
 using Bitstream.Api.Configuration;
 using Bitstream.Api.Endpoints;
 using Bitstream.Api.Middleware;
+using Bitstream.Api.Security;
 using Bitstream.Application;
 using Bitstream.Application.Abstractions.Configuration;
+using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Integration;
 using Bitstream.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
@@ -25,6 +29,24 @@ builder.Services.AddBitstreamIntegration(builder.Configuration);
 
 // TR-SEC-28: adapters ask for a secret by name; this decides where names resolve on this host.
 builder.Services.AddSingleton<ISecretResolver, ConfigurationSecretResolver>();
+
+// --- Identity and access (TRD 4) --------------------------------------------------------
+// TR-SEC-07: authentication is entirely server-side session validation — see
+// SessionAuthenticationHandler — never a self-contained token the client could forge or that
+// could outlive a revocation. This is also what turns HttpCurrentUserContext's claims into the
+// ambient identity every application service authorises against (TR-SEC-17 to TR-SEC-19).
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+
+builder.Services
+    .AddAuthentication(SessionAuthenticationHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuthenticationHandler.SchemeName, _ => { });
+
+// TR-SEC-17: every permission requirement — attached per endpoint via RequirePermission — is
+// evaluated by this one handler, reading the claims the session handler set. No endpoint in this
+// solution may substitute a client-side check for it (TR-SEC-20).
+builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services.AddOptions<RateLimitOptions>()
     .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName));
@@ -87,6 +109,15 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueLimit = 0;
     });
 
+    // TR-SEC-29: tighter than Administration on purpose — this is exactly where a
+    // credential-stuffing or lockout-triggering attempt would land.
+    options.AddFixedWindowLimiter(RateLimitPolicies.Authentication, limiter =>
+    {
+        limiter.PermitLimit = rateLimits.Authentication.PermitLimit;
+        limiter.Window = TimeSpan.FromSeconds(rateLimits.Authentication.WindowSeconds);
+        limiter.QueueLimit = 0;
+    });
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -120,6 +151,12 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 
+// TR-SEC-07 / TR-SEC-17: authentication resolves who is calling from the session cookie;
+// authorization then evaluates permission requirements against that identity. Both run before
+// any endpoint, so no route can be reached without going through them.
+app.UseAuthentication();
+app.UseAuthorization();
+
 // The vanilla-JS frontend is served by this host so that the portal is a single IIS site and
 // the session cookie is same-origin. On publish, src/Bitstream.Web/wwwroot is copied into
 // wwwroot (see the AddFrontendToPublish target); in Development it is served from source so
@@ -149,6 +186,8 @@ app.MapOpenApi();
 app.MapCrmInboundEndpoints();
 app.MapOperationsEndpoints();
 app.MapHealthEndpoints();
+app.MapAuthEndpoints();
+app.MapAdministrationEndpoints();
 
 app.Run();
 
@@ -158,6 +197,8 @@ internal static class RateLimitPolicies
     public const string CrmInbound = "crm-inbound";
 
     public const string Administration = "administration";
+
+    public const string Authentication = "authentication";
 }
 
 /// <summary>

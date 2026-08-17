@@ -247,6 +247,7 @@ public sealed partial class AdministrationService : IAdministrationService
             throw new AdministrationValidationException(violations);
         }
 
+        var role = await ResolveRoleAsync(request.RoleName, cancellationToken).ConfigureAwait(false);
         var now = _clock.UtcNow;
         var passwordHash = _passwordHasher.Hash(request.InitialPassword);
 
@@ -256,7 +257,11 @@ public sealed partial class AdministrationService : IAdministrationService
             FullName = request.FullName,
             Email = request.Email,
             Mobile = request.Mobile,
-            RoleId = await ResolveRoleIdAsync(request.RoleName, cancellationToken).ConfigureAwait(false),
+            RoleId = role.RoleId,
+            // Set explicitly rather than left to EF's change-tracker fixup: this is the entity
+            // CreateUserAsync hands back to the caller, and ToResponse (AdministrationEndpoints)
+            // reads user.Role.Name from it before anything would trigger a reload.
+            Role = role,
             Status = UserStatus.Active,
             PasswordHash = passwordHash,
             PasswordHashAlgorithm = _passwordHasher.AlgorithmTag,
@@ -346,14 +351,14 @@ public sealed partial class AdministrationService : IAdministrationService
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<long> ResolveRoleIdAsync(string roleName, CancellationToken cancellationToken)
+    private async Task<Role> ResolveRoleAsync(string roleName, CancellationToken cancellationToken)
     {
         // Roles are seeded (db/mssql/0007) rather than looked up through a repository method of
         // their own: there are exactly four, they never change through this service, and
         // TR-SEC-21's configurability is about permission assignment, not the role list itself.
         var role = await _roleRepository.FindByNameAsync(roleName, cancellationToken).ConfigureAwait(false);
 
-        return role?.RoleId ??
+        return role ??
             throw new AdministrationValidationException($"Role '{roleName}' is not seeded in this environment.");
     }
 

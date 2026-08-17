@@ -16,6 +16,14 @@ public sealed class RateLimitOptions
 
     /// <summary>Limit applied to administrative and operational endpoints.</summary>
     public RateLimitPolicyOptions Administration { get; set; } = new() { PermitLimit = 60, WindowSeconds = 60 };
+
+    /// <summary>
+    /// Limit applied to <c>/api/v1/auth/*</c> — tighter than <see cref="Administration"/> on
+    /// purpose (TR-SEC-29): this is exactly where a credential-stuffing or lockout-triggering
+    /// attempt would land. The account-lockout threshold (TR-SEC-06) still applies per account
+    /// regardless of this limit, which applies per caller.
+    /// </summary>
+    public RateLimitPolicyOptions Authentication { get; set; } = new() { PermitLimit = 20, WindowSeconds = 60 };
 }
 
 /// <summary>A single fixed-window policy.</summary>
@@ -39,6 +47,7 @@ public sealed class RateLimitOptionsValidator : IValidateOptions<RateLimitOption
 
         Check(nameof(options.CrmInbound), options.CrmInbound, failures);
         Check(nameof(options.Administration), options.Administration, failures);
+        Check(nameof(options.Authentication), options.Authentication, failures);
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
