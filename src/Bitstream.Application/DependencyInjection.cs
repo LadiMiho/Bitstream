@@ -1,4 +1,7 @@
+using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Configuration;
+using Bitstream.Application.Services;
+using Bitstream.Application.Services.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -43,10 +46,45 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(WorkingCalendarOptions.SectionName));
         services.AddSingleton<IValidateOptions<WorkingCalendarOptions>, WorkingCalendarOptionsValidator>();
 
+        // TRD 4 — access management (TR-SEC-02 to TR-SEC-07).
+        services.AddOptions<PasswordPolicyOptions>()
+            .Bind(configuration.GetSection(PasswordPolicyOptions.SectionName));
+        services.AddSingleton<IValidateOptions<PasswordPolicyOptions>, PasswordPolicyOptionsValidator>();
+
+        services.AddOptions<TwoFactorOptions>()
+            .Bind(configuration.GetSection(TwoFactorOptions.SectionName));
+        services.AddSingleton<IValidateOptions<TwoFactorOptions>, TwoFactorOptionsValidator>();
+
+        services.AddOptions<SessionOptions>()
+            .Bind(configuration.GetSection(SessionOptions.SectionName));
+        services.AddSingleton<IValidateOptions<SessionOptions>, SessionOptionsValidator>();
+
+        services.AddOptions<LockoutOptions>()
+            .Bind(configuration.GetSection(LockoutOptions.SectionName));
+        services.AddSingleton<IValidateOptions<LockoutOptions>, LockoutOptionsValidator>();
+
         // TR-ARC-04. Singleton because the value it holds is per-async-flow, not per-instance.
         services.AddSingleton<Abstractions.ICorrelationContext, CorrelationContext>();
 
-        // Application service implementations are registered here as modules are built.
+        services.AddSingleton<Abstractions.Time.IClock, SystemClock>();
+
+        // Pure cryptographic computation — no external system, no HTTP, no database driver — so
+        // these live and are registered in this layer rather than in an infrastructure adapter
+        // (TR-SEC-02, TR-SEC-04).
+        services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
+        services.AddSingleton<IPasswordPolicyValidator, PasswordPolicyValidator>();
+        services.AddSingleton<ITotpService, TotpService>();
+
+        // Encrypts the TOTP secret at rest through ISecretResolver (TR-SEC-28); registered here
+        // because it too is pure computation once the key is resolved, not an adapter.
+        services.AddSingleton<ITotpSecretProtector, AesGcmTotpSecretProtector>();
+
+        // Orchestrate ports declared in Abstractions.Persistence and Abstractions.Integration —
+        // implemented in the Persistence and Integration layers respectively, never referenced
+        // directly here (TR-ARC-01).
+        services.AddScoped<IIdentityService, IdentityService>();
+        services.AddScoped<IAdministrationService, AdministrationService>();
+
         return services;
     }
 
@@ -60,6 +98,10 @@ public static class DependencyInjection
         typeof(IdentifierOptions),
         typeof(CatalogueOptions),
         typeof(TicketClosureOptions),
-        typeof(WorkingCalendarOptions)
+        typeof(WorkingCalendarOptions),
+        typeof(PasswordPolicyOptions),
+        typeof(TwoFactorOptions),
+        typeof(SessionOptions),
+        typeof(LockoutOptions)
     ];
 }

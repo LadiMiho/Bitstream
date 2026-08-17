@@ -14,6 +14,9 @@
          no database driver. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <!-- Pure Argon2id computation, no external system, no HTTP, no database driver — fits this
+         layer the same way the BCL cryptography types used by TotpService do. -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
   </ItemGroup>
 
   <!--

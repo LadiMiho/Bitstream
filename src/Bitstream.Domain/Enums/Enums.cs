@@ -50,6 +50,23 @@ public enum ClosureDecision
     CompletedByCrm
 }
 
+/// <summary>
+/// Second-factor delivery channel, TR-SEC-04 / TR-SEC-05. Configurable per environment;
+/// production must not fall back to a channel weaker than the configured one. The channel to
+/// use in production is TRD 11.4 open item 13.
+/// </summary>
+public enum TwoFactorChannel
+{
+    /// <summary>Time-based one-time code from an authenticator app (RFC 6238). Needs no delivery channel.</summary>
+    Totp,
+
+    /// <summary>One-time code emailed through the SMTP relay (TRD 7.1 INT-MAIL-01).</summary>
+    EmailOtp,
+
+    /// <summary>One-time code by SMS. Not implemented: no SMS provider is named anywhere in the TRD (open item 13).</summary>
+    SmsOtp
+}
+
 /// <summary>Author category of a ticket comment, TRD 3.1 / TR-PAS-27.</summary>
 public enum CommentAuthorType
 {

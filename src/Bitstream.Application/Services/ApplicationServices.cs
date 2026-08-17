@@ -164,31 +164,178 @@ public sealed record ExportRequest(
 
 public sealed record ExportStatus(Guid ExportId, string State, int RowCount, string? DownloadToken);
 
-/// <summary>Identity &amp; Access Service — authentication, 2FA, administration (TRD 4).</summary>
+/// <summary>
+/// Identity &amp; Access Service — authentication, 2FA, session lifecycle (TRD 4.1).
+/// <para>
+/// Two calls per login, matching TRD 4.1's two factors: <see cref="AuthenticateAsync"/> checks
+/// the password and, on success, issues a second-factor challenge; <see cref="CompleteSecondFactorAsync"/>
+/// checks the code and, on success, issues a session. Neither call on its own authenticates a
+/// user — TR-SEC-04 enforces 2FA at every login, with no path that skips it.
+/// </para>
+/// </summary>
 public interface IIdentityService
 {
-    /// <summary>First factor. Never reveals whether the account exists; locks at 5 failures (TR-SEC-06).</summary>
-    Task<AuthenticationChallenge> AuthenticateAsync(string email, string password, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// First factor (TR-SEC-01, TR-SEC-02). A locked account is rejected without a password
+    /// check (TR-SEC-12); a wrong password increments the failure count and locks the account
+    /// at the configured threshold (TR-SEC-06, default 5).
+    /// </summary>
+    Task<LoginResult> AuthenticateAsync(string email, string password, string? actorIp, CancellationToken cancellationToken = default);
 
-    /// <summary>Second factor; the code is single-use and valid for at most 5 minutes (TR-SEC-04).</summary>
-    Task<AuthenticationResult> CompleteSecondFactorAsync(string challengeId, string code, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Second factor (TR-SEC-04). The challenge is single-use: a repeated or expired token, or
+    /// one that has exhausted its attempt budget, is rejected without checking the code.
+    /// </summary>
+    Task<TwoFactorResult> CompleteSecondFactorAsync(string challengeToken, string code, string? actorIp, CancellationToken cancellationToken = default);
 
-    Task SignOutAsync(string sessionId, CancellationToken cancellationToken = default);
+    /// <summary>Invalidates a session token immediately (TR-SEC-07). Idempotent.</summary>
+    Task SignOutAsync(string sessionToken, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Validates a session token against the store, applying the idle and absolute timeouts and
+    /// the current user/ISP lock state (TR-SEC-07, TR-SEC-12). Called on every authenticated
+    /// request by the presentation layer's authentication handler; touches
+    /// <c>UserSession.LastActivityAt</c> on success, which is what makes the idle timeout slide.
+    /// </summary>
+    Task<AuthenticatedUser?> ValidateSessionAsync(string sessionToken, CancellationToken cancellationToken = default);
 }
 
-public sealed record AuthenticationChallenge(string ChallengeId, string SecondFactorChannel, DateTimeOffset ExpiresAt);
+/// <summary>Outcome of the first factor.</summary>
+public enum LoginOutcome
+{
+    /// <summary>Password verified; a second-factor challenge was issued.</summary>
+    ChallengeIssued,
 
-public sealed record AuthenticationResult(bool Succeeded, string? SessionToken, DateTimeOffset? ExpiresAt);
+    /// <summary>
+    /// No such account, or the password was wrong. Deliberately the same outcome for both —
+    /// TR-SEC-01 gives every user a unique email, and distinguishing "no such email" from
+    /// "wrong password" in the response would let a caller enumerate registered addresses.
+    /// </summary>
+    InvalidCredentials,
 
-/// <summary>ISP and user administration, Administrator role only (TR-SEC-09 to TR-SEC-16).</summary>
+    /// <summary>
+    /// The account is locked — either already, or as a result of this attempt reaching the
+    /// failure threshold. Disclosed deliberately: TR-NFR-12 asks for actionable errors, this is
+    /// a closed wholesale portal with no public self-registration, and a legitimate user who
+    /// gets locked out needs to know why (TR-SEC-06).
+    /// </summary>
+    AccountLocked
+}
+
+/// <param name="ChallengeToken">Opaque token to submit with the code. Present only when <see cref="Outcome"/> is <see cref="LoginOutcome.ChallengeIssued"/>.</param>
+/// <param name="Channel">Second-factor channel the challenge was issued on.</param>
+/// <param name="ExpiresAt">At most 5 minutes from issuance (TR-SEC-04).</param>
+public sealed record LoginResult(
+    LoginOutcome Outcome,
+    string? ChallengeToken,
+    TwoFactorChannel? Channel,
+    DateTimeOffset? ExpiresAt)
+{
+    public static LoginResult ChallengeIssued(string challengeToken, TwoFactorChannel channel, DateTimeOffset expiresAt) =>
+        new(LoginOutcome.ChallengeIssued, challengeToken, channel, expiresAt);
+
+    public static LoginResult InvalidCredentials() => new(LoginOutcome.InvalidCredentials, null, null, null);
+
+    public static LoginResult AccountLocked() => new(LoginOutcome.AccountLocked, null, null, null);
+}
+
+/// <summary>Outcome of the second factor.</summary>
+public enum TwoFactorOutcome
+{
+    Succeeded,
+
+    /// <summary>Wrong code, or no such challenge — the same outcome for both, for the same enumeration reason as <see cref="LoginOutcome.InvalidCredentials"/>.</summary>
+    InvalidCode,
+
+    /// <summary>Past its 5-minute validity, or already consumed by an earlier successful verification.</summary>
+    ChallengeExpired,
+
+    /// <summary>The challenge's verification-attempt budget is exhausted; a new login is required.</summary>
+    TooManyAttempts
+}
+
+/// <param name="SessionToken">Raw session token — the presentation layer sets this as the HttpOnly session cookie. Present only when <see cref="Outcome"/> is <see cref="TwoFactorOutcome.Succeeded"/>.</param>
+public sealed record TwoFactorResult(
+    TwoFactorOutcome Outcome,
+    string? SessionToken,
+    DateTimeOffset? SessionExpiresAt,
+    AuthenticatedUser? User)
+{
+    public static TwoFactorResult Succeeded(string sessionToken, DateTimeOffset expiresAt, AuthenticatedUser user) =>
+        new(TwoFactorOutcome.Succeeded, sessionToken, expiresAt, user);
+
+    public static TwoFactorResult InvalidCode() => new(TwoFactorOutcome.InvalidCode, null, null, null);
+
+    public static TwoFactorResult Expired() => new(TwoFactorOutcome.ChallengeExpired, null, null, null);
+
+    public static TwoFactorResult TooManyAttempts() => new(TwoFactorOutcome.TooManyAttempts, null, null, null);
+}
+
+/// <summary>
+/// The authenticated principal, as built from the session's user, role and permissions
+/// (TR-SEC-17). <see cref="Permissions"/> is read fresh from the database on every request
+/// validation, not cached in the token, so a permission change takes effect on the caller's
+/// very next request rather than only after their next login.
+/// </summary>
+public sealed record AuthenticatedUser(
+    long UserId,
+    string FullName,
+    string Email,
+    string RoleName,
+    long? IspId,
+    IReadOnlyList<string> Permissions);
+
+/// <summary>
+/// ISP and user administration, Administrator role only (TR-SEC-09 to TR-SEC-16).
+/// <para>
+/// The read methods enforce ownership the same way for every caller: an Administrator or
+/// Auditor (holding <c>isp.read.all</c>) may read any ISP or user; anyone else may read only
+/// their own ISP or their own user record. A request for someone else's returns null exactly as
+/// if the record did not exist — TR-SEC-19 requires a not-found response, not a forbidden one,
+/// specifically so that the response cannot be used to confirm another ISP's existence.
+/// </para>
+/// </summary>
 public interface IAdministrationService
 {
-    Task<Isp> CreateIspAsync(Isp isp, CancellationToken cancellationToken = default);
+    Task<Isp> CreateIspAsync(CreateIspRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Locking an ISP locks all of its users (TR-SEC-13).</summary>
+    /// <summary>Null when the ISP does not exist, or when the caller is not entitled to see it (TR-SEC-19).</summary>
+    Task<Isp?> GetIspAsync(long ispId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Locking cascades to every currently-active user of the ISP and revokes their sessions
+    /// immediately (TR-SEC-13, TR-SEC-07). Unlocking the ISP does not reciprocally unlock its
+    /// users — each stays exactly as an administrator last set it, so unlocking never silently
+    /// reactivates an account that was locked for an unrelated reason.
+    /// </summary>
     Task SetIspStatusAsync(long ispId, IspStatus status, CancellationToken cancellationToken = default);
 
-    Task<User> CreateUserAsync(User user, CancellationToken cancellationToken = default);
+    Task<User> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>Null when the user does not exist, or when the caller is not entitled to see it. Self and Administrator/Auditor only.</summary>
+    Task<User?> GetUserAsync(long userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Locking revokes the user's sessions immediately (TR-SEC-12, TR-SEC-07).</summary>
     Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default);
 }
+
+/// <param name="ContactMobile">E.164 format (TR-SEC-14, TR-SEC-15).</param>
+/// <param name="CrmBpReference">CRM Business Partner reference; verified against CRM before activation per TR-SEC-16 (Should — CRM contract is TRD 11.4 open item 1, so this is recorded but not yet cross-checked).</param>
+public sealed record CreateIspRequest(
+    string Name,
+    string Nipt,
+    string ContactPerson,
+    string ContactEmail,
+    string ContactMobile,
+    string CrmBpReference);
+
+/// <param name="IspId">Owning ISP, or null for an internal user (Administrator, Service Desk, Auditor) (TR-SEC-14).</param>
+/// <param name="RoleName">One of the seeded roles: Administrator, IspUser, ServiceDesk, Auditor.</param>
+/// <param name="InitialPassword">Must satisfy the configured password policy (TR-SEC-03); the user is expected to change it, though self-service change is not yet built (see docs/open-items.md).</param>
+public sealed record CreateUserRequest(
+    long? IspId,
+    string FullName,
+    string Email,
+    string Mobile,
+    string RoleName,
+    string InitialPassword);
