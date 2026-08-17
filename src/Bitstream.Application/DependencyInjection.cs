@@ -1,6 +1,7 @@
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
+using Bitstream.Application.Services.Activation;
 using Bitstream.Application.Services.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +85,9 @@ public static class DependencyInjection
         // directly here (TR-ARC-01).
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IAdministrationService, AdministrationService>();
+
+        // TRD 5 — activation request lifecycle (TR-ACT-01 to TR-ACT-19).
+        services.AddScoped<IActivationRequestService, ActivationRequestService>();
 
         return services;
     }
