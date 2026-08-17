@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Bitstream.Application.Abstractions.Security;
+using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -16,8 +17,13 @@ public sealed class TotpService : ITotpService
     private const int SecretSizeBytes = 20;
 
     private readonly IOptionsMonitor<TwoFactorOptions> _options;
+    private readonly IClock _clock;
 
-    public TotpService(IOptionsMonitor<TwoFactorOptions> options) => _options = options;
+    public TotpService(IOptionsMonitor<TwoFactorOptions> options, IClock clock)
+    {
+        _options = options;
+        _clock = clock;
+    }
 
     public byte[] GenerateSecret() => RandomNumberGenerator.GetBytes(SecretSizeBytes);
 
@@ -76,8 +82,8 @@ public sealed class TotpService : ITotpService
             $"&algorithm=SHA1&digits={options.CodeLength}&period={options.TotpStepSeconds}");
     }
 
-    private static long CurrentCounter(int stepSeconds) =>
-        DateTimeOffset.UtcNow.ToUnixTimeSeconds() / stepSeconds;
+    private long CurrentCounter(int stepSeconds) =>
+        _clock.UtcNow.ToUnixTimeSeconds() / stepSeconds;
 
     private static string ComputeCode(byte[] secret, long counter, int digits)
     {

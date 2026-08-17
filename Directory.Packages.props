@@ -27,6 +27,11 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
 
     <!-- Tests -->
+    <!-- InMemory stands in for SQL Server only in tests that need a real query pipeline behind
+         a repository (no SQL Server instance is available in this environment, see
+         README.md "Verification status"). Bulk operations (ExecuteUpdateAsync) are not
+         supported by this provider, so tests that exercise them use hand-written fakes instead. -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

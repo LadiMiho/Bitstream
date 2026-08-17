@@ -9,10 +9,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bitstream.Api\Bitstream.Api.csproj" />
     <ProjectReference Include="..\..\src\Bitstream.Application\Bitstream.Application.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Domain\Bitstream.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Infrastructure.Persistence\Bitstream.Infrastructure.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
