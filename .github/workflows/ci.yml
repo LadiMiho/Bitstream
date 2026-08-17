@@ -1,0 +1,134 @@
+# TR-NFR-17: source code is version controlled, peer reviewed, and built through an automated
+# pipeline with automated tests.
+#
+# The pipeline runs on windows-latest because that is the deployment target: the platform runs
+# directly on Windows Server under IIS. Building on the same OS family the artifact will run on
+# catches path, casing and line-ending problems here rather than on the server.
+#
+# There is no container build step anywhere in this workflow, by design.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Deterministic restore: a build that silently picks up a newer package is not reproducible.
+  NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+
+jobs:
+  build:
+    name: Build, lint, test
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/Bitstream.Web/package-lock.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Bitstream.sln
+
+      # Lint. Warnings are errors in Directory.Build.props, so the build itself is most of the
+      # lint gate; this adds the formatting and analyzer rules that are not compile errors.
+      - name: Verify formatting
+        run: dotnet format Bitstream.sln --verify-no-changes --severity warn
+
+      - name: Build
+        run: dotnet build Bitstream.sln --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test Bitstream.sln
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ${{ github.workspace }}/artifacts/test-results
+
+      - name: Upload test results
+        # Wanted most when the tests failed.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          retention-days: 30
+
+      # The frontend build is part of CI because a Tailwind class that no longer exists fails
+      # here rather than silently producing a page with no styling.
+      - name: Install frontend dependencies
+        working-directory: src/Bitstream.Web
+        run: npm ci
+
+      - name: Build stylesheet
+        working-directory: src/Bitstream.Web
+        run: npm run build:css
+
+      - name: Verify no container artifacts were introduced
+        shell: pwsh
+        run: |
+          # The TRD deployment target is Windows Server and IIS. A Dockerfile appearing in this
+          # repository would mean the deployment story has quietly forked in two.
+          $found = Get-ChildItem -Recurse -File -Force |
+            Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|bin|obj)\\' } |
+            Where-Object { $_.Name -match '^(Dockerfile|\.dockerignore|docker-compose(\..+)?\.ya?ml)$' }
+          if ($found) {
+            $found | ForEach-Object { Write-Error "Container artifact: $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "No container artifacts."
+
+      - name: Publish
+        run: >
+          dotnet publish src/Bitstream.Api/Bitstream.Api.csproj
+          --configuration Release
+          --no-restore
+          --output ${{ github.workspace }}/artifacts/publish
+          -p:BuildFrontend=false
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitstream-portal-${{ github.sha }}
+          path: artifacts/publish
+          retention-days: 30
+
+      # Deployment inputs travel with the build: the same commit carries the application, the
+      # schema scripts and the provisioning scripts, so a deployment cannot mix versions
+      # (TR-ARC-08, TR-NFR-19).
+      - name: Upload database and deployment scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitstream-deployment-${{ github.sha }}
+          path: |
+            db/**
+            deploy/**
+          retention-days: 30
