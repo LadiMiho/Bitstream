@@ -1,0 +1,66 @@
+@using System.Security.Claims
+@inject IWebHostEnvironment Env
+@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+
+    bool IsActive(string prefix) => currentPage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var displayName = User.Identity?.Name;
+    var roleName = User.FindFirst(ClaimTypes.Role)?.Value;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <!-- TR-NFR-11: responsive and usable on desktop and tablet resolutions. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - Bitstream Portal</title>
+    <link rel="stylesheet" href="~/css/app.css" />
+</head>
+<body class="min-h-screen bg-surface-muted font-sans text-ink antialiased">
+
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:m-2 focus:rounded focus:bg-surface focus:px-3 focus:py-2">
+        Skip to content
+    </a>
+
+    <header class="border-b border-line bg-surface">
+        <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+            <div class="flex items-center gap-3">
+                <a href="/" class="text-lg font-semibold">Bitstream Portal</a>
+                <span class="status-pill bg-brand-50 text-brand-700">@Env.EnvironmentName</span>
+            </div>
+
+            <!-- TR-SEC-17: this navigation only decides what is offered to click. Every module's
+                 own calls are authorised server-side regardless of whether a link to it is shown
+                 here — reaching a page without a session is separately stopped by
+                 SecurePageModel (TR-SEC-20), not by this list being short. -->
+            @if (isAuthenticated)
+            {
+                <nav aria-label="Main" class="hidden gap-1 md:flex">
+                    <a class="nav-link @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-current="@(IsActive("/AccessManagement") ? "page" : null)" href="/AccessManagement">Access Management</a>
+                    <a class="nav-link @(IsActive("/ActivationRequests") ? "nav-link-active" : "")" aria-current="@(IsActive("/ActivationRequests") ? "page" : null)" href="/ActivationRequests">Activation Requests</a>
+                    <a class="nav-link @(IsActive("/PostActivation") ? "nav-link-active" : "")" aria-current="@(IsActive("/PostActivation") ? "page" : null)" href="/PostActivation">Post-Activation Support</a>
+                    <a class="nav-link @(IsActive("/Reporting") ? "nav-link-active" : "")" aria-current="@(IsActive("/Reporting") ? "page" : null)" href="/Reporting">Reporting</a>
+                </nav>
+            }
+
+            <div class="flex items-center gap-3">
+                @if (isAuthenticated)
+                {
+                    <span class="text-sm text-ink-muted">@displayName · @roleName</span>
+                    <form method="post" asp-page="/Logout">
+                        <button type="submit" class="btn-secondary">Sign out</button>
+                    </form>
+                }
+            </div>
+        </div>
+    </header>
+
+    <main id="main" class="mx-auto max-w-7xl px-4 py-8">
+        @RenderBody()
+    </main>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

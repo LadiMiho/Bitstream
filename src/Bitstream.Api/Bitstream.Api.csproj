@@ -22,40 +22,64 @@
   </ItemGroup>
 
   <!--
-    Frontend assets.
+    Frontend: Razor Pages under /Pages, styled with Tailwind CSS.
 
-    The vanilla-JS frontend has no .csproj: it is HTML, ES modules and a Tailwind CLI build.
-    On publish its wwwroot is folded into this application's wwwroot so the portal deploys as
-    a single IIS site with no cross-origin configuration.
+    The stylesheet source is ClientAssets/app.css; the compiled, minified output is
+    wwwroot/css/app.css, referenced by Pages/Shared/_Layout.cshtml. There is no Node.js, npm
+    or package.json anywhere in this project — Tailwind is compiled by its standalone CLI, a
+    single self-contained native executable with no runtime dependency, downloaded on demand
+    into tools/tailwindcss/ (outside source control) and invoked as a plain MSBuild Exec step.
 
-    Set BuildFrontend=true on a host that has Node installed (the CI agent) to run the
-    Tailwind build as part of publish:
+    Set BuildFrontend=true to (re)build the stylesheet — this is the only step that needs
+    network access, to fetch the CLI binary the first time:
+        dotnet build src/Bitstream.Api -p:BuildFrontend=true
         dotnet publish src/Bitstream.Api -c Release -p:BuildFrontend=true
-    Left false by default so that a backend-only build never depends on Node.
+    Left false by default so an ordinary backend build never touches the network. Without it,
+    publish uses whatever wwwroot/css/app.css is already on disk and warns if there is none.
   -->
   <PropertyGroup>
-    <FrontendDirectory>$(MSBuildThisFileDirectory)..\Bitstream.Web\</FrontendDirectory>
+    <TailwindCliVersion>4.3.3</TailwindCliVersion>
+    <TailwindToolsDir>$(MSBuildThisFileDirectory)..\..\tools\tailwindcss\</TailwindToolsDir>
     <BuildFrontend Condition="'$(BuildFrontend)' == ''">false</BuildFrontend>
   </PropertyGroup>
 
-  <Target Name="BuildFrontendAssets" Condition="'$(BuildFrontend)' == 'true'">
-    <Exec Command="npm ci" WorkingDirectory="$(FrontendDirectory)" />
-    <Exec Command="npm run build:css" WorkingDirectory="$(FrontendDirectory)" />
+  <!--
+    Official release asset names from https://github.com/tailwindlabs/tailwindcss/releases.
+    windows-x64 is the only one that matters for CI and for the IIS deployment target
+    (TR-ARC-07); linux-x64 and macos-arm64 are included only so the stylesheet can also be
+    built on a Linux or Apple Silicon development machine. An architecture outside these three
+    is not supported by this target — build the CSS on a supported machine and commit nothing,
+    since wwwroot/css/app.css is generated and gitignored either way.
+  -->
+  <PropertyGroup Condition="'$(BuildFrontend)' == 'true'">
+    <TailwindCliAsset Condition="'$(OS)' == 'Windows_NT'">tailwindcss-windows-x64.exe</TailwindCliAsset>
+    <TailwindCliAsset Condition="'$(OS)' != 'Windows_NT' AND $([MSBuild]::IsOSPlatform('OSX'))">tailwindcss-macos-arm64</TailwindCliAsset>
+    <TailwindCliAsset Condition="'$(OS)' != 'Windows_NT' AND $([MSBuild]::IsOSPlatform('Linux'))">tailwindcss-linux-x64</TailwindCliAsset>
+    <TailwindCliPath>$(TailwindToolsDir)$(TailwindCliAsset)</TailwindCliPath>
+  </PropertyGroup>
+
+  <Target Name="EnsureTailwindCli" Condition="'$(BuildFrontend)' == 'true' AND !Exists('$(TailwindCliPath)')">
+    <Error Condition="'$(TailwindCliAsset)' == ''" Text="No standalone Tailwind CLI release is mapped for this OS. Supported: Windows, Linux, macOS (x64/Exec on all three, arm64 on macOS)." />
+    <MakeDir Directories="$(TailwindToolsDir)" />
+    <DownloadFile
+      SourceUrl="https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TailwindCliVersion)/$(TailwindCliAsset)"
+      DestinationFolder="$(TailwindToolsDir)" />
+    <!-- GitHub release assets ship without the executable bit; Windows ignores file-mode bits,
+         so this only matters when building on Linux or macOS. -->
+    <Exec Command="chmod +x &quot;$(TailwindCliPath)&quot;" Condition="'$(OS)' != 'Windows_NT'" />
   </Target>
 
-  <Target Name="AddFrontendToPublish"
-          DependsOnTargets="BuildFrontendAssets"
-          BeforeTargets="ComputeFilesToPublish">
-    <ItemGroup>
-      <_FrontendAsset Include="$(FrontendDirectory)wwwroot\**\*" />
-      <ResolvedFileToPublish Include="@(_FrontendAsset)">
-        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </ResolvedFileToPublish>
-    </ItemGroup>
+  <Target Name="BuildFrontendAssets"
+          DependsOnTargets="EnsureTailwindCli"
+          BeforeTargets="Build;ComputeFilesToPublish"
+          Condition="'$(BuildFrontend)' == 'true'">
+    <Exec Command="&quot;$(TailwindCliPath)&quot; -i ClientAssets/app.css -o wwwroot/css/app.css --minify"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
 
-    <Warning Condition="!Exists('$(FrontendDirectory)wwwroot\css\app.css')"
-             Text="Frontend stylesheet not found. Run 'npm run build:css' in src/Bitstream.Web, or publish with -p:BuildFrontend=true." />
+  <Target Name="WarnIfStylesheetMissing" BeforeTargets="ComputeFilesToPublish">
+    <Warning Condition="!Exists('$(MSBuildProjectDirectory)\wwwroot\css\app.css')"
+             Text="wwwroot/css/app.css not found. Build or publish with -p:BuildFrontend=true to compile it." />
   </Target>
 
 </Project>

@@ -15,7 +15,7 @@ still unimplemented, and their endpoints still answer `501 Not Implemented`.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
-- Vanilla JavaScript with Tailwind CSS — no framework, no bundler
+- Razor Pages UI, Tailwind CSS via the standalone CLI — no Node.js, no npm, no client-side router
 - Windows Server / IIS, no containers anywhere
 
 ## Layout
@@ -27,8 +27,9 @@ src/
   Bitstream.Application                 service contracts and integration ports
   Bitstream.Infrastructure.Persistence  EF Core mapped to the physical schema
   Bitstream.Infrastructure.Integration  CRM, BI, SAP and SMTP adapters
-  Bitstream.Api                         minimal-API endpoints, composition root
-  Bitstream.Web                         HTML, ES modules, Tailwind CLI build
+  Bitstream.Api                         minimal-API endpoints, Razor Pages UI, composition root
+    Pages/                              folder-based Razor Pages, one module per folder
+    ClientAssets/app.css                Tailwind source (compiled to wwwroot/css/app.css)
 tests/
   Bitstream.ArchitectureTests           layering rules, enforced at build time
   Bitstream.Api.Tests                   middleware, health endpoints, config validators
@@ -37,6 +38,7 @@ tests/
     Integration/                        CRM outbox, dispatcher, Direction A/B, end-to-end — see below
 tools/
   CrmSimulator                          standalone stand-in for CRM, for local development
+  tailwindcss/                          standalone Tailwind CLI binary, downloaded on demand — not committed
 deploy/
   environments/                         one file per environment, values only
   *.ps1                                 prerequisites, site, secrets, deployment
@@ -62,8 +64,8 @@ dotnet build
 # Database (Windows, SqlServer PowerShell module)
 ./db/Deploy-Database.ps1 -ServerInstance . -Database BitstreamPortal -AppUser 'DOMAIN\svc_bitstream_dev'
 
-# Frontend
-cd src/Bitstream.Web && npm ci && npm run build:css
+# Frontend stylesheet (downloads the standalone Tailwind CLI on first run — no Node/npm)
+dotnet build src/Bitstream.Api -p:BuildFrontend=true
 
 # Run — portal at /, generated contract at /openapi/v1.json
 dotnet run --project src/Bitstream.Api
@@ -237,10 +239,17 @@ outbound calls that are ports, not endpoints.
 row to its endpoint or port. The document is generated from the endpoint definitions and served
 at `/openapi/v1.json`, so the published contract cannot drift from what the portal serves.
 
-**4. Tailwind build.** Tailwind v4 CLI, CSS-first configuration, no `tailwind.config.js`, no
-PostCSS, no bundler. `npm run build:css` produces `wwwroot/css/app.css`; the browser loads the
-ES modules directly. The API host serves the frontend so the portal is one IIS site. See
-[`src/Bitstream.Web/README.md`](src/Bitstream.Web/README.md).
+**4. Tailwind build.** Tailwind v4, CSS-first configuration, no `tailwind.config.js`, no
+PostCSS, no bundler, and no Node.js or npm anywhere in the project: the standalone Tailwind CLI
+— a single self-contained native binary — is downloaded on demand and run as a plain MSBuild
+`Exec` step (`Bitstream.Api.csproj`, gated behind `-p:BuildFrontend=true` so an ordinary backend
+build never touches the network). It compiles `ClientAssets/app.css` to `wwwroot/css/app.css`.
+The UI itself is folder-based Razor Pages under `src/Bitstream.Api/Pages` — one module per
+folder, a shared `_Layout.cshtml` for the header/nav/content-area chrome, and the auth-guard
+implemented as `SecurePageModel`, a page filter every protected page derives from rather than a
+client-side redirect. There is no client-side router: navigation is ordinary page requests, and
+JavaScript, where used at all, is for behaviour (fetch calls, form feedback) only. The API host
+serves the UI directly, so the portal is one IIS site.
 
 ## Open items
 
@@ -267,7 +276,7 @@ Honest accounting of what has and has not been run:
 
 | | |
 | --- | --- |
-| Tailwind build | **Verified** — `npm run build:css` runs clean and emits the expected classes |
+| Tailwind build | **Verified** — the standalone CLI runs clean against `ClientAssets/app.css` and emits the expected classes, including from the new `.cshtml` sources |
 | CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
 | C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
 | Tests, including `Identity/*`, `Activation/*`, `Integration/*` and `PostActivation/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |

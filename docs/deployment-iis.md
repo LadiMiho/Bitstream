@@ -17,13 +17,17 @@ configuration of production is not permitted.
 | TLS certificate | TLS 1.2 or higher, HTTP refused for API endpoints (TR-SEC-26) |
 | Application pool | No Managed Code, running as the service account granted rights by `db/mssql/0008_permissions.sql` |
 
-Node is **not** required on the web server. It is needed only on the build agent, and only
-when publishing with `-p:BuildFrontend=true`.
+Node.js is not part of this stack anywhere, on the web server or the build agent: the UI is
+Razor Pages, and its Tailwind stylesheet is compiled by the standalone Tailwind CLI — a single
+self-contained native binary, downloaded on demand by an MSBuild step — not by npm. The build
+agent needs only outbound access to GitHub to fetch that binary the first time, when publishing
+with `-p:BuildFrontend=true`.
 
 ## Build and publish
 
 ```powershell
-# On the build agent (Node present)
+# On the build agent (compiles the stylesheet; needs network access the first time, to fetch
+# the standalone Tailwind CLI into tools\tailwindcss\)
 dotnet publish src\Bitstream.Api -c Release -p:BuildFrontend=true -o .\publish
 
 # Backend only, using a stylesheet already built

@@ -10,7 +10,6 @@ using Bitstream.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,6 +65,13 @@ builder.Services.AddSingleton<IHostedService>(provider => new OptionsStartupVali
 
 // --- Presentation ----------------------------------------------------------------------
 builder.Services.AddProblemDetails();
+
+// The portal's UI: folder-based Razor Pages under /Pages, one module per folder, styled with
+// Tailwind (ClientAssets/app.css, compiled to wwwroot/css/app.css — see Bitstream.Api.csproj).
+// The auth-guard is SecurePageModel, a page filter every module page derives from; it is not a
+// client-side redirect (TR-SEC-20). Vanilla JavaScript, where any is added, is for client-side
+// behaviour only — it must never own page navigation.
+builder.Services.AddRazorPages();
 
 // TR-INT-01: the interface contract is generated from the endpoint definitions, so the
 // published document cannot drift from the implementation.
@@ -149,6 +155,13 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Static assets (the compiled stylesheet, any client-side script) live in this project's own
+// wwwroot, so the portal is one IIS site with no cross-origin configuration and no separate
+// frontend project to fold in at publish time. Ahead of authentication/authorization: a CSS
+// file needs neither, and short-circuiting here means the request never reaches that pipeline.
+app.UseStaticFiles();
+
 app.UseRateLimiter();
 
 // TR-SEC-07 / TR-SEC-17: authentication resolves who is calling from the session cookie;
@@ -156,28 +169,6 @@ app.UseRateLimiter();
 // any endpoint, so no route can be reached without going through them.
 app.UseAuthentication();
 app.UseAuthorization();
-
-// The vanilla-JS frontend is served by this host so that the portal is a single IIS site and
-// the session cookie is same-origin. On publish, src/Bitstream.Web/wwwroot is copied into
-// wwwroot (see the AddFrontendToPublish target); in Development it is served from source so
-// that `npm run watch:css` shows up on refresh.
-if (app.Environment.IsDevelopment())
-{
-    var frontendRoot = Path.GetFullPath(
-        Path.Combine(app.Environment.ContentRootPath, "..", "Bitstream.Web", "wwwroot"));
-
-    if (Directory.Exists(frontendRoot))
-    {
-        var frontendFiles = new PhysicalFileProvider(frontendRoot);
-        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = frontendFiles });
-        app.UseStaticFiles(new StaticFileOptions { FileProvider = frontendFiles });
-    }
-}
-else
-{
-    app.UseDefaultFiles();
-    app.UseStaticFiles();
-}
 
 // Generated contract at /openapi/v1.json. Exposed in all environments because CRM and the
 // integration team consume it; it describes stubs and carries no data (TR-INT-01).
@@ -190,6 +181,8 @@ app.MapAuthEndpoints();
 app.MapAdministrationEndpoints();
 app.MapActivationEndpoints();
 app.MapPostActivationEndpoints();
+
+app.MapRazorPages();
 
 app.Run();
 

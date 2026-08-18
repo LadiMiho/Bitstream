@@ -2,20 +2,18 @@
   Bitstream Portal — stylesheet source.
 
   Tailwind v4 is configured in CSS: there is no tailwind.config.js and no PostCSS pipeline.
-  The Tailwind CLI is the only build tool in the frontend, which is what "no bundler beyond
-  what Tailwind itself needs" comes to in practice.
+  Compiled by the standalone Tailwind CLI (a self-contained native binary, no Node.js or npm)
+  as an MSBuild step — see the BuildFrontendAssets target in Bitstream.Api.csproj.
 
-  Build:  npm run build:css   ->  wwwroot/css/app.css
-  Watch:  npm run watch:css
+  Build (from src/Bitstream.Api):  dotnet build -p:BuildFrontend=true
 */
 @import "tailwindcss";
 
 /*
   Explicit source globs. Tailwind scans these files for class names; the generated
-  wwwroot/css/app.css is not itself a source, so only markup and scripts are listed.
+  wwwroot/css/app.css is not itself a source, so only Razor views are listed.
 */
-@source "../../wwwroot/**/*.html";
-@source "../../wwwroot/**/*.js";
+@source "../Pages/**/*.cshtml";
 
 /*
   Design tokens. Kept as a small, deliberate palette so that the ISP-facing and
@@ -102,7 +100,7 @@
     @apply bg-surface-muted px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
   }
 
-  /* Top-level navigation, toggled active by js/router.js on every route change. */
+  /* Top-level navigation, active state set server-side by the layout comparing the current route. */
   .nav-link {
     @apply rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors
            hover:bg-surface-muted hover:text-ink focus-visible:outline-2
