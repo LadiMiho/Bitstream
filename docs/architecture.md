@@ -114,6 +114,30 @@ Two design choices worth knowing before extending this module:
   This is what makes TR-SEC-19's not-found (rather than forbidden) response possible: the
   decision is identity-only, made before the database is even asked whether the record exists.
 
+### Access management screens (GUI-3) and the API gaps they surfaced
+
+`Pages/Login.cshtml` (the two-factor sign-in flow) and `Pages/AccessManagement/{Isps,Users,AuditLog}.cshtml`
+call the endpoints above from client-side script (`wwwroot/js/pages/*.js`, via the shared fetch
+wrapper `wwwroot/js/api-client.js`) — nothing server-side in these pages re-implements
+authentication, validation or the lock/unlock decision; `SecurePageModel`/permission claims only
+decide what to *show* (TR-SEC-17), never what the API actually allows. Building these screens
+against the real endpoints surfaced three gaps in what TRD §4's backend currently exposes,
+reported here rather than compensated for in the frontend:
+
+- **No list or search endpoint for ISPs or users.** `GET /api/v1/isps/{id}` and
+  `GET /api/v1/users/{id}` are the only reads; there is nothing to browse. `Isps.cshtml` and
+  `Users.cshtml` are therefore "look up by ID" screens, not browsable tables — each says so
+  in-page. An administrator has to already know (or have just created) the ID.
+- **No update endpoint for either record's own fields.** `isp.update` and `user.update` are
+  seeded permission codes (`db/mssql/0007_seed_roles_permissions.sql`) but nothing checks them —
+  only `SetIspStatusAsync`/`SetUserStatusAsync` (status, i.e. lock/unlock) exist. "Create/edit"
+  is therefore create and lock/unlock only; there is no way to correct a name, NIPT or contact
+  detail after creation without one of these being built.
+- **No audit log read path at all.** `IAuditWriter` only writes; `audit.read` is seeded and
+  granted to the Auditor and Administrator roles, but no service method or endpoint reads an
+  audit entry back. `AuditLog.cshtml` stays an explanatory placeholder rather than querying the
+  database directly or otherwise reimplementing that read path in the frontend.
+
 ## Activation requests (TRD 5)
 
 The second fully implemented module. `ActivationRequestService` owns the TRD 5.3 state machine

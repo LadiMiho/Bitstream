@@ -11,9 +11,13 @@
 
 /*
   Explicit source globs. Tailwind scans these files for class names; the generated
-  wwwroot/css/app.css is not itself a source, so only Razor views are listed.
+  wwwroot/css/app.css is not itself a source, so only Razor views and client-side scripts are
+  listed. Scripts stay behaviour-only (TR-SEC-20 / no client-side routing) — they still qualify
+  as a source in case any of them ever toggles a class name that isn't otherwise written in a
+  .cshtml file.
 */
 @source "../Pages/**/*.cshtml";
+@source "../wwwroot/**/*.js";
 
 /*
   Design tokens. Kept as a small, deliberate palette so that the ISP-facing and
