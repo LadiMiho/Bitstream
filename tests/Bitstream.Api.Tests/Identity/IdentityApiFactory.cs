@@ -17,7 +17,7 @@ namespace Bitstream.Api.Tests.Identity;
 /// supported by that provider, so tests exercising those go through
 /// <c>AdministrationServiceTests</c> against hand-written fakes instead.
 /// <para>
-/// One factory per test: <see cref="DatabaseName"/> is unique per instance, so tests that want
+/// One factory per test: <c>_databaseName</c> is unique per instance, so tests that want
 /// isolation create their own <c>new IdentityApiFactory()</c> rather than sharing one via
 /// <c>IClassFixture</c>.
 /// </para>
