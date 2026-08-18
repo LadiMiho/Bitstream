@@ -55,7 +55,7 @@ To capture a snapshot:
 
 ```bash
 dotnet run --project src/Bitstream.Api &
-curl -sk https://localhost:7291/openapi/v1.json -o docs/integration/bitstream-portal-v1.json
+curl -sk https://localhost:7292/openapi/v1.json -o docs/integration/bitstream-portal-v1.json
 ```
 
 ## Field mapping for Direction A

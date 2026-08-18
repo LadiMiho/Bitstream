@@ -6,6 +6,7 @@ using Bitstream.Hosting.Endpoints;
 using Bitstream.Hosting.Middleware;
 using Bitstream.Infrastructure.Integration;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Web;
 using Bitstream.Web.Endpoints;
 using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Authentication;

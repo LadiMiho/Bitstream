@@ -12,7 +12,10 @@ Bitstream.Application                service contracts, integration ports, DTOs
         ^                    ^
 Bitstream.Infrastructure.Persistence  Bitstream.Infrastructure.Integration
         ^                    ^
-Bitstream.Api                        endpoints, middleware, composition root
+Bitstream.Hosting                    middleware, options, health — shared by both hosts
+        ^                    ^
+Bitstream.Web                        Bitstream.Api
+(the portal people use)              (the interface CRM uses)
 ```
 
 | Project | References | Layer (TRD §2.1) | May contain |
@@ -21,11 +24,42 @@ Bitstream.Api                        endpoints, middleware, composition root
 | `Bitstream.Application` | Domain | Application services | Service interfaces, integration **ports**, DTOs. No adapter, no `HttpClient`, no `DbContext`. |
 | `Bitstream.Infrastructure.Persistence` | Application, Domain | Persistence | `BitstreamDbContext`, entity configurations, repositories. |
 | `Bitstream.Infrastructure.Integration` | Application, Domain | Integration adapters | The only place with an `HttpClient`, an SMTP client or a vendor SDK. |
-| `Bitstream.Api` | all four | Presentation | Endpoints, middleware, DI wiring. Composition root only. |
+| `Bitstream.Hosting` | Application | Presentation (shared) | Correlation and request-logging middleware, secret resolver, options validator, rate-limit options and policy names, health endpoints, claim types. |
+| `Bitstream.Web` | all of the above | Presentation | Razor Pages, session authentication, RBAC, and the endpoints the screens call. Composition root for the portal. |
+| `Bitstream.Api` | all of the above | Presentation | The CRM-facing inbound event API, and the background jobs that call CRM outbound. Composition root for the integration host. |
 
-`Bitstream.Api` references both Infrastructure projects so that `Program.cs` can call their
-registration extensions. That is the composition root and nothing else: no endpoint uses an
-adapter or a `DbContext` type directly.
+### Why two hosts
+
+The split is by **audience**, not by subject: people use `Bitstream.Web`, machines use
+`Bitstream.Api`. Everything else follows from that.
+
+- The portal calls the application services **in process**. There is no HTTP hop between a
+  screen and the domain, so there is no second authorisation surface to keep in step and no
+  serialisation boundary that exists only because the code lives in two folders.
+- The only interface another system consumes is the CRM one (TRD §7.1 exposes just
+  INT-CRM-03, -05 and -07, all on the single inbound endpoint TR-INT-22 requires). That is
+  the whole of `Bitstream.Api`, which is why the generated OpenAPI contract lives there and
+  describes only that.
+- They deploy as separate IIS sites with separate application pools, so only the API host
+  needs to be reachable from CRM, and either can be restarted without the other.
+
+**Exactly one host runs the background jobs.** `AddBitstreamApplication` registers the
+services; `AddBitstreamBackgroundJobs` starts the outbox dispatcher, the BI active-lines sync
+and the auto-confirmation sweep, and only `Bitstream.Api` calls it. This is a correctness
+requirement, not tidiness: the jobs are not idempotent against a concurrent copy of
+themselves, so two hosts running them would each claim and send the same outbox message and
+each auto-confirm the same ticket. The consequence is worth stating plainly — **outbound CRM
+traffic needs the API host deployed.** A portal-only deployment accepts submissions and
+queues them, and they sit on the outbox until something drains it.
+
+The API host has no signed-in user, so it registers `SystemCurrentUserContext`: every identity
+property null and `HasPermission` always false. A system-initiated change is recorded in the
+audit log as exactly that (TR-SEC-22) rather than attributed to whichever user was nearby, and
+a background job can never pass an ownership check by pretending to be privileged.
+
+`Bitstream.Web` and `Bitstream.Api` each reference both Infrastructure projects so that
+`Program.cs` can call their registration extensions. That is the composition root and nothing
+else: no endpoint or page uses an adapter or a `DbContext` type directly.
 
 **This is enforced, not documented.** `tests/Bitstream.ArchitectureTests/LayeringTests.cs`
 reads the compiled assembly references — which the compiler emits only for assemblies a
@@ -70,8 +104,8 @@ store, one dead-letter mechanism, one replay path.
 
 | Concern | Where | Requirement |
 | --- | --- | --- |
-| Correlation ID | `Middleware/CorrelationIdMiddleware` — accepts an inbound ID, echoes it, puts it in the log scope | TR-ARC-04 |
-| Rate limiting | Named policies in `Program.cs`, applied per endpoint group | TR-SEC-29, TR-INT-30 |
+| Correlation ID | `Bitstream.Hosting.Middleware.CorrelationIdMiddleware` — accepts an inbound ID, echoes it, puts it in the log scope | TR-ARC-04 |
+| Rate limiting | `RateLimitPolicies` (Hosting), registered per host and applied per endpoint group | TR-SEC-29, TR-INT-30 |
 | Health | `/health/live` (process only) and `/health/ready` (dependencies) | TR-ARC-05 |
 | Audit | `AuditWriter` (Persistence, implementing `IAuditWriter`) — the only write path; the table takes no update or delete | TR-SEC-22 to TR-SEC-24 |
 | Configuration | `appsettings.json` plus per-environment overrides; secrets from the secret store | TR-ARC-06, TR-SEC-28 |
@@ -83,7 +117,7 @@ portal that is still usable in read mode (TR-NFR-07).
 
 The first fully implemented module — every other application service is still a stub. Session
 cookie authentication, not a bearer token: `SessionAuthenticationHandler`
-(`Bitstream.Api.Security`) resolves the cookie against `IIdentityService.ValidateSessionAsync`
+(`Bitstream.Web.Security`) resolves the cookie against `IIdentityService.ValidateSessionAsync`
 on every request, because TR-SEC-07's "invalidated at logout and at lock" needs a server-side
 record that can be revoked on demand — a signed, self-contained token cannot be, without a
 second revocation mechanism that amounts to this one anyway.

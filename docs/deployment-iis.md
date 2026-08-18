@@ -26,16 +26,42 @@ with `-p:BuildFrontend=true`.
 ## Build and publish
 
 ```powershell
-# On the build agent (compiles the stylesheet; needs network access the first time, to fetch
-# the standalone Tailwind CLI into tools\tailwindcss\)
-dotnet publish src\Bitstream.Api -c Release -p:BuildFrontend=true -o .\publish
-
-# Backend only, using a stylesheet already built
-dotnet publish src\Bitstream.Api -c Release -o .\publish
+# Two applications, published separately. The portal carries the compiled stylesheet; the
+# integration host has no UI. -p:BuildFrontend=true needs network access the first time, to
+# fetch the standalone Tailwind CLI into tools\tailwindcss\.
+dotnet publish src\Bitstream.Web -c Release -p:BuildFrontend=true -o .\publish\web
+dotnet publish src\Bitstream.Api -c Release -o .\publish\api
 ```
 
-The publish output contains the API and the frontend under `wwwroot\`, so the portal deploys as
-a single IIS site: same origin, no CORS configuration, and the session cookie behaves.
+## Two sites, one database
+
+The platform deploys as **two IIS applications**, defined per environment under
+`deploy/environments/*.psd1` as `Sites.Web` and `Sites.Api`:
+
+| | `Bitstream.Web` | `Bitstream.Api` |
+| --- | --- | --- |
+| Audience | People — ISP users, administrators | CRM |
+| Contains | Razor Pages, session sign-in, the endpoints the screens call | The inbound event API, and the background jobs that call CRM outbound |
+| Reachable from | The corporate network / ISP users | CRM's source ranges only |
+| Bindings | https, plus http purely to redirect | https only — CRM is a machine caller with no redirect to follow, so a plain-HTTP listener here could only ever be a mistake (TR-SEC-26) |
+
+The portal's own screens are same-origin with the endpoints they call, so the session cookie
+behaves with no CORS configuration. The two applications share a database, not a process.
+
+**The API host is not optional.** It is the only one that runs the outbox dispatcher, so it is
+what actually sends anything to CRM. Deploy the portal alone and submissions are accepted and
+queued, and then sit there.
+
+Each script takes `-Component Web` or `-Component Api`:
+
+```powershell
+.\New-BitstreamSite.ps1   -Environment uat -Component Web
+.\New-BitstreamSite.ps1   -Environment uat -Component Api
+.\Set-AppPoolSecrets.ps1  -Environment uat -Component Web
+.\Set-AppPoolSecrets.ps1  -Environment uat -Component Api
+.\Deploy-Application.ps1  -Environment uat -Component Web -PackagePath .\publish\web
+.\Deploy-Application.ps1  -Environment uat -Component Api -PackagePath .\publish\api
+```
 
 ## Database
 

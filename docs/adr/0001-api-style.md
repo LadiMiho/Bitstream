@@ -7,7 +7,13 @@ TR-INT-30
 
 The portal-exposed HTTP surface is built with ASP.NET Core **minimal APIs**, grouped per
 interface in `src/Bitstream.Api/Endpoints/`, with the OpenAPI document generated from those
-definitions by `Microsoft.AspNetCore.OpenApi` and served at `/openapi/v1.json`.
+definitions by `Microsoft.AspNetCore.OpenApi` and served at `/openapi/v1.json` by the
+integration host.
+
+The portal's own screens fetch JSON from a second set of minimal APIs in
+`src/Bitstream.Web/Endpoints/`, written the same way. Those are not part of the published
+contract — they exist to serve `Bitstream.Web`'s own Razor Pages, same origin, and no external
+party is invited to call them — so they are deliberately absent from the OpenAPI document.
 
 ## Why
 

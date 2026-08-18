@@ -34,12 +34,14 @@ src/
   Bitstream.Application                 service contracts and integration ports
   Bitstream.Infrastructure.Persistence  EF Core mapped to the physical schema
   Bitstream.Infrastructure.Integration  CRM, BI, SAP and SMTP adapters
-  Bitstream.Api                         minimal-API endpoints, Razor Pages UI, composition root
+  Bitstream.Hosting                     middleware, options and health endpoints shared by both hosts
+  Bitstream.Web                         the portal site people use — Razor Pages plus the endpoints they call
     Pages/                              folder-based Razor Pages, one module per folder
     ClientAssets/app.css                Tailwind source (compiled to wwwroot/css/app.css)
+  Bitstream.Api                         the integration site CRM calls — inbound events, outbound background jobs
 tests/
   Bitstream.ArchitectureTests           layering rules, enforced at build time
-  Bitstream.Api.Tests                   middleware, health endpoints, config validators
+  Bitstream.Api.Tests                   both hosts: middleware, health endpoints, config validators
     Identity/                           auth, RBAC, lockout, sessions — see below
     Activation/                         submission, state machine, GIS verification — see below
     Integration/                        CRM outbox, dispatcher, Direction A/B, end-to-end — see below
@@ -68,21 +70,61 @@ docs/
 dotnet restore
 dotnet build
 
-# Database (Windows, SqlServer PowerShell module)
-./db/Deploy-Database.ps1 -ServerInstance . -Database BitstreamPortal -AppUser 'DOMAIN\svc_bitstream_dev'
-
 # Frontend stylesheet (downloads the standalone Tailwind CLI on first run — no Node/npm)
-dotnet build src/Bitstream.Api -p:BuildFrontend=true
+dotnet build src/Bitstream.Web -p:BuildFrontend=true
 
-# Run — portal at /, generated contract at /openapi/v1.json
+# Run the portal — screens at /. In Development this applies db/mssql and seeds an
+# administrator on start-up (see "Running it locally" below).
+dotnet run --project src/Bitstream.Web
+
+# Run the integration host — inbound CRM events, and the background jobs that call CRM
+# outbound. Generated contract at /openapi/v1.json.
 dotnet run --project src/Bitstream.Api
+```
+
+## Two hosts
+
+The solution builds **two** web applications against one database, split by audience:
+
+| | `Bitstream.Web` | `Bitstream.Api` |
+| --- | --- | --- |
+| Who calls it | People — ISP users, administrators | CRM |
+| Contains | Razor Pages, session sign-in, and the JSON endpoints those pages fetch | The inbound CRM event API |
+| Background jobs | none | outbox dispatcher, active-line sync, auto-confirmation sweep |
+
+`AddBitstreamBackgroundJobs()` is called by the API host **only**, and exactly one deployed
+host may call it: two outbox dispatchers would each claim and send the same message. The
+consequence worth knowing is that the API host is not optional — deploy the portal alone and
+submissions are accepted, queued, and never sent. `docs/architecture.md` has the reasoning.
+
+## Running it locally
+
+`dotnet run --project src/Bitstream.Web` is enough for a fresh clone. In Development, and only
+when `Database:DevelopmentAutoMigrate` is true (it is, in `appsettings.Development.json`), the
+host applies every `db/mssql/*.sql` script in order, stamps `ops.SchemaVersion` exactly as
+`db/Deploy-Database.ps1` does, and seeds an Administrator from `Development:AdminEmail` /
+`Development:AdminPassword`.
+
+Both guards are checked — the environment must be Development *and* the flag must be true — and
+no configuration value can make it run outside Development. On UAT and production
+`db/Deploy-Database.ps1` remains the only supported path (TR-ARC-08).
+
+The seeded administrator has two-factor authentication enabled, so the sign-in screen will ask
+for a code. The host logs the `otpauth://` provisioning URI at start-up (warning level, so it is
+visible without turning logging up) — scan it into an authenticator app on first run.
+
+To run the database step by hand instead, set `Database:DevelopmentAutoMigrate` to false and
+use:
+
+```powershell
+./db/Deploy-Database.ps1 -ServerInstance . -Database BitstreamPortal -AppUser 'DOMAIN\svc_bitstream_dev'
 ```
 
 ## Foundation layer (TRD §2.4)
 
 | Requirement | Where |
 | --- | --- |
-| TR-ARC-06 externalised configuration | `Configuration/` in Application and Api, per-adapter options, validators run at start-up |
+| TR-ARC-06 externalised configuration | `Configuration/` in Application and Hosting, per-adapter options, validators run at start-up |
 | TR-ARC-04 correlation and structured logging | `ICorrelationContext`, `CorrelationIdMiddleware`, `RequestLoggingMiddleware`, `CorrelationPropagationHandler` |
 | TR-ARC-05 health endpoints | `/health/live`, `/health/ready`, checks in the layer that owns each dependency |
 | TR-NFR-17 CI | `.github/workflows/ci.yml` — build, format, test, publish; no container step |
@@ -217,12 +259,14 @@ INT-CRM-06 succeeds; a real status-callback loop is future work.
 
 ## The four Phase 0 deliverables
 
-**1. Layered solution (TRD §2.1, TR-ARC-01/02).** Five projects with the reference direction
-running one way only: Domain ← Application ← Infrastructure ← Api. The application layer
+**1. Layered solution (TRD §2.1, TR-ARC-01/02).** Seven projects with the reference direction
+running one way only: Domain ← Application ← Infrastructure ← Hosting ← the two hosts. The
+application layer
 reaches external systems solely through ports in
 `Bitstream.Application.Abstractions.Integration`; the adapters that implement them are the only
-code holding an `HttpClient` or an SMTP client. `Bitstream.Api` references both Infrastructure
-projects purely as the composition root. This is enforced by
+code holding an `HttpClient` or an SMTP client. `Bitstream.Web` and `Bitstream.Api` reference
+both Infrastructure projects purely as composition roots; nothing below them references
+`Bitstream.Hosting`, so it cannot become a back door into ASP.NET Core. This is enforced by
 `tests/Bitstream.ArchitectureTests`, which reads compiled assembly references and fails the
 build if the application layer picks up `System.Net.Http`, EF Core or an Infrastructure
 assembly. See [`docs/architecture.md`](docs/architecture.md).
@@ -249,14 +293,15 @@ at `/openapi/v1.json`, so the published contract cannot drift from what the port
 **4. Tailwind build.** Tailwind v4, CSS-first configuration, no `tailwind.config.js`, no
 PostCSS, no bundler, and no Node.js or npm anywhere in the project: the standalone Tailwind CLI
 — a single self-contained native binary — is downloaded on demand and run as a plain MSBuild
-`Exec` step (`Bitstream.Api.csproj`, gated behind `-p:BuildFrontend=true` so an ordinary backend
+`Exec` step (`Bitstream.Web.csproj`, gated behind `-p:BuildFrontend=true` so an ordinary backend
 build never touches the network). It compiles `ClientAssets/app.css` to `wwwroot/css/app.css`.
-The UI itself is folder-based Razor Pages under `src/Bitstream.Api/Pages` — one module per
+The UI itself is folder-based Razor Pages under `src/Bitstream.Web/Pages` — one module per
 folder, a shared `_Layout.cshtml` for the header/nav/content-area chrome, and the auth-guard
 implemented as `SecurePageModel`, a page filter every protected page derives from rather than a
 client-side redirect. There is no client-side router: navigation is ordinary page requests, and
-JavaScript, where used at all, is for behaviour (fetch calls, form feedback) only. The API host
-serves the UI directly, so the portal is one IIS site.
+JavaScript, where used at all, is for behaviour (fetch calls, form feedback) only. The screens
+and the endpoints they fetch are served by the same host, so the session cookie works with no
+CORS configuration.
 
 ## Open items
 
