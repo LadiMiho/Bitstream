@@ -1,4 +1,6 @@
+using Bitstream.Api.Tests.Activation;
 using Bitstream.Application.Abstractions.Integration;
+using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -50,6 +52,16 @@ public sealed class CrmApiFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(CrmGateway);
+
+            // SqlPublicIdentifierGenerator calls ops.usp_NextPublicIdentifier over the context's
+            // DbConnection, and the InMemory provider has no connection to give — GetDbConnection()
+            // throws, so every submit through the API would 500. These tests are about the CRM
+            // round trip, so a counter is the right stand-in. Note this means the gap-free series
+            // itself (TR-DAT-02b) is still unproven by any automated test: it lives in the stored
+            // procedure and needs a real SQL Server, which this environment does not have (see
+            // README.md "Verification status").
+            services.RemoveAll<IPublicIdentifierGenerator>();
+            services.AddSingleton<IPublicIdentifierGenerator>(new FakePublicIdentifierGenerator());
         });
     }
 
