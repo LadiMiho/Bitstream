@@ -62,10 +62,13 @@ public sealed class ActivationRequestNotFoundException : Exception
 /// 5.3 table fails here rather than silently corrupting the record.
 /// </para>
 /// <para>
-/// CRM is never called directly (TR-ARC-01, TR-ARC-03): <see cref="SubmitAsync"/> enqueues
-/// INT-CRM-01 and INT-CRM-02 on <see cref="IIntegrationOutbox"/> and stops. Dispatching those
-/// messages — and the transitions that follow from CRM's response (PendingCrmSync onward to
-/// Completed) — is Phase 4's dispatcher and inbound event interpretation, not this service.
+/// CRM is never called directly from here (TR-ARC-01, TR-ARC-03): <see cref="SubmitAsync"/>
+/// enqueues INT-CRM-01 on <see cref="IIntegrationOutbox"/> and stops. <c>OutboxDispatcher</c>
+/// (Services/Integration) claims it, calls <c>ICrmGateway</c>, enqueues INT-CRM-02 once it has
+/// the Business Partner, and — on success — calls <see cref="MarkCrmSyncSucceededAsync"/> here
+/// to drive PendingCrmSync to AwaitingGisVerification. The remaining CRM-driven transitions
+/// (SalesOrderOpened onward) are applied the same way, from Direction B inbound events via
+/// <c>InboundEventService</c>.
 /// </para>
 /// </summary>
 public sealed partial class ActivationRequestService : IActivationRequestService
@@ -208,9 +211,11 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         await _requestRepository.AddAsync(activationRequest, cancellationToken).ConfigureAwait(false);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // TR-ARC-03: enqueued on the outbox, never called directly — a background dispatcher
-        // takes it from here once Phase 4 wires the real CRM adapter (ICrmGateway, CrmHttpGateway).
-        await EnqueueCrmSubmissionAsync(activationRequest, isp!, cancellationToken).ConfigureAwait(false);
+        // TR-ARC-03: enqueued on the outbox, never called directly. Only INT-CRM-01 (create
+        // customer) goes on here — INT-CRM-02 (create ticket) needs the Business Partner that
+        // call returns, so OutboxDispatcher enqueues it itself once INT-CRM-01 succeeds, with
+        // the real BP rather than a placeholder.
+        await EnqueueCreateCustomerAsync(activationRequest, isp!, cancellationToken).ConfigureAwait(false);
 
         // Submitted -> PendingCrmSync (TRD 5.3): the messages are enqueued and the request is now
         // waiting on the dispatcher, not on anything the submitter still has to do.
@@ -314,6 +319,125 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task MarkCrmSyncSucceededAsync(string requestPublicId, string crmCustomerId, string businessPartner, string crmTicketId, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
+        var previousStatus = RequireTransition(request, ActivationRequestStatus.AwaitingGisVerification, requestPublicId);
+
+        request.CrmCustomerId = crmCustomerId;
+        request.Bp = businessPartner;
+        request.CrmTicketId = crmTicketId;
+        Transition(request, ActivationRequestStatus.AwaitingGisVerification, _clock.UtcNow);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.CrmSyncSucceeded", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}",
+            $"{{\"status\":\"AwaitingGisVerification\",\"crmTicketId\":{JsonSerializer.Serialize(crmTicketId)}}}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task MarkCrmSyncFailedAsync(string requestPublicId, string reason, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
+        var previousStatus = RequireTransition(request, ActivationRequestStatus.IntegrationFailed, requestPublicId);
+
+        request.StatusReason = reason;
+        Transition(request, ActivationRequestStatus.IntegrationFailed, _clock.UtcNow);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.CrmSyncFailed", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}", $"{{\"status\":\"IntegrationFailed\",\"reason\":{JsonSerializer.Serialize(reason)}}}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RetryCrmSyncAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByIdAsync(requestId, cancellationToken).ConfigureAwait(false);
+        RequireTransition(request, ActivationRequestStatus.PendingCrmSync, requestId);
+
+        var isp = await _ispRepository.FindByIdAsync(request.IspId, cancellationToken).ConfigureAwait(false) ??
+            throw new ActivationRequestValidationException($"ISP {request.IspId} no longer exists.");
+
+        request.StatusReason = null;
+        Transition(request, ActivationRequestStatus.PendingCrmSync, _clock.UtcNow);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await EnqueueCreateCustomerAsync(request, isp, cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.CrmSyncRetried", "ActivationRequest", requestId.ToString(CultureInfo.InvariantCulture),
+            "{\"status\":\"IntegrationFailed\"}", "{\"status\":\"PendingCrmSync\"}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CloseRejectedAsync(long requestId, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByIdAsync(requestId, cancellationToken).ConfigureAwait(false);
+        RequireTransition(request, ActivationRequestStatus.Closed, requestId);
+
+        Transition(request, ActivationRequestStatus.Closed, _clock.UtcNow);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.Closed", "ActivationRequest", requestId.ToString(CultureInfo.InvariantCulture),
+            "{\"status\":\"RejectedNoLine\"}", "{\"status\":\"Closed\"}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task StartProvisioningAsync(string requestPublicId, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
+        RequireTransition(request, ActivationRequestStatus.InProvisioning, requestPublicId);
+
+        Transition(request, ActivationRequestStatus.InProvisioning, _clock.UtcNow);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.ProvisioningStarted", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
+            "{\"status\":\"SalesOrderOpened\"}", "{\"status\":\"InProvisioning\"}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
+        RequireTransition(request, ActivationRequestStatus.Completed, requestPublicId);
+
+        Transition(request, ActivationRequestStatus.Completed, _clock.UtcNow);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.Completed", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
+            "{\"status\":\"InProvisioning\"}", "{\"status\":\"Completed\"}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ActivationRequest> RequireByIdAsync(long requestId, CancellationToken cancellationToken) =>
+        await _requestRepository.FindByIdAsync(requestId, cancellationToken).ConfigureAwait(false) ??
+        throw new ActivationRequestNotFoundException($"Activation request {requestId} does not exist.");
+
+    private async Task<ActivationRequest> RequireByPublicIdAsync(string publicId, CancellationToken cancellationToken) =>
+        await _requestRepository.FindByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false) ??
+        throw new ActivationRequestNotFoundException($"Activation request '{publicId}' does not exist.");
+
+    /// <summary>Validates the transition and returns the request's status before it, for the audit "old value".</summary>
+    private static ActivationRequestStatus RequireTransition(ActivationRequest request, ActivationRequestStatus to, object identifier)
+    {
+        var from = request.Status;
+
+        if (!ActivationRequestTransitions.IsPermitted(from, to))
+        {
+            throw new ActivationRequestConflictException(
+                $"Cannot move request {identifier} to '{to}': it is in status '{from}', which does not permit that transition (TRD 5.3).");
+        }
+
+        return from;
+    }
+
     /// <summary>
     /// The only place <see cref="ActivationRequest.Status"/> is assigned. Callers decide and
     /// validate the target status themselves (each has a different rule for what is being
@@ -326,29 +450,20 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         request.LastUpdatedAt = now;
     }
 
-    private async Task EnqueueCrmSubmissionAsync(ActivationRequest request, Isp isp, CancellationToken cancellationToken)
+    private async Task EnqueueCreateCustomerAsync(ActivationRequest request, Isp isp, CancellationToken cancellationToken)
     {
         var envelope = new IntegrationEnvelope(Guid.NewGuid(), _currentUser.CorrelationId, request.PublicId, _clock.UtcNow);
 
         var customerCommand = new CreateCrmCustomerCommand(
             envelope, request.PublicId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile);
 
+        // TR-INT-03/17: the idempotency key is the request's own public identifier — stable
+        // across every retry of this message, including a whole re-submission via
+        // RetryCrmSyncAsync, so CRM recognises a repeat as the same customer rather than
+        // creating a duplicate.
         await _outbox.EnqueueOutboundAsync(
             TargetSystem.Crm, "INT-CRM-01", "CREATE_CUSTOMER", request.PublicId,
             JsonSerializer.Serialize(customerCommand), _currentUser.CorrelationId, request.PublicId, cancellationToken)
-            .ConfigureAwait(false);
-
-        // BusinessPartner is not yet known: INT-CRM-01 has only just been enqueued, not
-        // dispatched. Phase 4's dispatcher resolves it from the customer-creation response before
-        // this message is sent to CRM; the port and its shape exist now so nothing else about
-        // this method changes when that wiring lands.
-        var ticketCommand = new CreateActivationTicketCommand(
-            envelope, request.PublicId, string.Empty, request.Classification, request.PackageCode,
-            request.ContractDurationMonths, request.LocationRaw, request.LocationLat, request.LocationLng, request.Comments);
-
-        await _outbox.EnqueueOutboundAsync(
-            TargetSystem.Crm, "INT-CRM-02", "CREATE_ACTIVATION_TICKET", request.PublicId,
-            JsonSerializer.Serialize(ticketCommand), _currentUser.CorrelationId, request.PublicId, cancellationToken)
             .ConfigureAwait(false);
     }
 

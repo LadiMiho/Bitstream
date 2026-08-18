@@ -44,6 +44,9 @@ public interface IIntegrationOutbox
         int batchSize,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Looks up one message by ID, for interpreting a just-recorded inbound event or inspecting a dead letter.</summary>
+    Task<IntegrationMessage?> FindByIdAsync(long messageId, CancellationToken cancellationToken = default);
+
     /// <summary>Records a successful dispatch and the stored response.</summary>
     Task MarkSucceededAsync(
         long messageId,
@@ -66,4 +69,11 @@ public interface IIntegrationOutbox
 
     /// <summary>Re-queues a dead-lettered message without duplicating its effect (TR-INT-05).</summary>
     Task ReplayAsync(long messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>Finds inbound messages for recovery replay (TR-INT-31): by identifier, by time window, or both.</summary>
+    Task<IReadOnlyList<IntegrationMessage>> FindInboundAsync(
+        string? relatedPublicId,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc,
+        CancellationToken cancellationToken = default);
 }

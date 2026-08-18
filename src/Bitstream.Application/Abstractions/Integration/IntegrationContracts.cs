@@ -30,9 +30,11 @@ public sealed record CreateCrmCustomerResult(string CrmCustomerId, string Busine
 
 // --- INT-CRM-02 Create Activation Ticket ----------------------------------------
 
+/// <param name="CrmCustomerId">The CRM-side customer ID INT-CRM-01 returned, carried forward so the caller does not have to look its own earlier response back up.</param>
 public sealed record CreateActivationTicketCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
+    string CrmCustomerId,
     string BusinessPartner,
     string Classification,
     string PackageCode,

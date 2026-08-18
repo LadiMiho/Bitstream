@@ -16,7 +16,9 @@ public interface IActivationRequestService
 {
     /// <summary>
     /// Validates, persists with status Submitted and issues the public identifier before any
-    /// CRM call (TR-ACT-06, TR-DAT-01), then enqueues INT-CRM-01 and INT-CRM-02 on the outbox.
+    /// CRM call (TR-ACT-06, TR-DAT-01), then enqueues INT-CRM-01 on the outbox. INT-CRM-02
+    /// needs the Business Partner INT-CRM-01 returns, so <c>OutboxDispatcher</c> enqueues it
+    /// once that response is in hand, rather than this method enqueueing it with a placeholder.
     /// </summary>
     Task<ActivationRequest> SubmitAsync(SubmitActivationRequest request, CancellationToken cancellationToken = default);
 
@@ -27,6 +29,30 @@ public interface IActivationRequestService
     Task ApplySalesOrderAsync(string requestPublicId, string salesOrderId, CancellationToken cancellationToken = default);
 
     Task<ActivationRequest?> GetByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records that INT-CRM-01 and INT-CRM-02 both succeeded and moves PendingCrmSync to
+    /// AwaitingGisVerification (TRD 5.3). Called by the outbox dispatcher, not by an endpoint —
+    /// CRM's response is synchronous, so this does not wait for an inbound event. Keyed by the
+    /// public identifier, like the other CRM-correlated methods: the dispatcher only ever knows
+    /// the identifier it put on the outgoing message, never the internal primary key.
+    /// </summary>
+    Task MarkCrmSyncSucceededAsync(string requestPublicId, string crmCustomerId, string businessPartner, string crmTicketId, CancellationToken cancellationToken = default);
+
+    /// <summary>Records that the outbox gave up on INT-CRM-01/02 and moves PendingCrmSync to IntegrationFailed (TR-INT-04, TR-INT-19).</summary>
+    Task MarkCrmSyncFailedAsync(string requestPublicId, string reason, CancellationToken cancellationToken = default);
+
+    /// <summary>Administrator-initiated recovery: re-enqueues INT-CRM-01/02 and moves IntegrationFailed back to PendingCrmSync.</summary>
+    Task RetryCrmSyncAsync(long requestId, CancellationToken cancellationToken = default);
+
+    /// <summary>Closes a rejected request once the ISP has been told (TRD 5.3: RejectedNoLine to Closed).</summary>
+    Task CloseRejectedAsync(long requestId, CancellationToken cancellationToken = default);
+
+    /// <summary>Applies a PROVISIONING_STARTED inbound event (TRD 5.3: SalesOrderOpened to InProvisioning).</summary>
+    Task StartProvisioningAsync(string requestPublicId, CancellationToken cancellationToken = default);
+
+    /// <summary>Applies a TECHNICALLY_COMPLETED inbound event (TRD 5.3: InProvisioning to Completed).</summary>
+    Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default);
 }
 
 /// <param name="ContractDurationMonths">12 or 24, from the configured list.</param>

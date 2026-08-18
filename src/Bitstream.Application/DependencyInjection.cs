@@ -3,6 +3,7 @@ using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Application.Services.Identity;
+using Bitstream.Application.Services.Integration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -89,6 +90,20 @@ public static class DependencyInjection
         // TRD 5 — activation request lifecycle (TR-ACT-01 to TR-ACT-19).
         services.AddScoped<IActivationRequestService, ActivationRequestService>();
 
+        // TRD 7.3 — CRM integration. Direction A: the dispatcher claims the outbox and calls
+        // ICrmGateway (Integration layer). Direction B: InboundEventService interprets a
+        // persisted inbound event (TR-ARC-03, TR-INT-22 to TR-INT-31).
+        services.AddOptions<OutboxDispatcherOptions>()
+            .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName));
+        services.AddSingleton<IValidateOptions<OutboxDispatcherOptions>, OutboxDispatcherOptionsValidator>();
+
+        // Registered as its own singleton, not only as IHostedService, so a test can resolve it
+        // directly and call DispatchBatchAsync deterministically instead of racing the poll timer.
+        services.AddSingleton<OutboxDispatcher>();
+        services.AddHostedService(provider => provider.GetRequiredService<OutboxDispatcher>());
+
+        services.AddScoped<IInboundEventService, InboundEventService>();
+
         return services;
     }
 
@@ -106,6 +121,7 @@ public static class DependencyInjection
         typeof(PasswordPolicyOptions),
         typeof(TwoFactorOptions),
         typeof(SessionOptions),
-        typeof(LockoutOptions)
+        typeof(LockoutOptions),
+        typeof(OutboxDispatcherOptions)
     ];
 }
