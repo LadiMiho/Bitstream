@@ -67,6 +67,16 @@ project actually uses — and fails the build if the application layer picks up
 `System.Net.Http`, `Microsoft.EntityFrameworkCore` or either Infrastructure assembly, or if a
 port is implemented outside the integration layer.
 
+The split between the two hosts is enforced the same way, because a split that lives only in a
+document is one refactoring away from gone:
+
+- neither host may reference the other — anything genuinely common belongs in
+  `Bitstream.Hosting`, which both already reference;
+- `Bitstream.Hosting` may not reference an Infrastructure project, which would make it a second
+  composition root and let the two hosts disagree about how the platform is wired;
+- `Bitstream.Api` may not reference Razor Pages, since a screen served from the https-only site
+  that only CRM's source ranges can reach is a screen nobody can use.
+
 ## Ports and adapters (TR-ARC-02)
 
 Every external system is reached through an interface in

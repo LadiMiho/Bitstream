@@ -19,6 +19,9 @@ public sealed class LayeringTests
     private static readonly Assembly Application = typeof(ICrmGateway).Assembly;
     private static readonly Assembly Persistence = typeof(Infrastructure.Persistence.BitstreamDbContext).Assembly;
     private static readonly Assembly Integration = typeof(Infrastructure.Integration.Crm.CrmHttpGateway).Assembly;
+    private static readonly Assembly Hosting = typeof(Hosting.Security.BitstreamClaimTypes).Assembly;
+    private static readonly Assembly Web = typeof(Web.DevelopmentBootstrapper).Assembly;
+    private static readonly Assembly Api = typeof(Api.ApiHostEntryPoint).Assembly;
 
     private static string[] ReferencedAssemblyNames(Assembly assembly) =>
         [.. assembly.GetReferencedAssemblies().Select(a => a.Name ?? string.Empty)];
@@ -49,6 +52,8 @@ public sealed class LayeringTests
 
         Assert.DoesNotContain(references, name =>
             name.StartsWith("Bitstream.Infrastructure", StringComparison.Ordinal) ||
+            name.StartsWith("Bitstream.Hosting", StringComparison.Ordinal) ||
+            name.StartsWith("Bitstream.Web", StringComparison.Ordinal) ||
             name.StartsWith("Bitstream.Api", StringComparison.Ordinal));
     }
 
@@ -78,6 +83,53 @@ public sealed class LayeringTests
         Assert.DoesNotContain(
             ReferencedAssemblyNames(Integration),
             name => name.StartsWith("Bitstream.Infrastructure.Persistence", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <c>Bitstream.Hosting</c> holds the cross-cutting plumbing both hosts share — middleware,
+    /// options binding, health endpoints. It sits beside the hosts, not above the adapters: if
+    /// it reached an Infrastructure project it would have quietly become a second composition
+    /// root, and the two hosts would start disagreeing about how the platform is wired.
+    /// </summary>
+    [Fact]
+    public void Hosting_does_not_reference_infrastructure_projects()
+    {
+        var references = ReferencedAssemblyNames(Hosting);
+
+        Assert.DoesNotContain(references, name =>
+            name.StartsWith("Bitstream.Infrastructure", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The two hosts are split by audience: <c>Bitstream.Web</c> serves people,
+    /// <c>Bitstream.Api</c> serves CRM. Neither may reference the other. A reference in either
+    /// direction is how the split erodes — the UI creeping back into the machine-facing host,
+    /// or the portal reaching for the CRM-facing endpoints instead of the application layer.
+    /// Anything genuinely common belongs in <c>Bitstream.Hosting</c>, which both already have.
+    /// </summary>
+    [Fact]
+    public void The_two_hosts_do_not_reference_each_other()
+    {
+        Assert.DoesNotContain(
+            ReferencedAssemblyNames(Web),
+            name => name.StartsWith("Bitstream.Api", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            ReferencedAssemblyNames(Api),
+            name => name.StartsWith("Bitstream.Web", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The integration host has no user interface. Razor Pages there would mean a screen served
+    /// from the site whose bindings are https-only and whose firewall rules admit CRM's source
+    /// ranges — reachable by a machine caller and by nobody who could use it.
+    /// </summary>
+    [Fact]
+    public void The_integration_host_has_no_razor_pages()
+    {
+        Assert.DoesNotContain(
+            ReferencedAssemblyNames(Api),
+            name => name.StartsWith("Microsoft.AspNetCore.Mvc.RazorPages", StringComparison.Ordinal));
     }
 
     /// <summary>TR-ARC-02: every port implementation lives in the integration layer.</summary>
