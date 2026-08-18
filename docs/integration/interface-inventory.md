@@ -7,13 +7,13 @@ contract belongs to the other system.
 
 | TRD §7.1 | Direction | Represented by | OpenAPI | Blocked by |
 | --- | --- | --- | --- | --- |
-| INT-CRM-01 Create Customer | Portal → CRM | `ICrmGateway.CreateCustomerAsync`, outbox | no — outbound | Open item 1 |
-| INT-CRM-02 Create Activation Ticket | Portal → CRM | `ICrmGateway.CreateActivationTicketAsync`, outbox | no — outbound | Open item 1 |
-| INT-CRM-03 Sales Order Notification | CRM → Portal | `POST /api/v1/tickets/{identifier}/events`, event type carrying `SalesOrderEventPayload` | **yes** | Open items 3, 4 |
-| INT-CRM-04 Create Complaint Ticket | Portal → CRM | `ICrmGateway.CreateComplaintTicketAsync`, outbox | no — outbound | Open item 1 |
-| INT-CRM-05 Ticket Lifecycle Events | CRM → Portal | `POST /api/v1/tickets/{identifier}/events` | **yes** | Open items 3, 4 |
-| INT-CRM-06 Comment Replication | Bidirectional | Out: `ICrmGateway.ReplicateCommentAsync`. In: `COMMENT_ADDED` on the events endpoint | **yes** (inbound half) | Open item 1 (outbound) |
-| INT-CRM-07 Closure / Clearing Code | CRM → Portal | `CLOSED_WITH_CLEARING_CODE` on the events endpoint | **yes** | Open items 3, 4 |
+| INT-CRM-01 Create Customer | Portal → CRM | `ICrmGateway.CreateCustomerAsync` — **implemented** against a provisional payload shape, dispatched from the outbox by `OutboxDispatcher` | no — outbound | Real contract: Open item 1 |
+| INT-CRM-02 Create Activation Ticket | Portal → CRM | `ICrmGateway.CreateActivationTicketAsync` — **implemented**, enqueued by the dispatcher once INT-CRM-01's Business Partner is known | no — outbound | Real contract: Open item 1 |
+| INT-CRM-03 Sales Order Notification | CRM → Portal | `POST /api/v1/tickets/{identifier}/events`, `SALES_ORDER_OPENED` — **implemented** for activation requests (TR-ACT-18) | **yes** | Auth: open item 3 |
+| INT-CRM-04 Create Complaint Ticket | Portal → CRM | `ICrmGateway.CreateComplaintTicketAsync`, outbox | no — outbound | Open item 1; complaint ticket module not built |
+| INT-CRM-05 Ticket Lifecycle Events | CRM → Portal | `POST /api/v1/tickets/{identifier}/events` — activation-relevant types (`PROVISIONING_STARTED`, `TECHNICALLY_COMPLETED`) **implemented**; complaint-ticket types (`STATUS_CHANGED` etc.) recognised as valid shape but rejected 422, since that module is not built | **yes** | Auth: open item 3; full vocabulary: open item 4 |
+| INT-CRM-06 Comment Replication | Bidirectional | Out: `ICrmGateway.ReplicateCommentAsync`. In: `COMMENT_ADDED` on the events endpoint (422 — complaint ticket module not built) | **yes** (inbound half) | Open item 1 (outbound); complaint ticket module |
+| INT-CRM-07 Closure / Clearing Code | CRM → Portal | `CLOSED_WITH_CLEARING_CODE` on the events endpoint (422 — complaint ticket module not built) | **yes** | Complaint ticket module |
 | INT-CRM-08 Closure Decision | Portal → CRM | `ICrmGateway.SubmitClosureDecisionAsync` | no — outbound | Open item 1 |
 | INT-CRM-09 Service Change | Portal → CRM | `ICrmGateway.SubmitServiceChangeAsync`, outbox | no — outbound | Open item 1 |
 | INT-BI-01 Active Lines Sync | BI → Portal (pull) | `IBiGateway.GetActiveLinesAsync`, scheduled; manual trigger at `POST /api/v1/ops/bi/active-lines/sync` | **yes** (the trigger) | BI table structure (§11.2) |
@@ -60,8 +60,13 @@ curl -sk https://localhost:7291/openapi/v1.json -o docs/integration/bitstream-po
 
 ## Field mapping for Direction A
 
-Not written. TR-INT-21 requires the portal-to-CRM field mapping to be documented in a mapping
-table and signed off by both teams before development, and the CRM-side contract has not been
-supplied (open item 1). Writing a mapping against a guessed contract would produce a document
-that looks authoritative and is not. The table goes in
-`docs/integration/crm-direction-a-mapping.md` when the contract arrives.
+Not written as a signed-off document. TR-INT-21 requires the portal-to-CRM field mapping to be
+documented and signed off by both teams before development, and the CRM-side contract has not
+been supplied (open item 1). `CrmHttpGateway` (`src/Bitstream.Infrastructure.Integration/Crm`)
+does carry a *provisional* shape — a JSON POST per operation, echoing the fields
+`CreateCrmCustomerCommand`/`CreateActivationTicketCommand` already have, described in that
+file's own doc comment — built so Direction A is exercisable end to end (against
+`tools/CrmSimulator`) without waiting on the contract, and isolated so that adopting the real one
+is a change to that file's request/response records and nothing else. It is not the signed-off
+mapping TR-INT-21 asks for; that table still goes in
+`docs/integration/crm-direction-a-mapping.md` when the real contract arrives.

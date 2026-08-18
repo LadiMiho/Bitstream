@@ -9,23 +9,29 @@ carries a port, a nullable column or a configuration key and stops there.
 ### Item 1 — CRM contract for ticket creation (Direction A)
 *Endpoint, authentication, field mapping and error semantics. From: CRM team.*
 
-**Blocks:** INT-CRM-01, -02, -04, -06 (outbound half), -08, -09 — that is, every
-portal-to-CRM call, and with them the whole activation flow (TRD §5.2) and complaint
-replication (TR-PAS-10).
+**Still blocks:** INT-CRM-04, -06 (outbound half), -08, -09 — complaint ticket creation, comment
+replication, closure decision and service change all still throw `NotSupportedException`; they
+belong to modules (complaint tickets, service changes) that are not built yet, and there is
+nothing to map their fields against regardless. TR-INT-21's signed-off field mapping — the actual
+deliverable this item blocks — does not exist for any of the six operations, provisional or not.
 
-**Why it is not workable around.** TR-INT-19 requires the portal to tell a *business
-rejection* (never retried, request moves to a failed state, administrator alerted) from a
-*technical failure* (retried per TR-INT-04). That distinction can only be made from the CRM
-error semantics. Guessing it would produce a retry loop that either hammers CRM with requests
-it has already refused, or silently drops requests it would have accepted. TR-INT-21 also
-requires the field mapping to be signed off by both teams *before* development.
+**No longer blocks starting work on activation requests.** INT-CRM-01 (create customer) and
+INT-CRM-02 (create activation ticket) are implemented in `CrmHttpGateway`, dispatched from the
+outbox by `OutboxDispatcher`, against a *provisional* payload shape following TRD §7.4's field
+list rather than a signed-off mapping. This is a deliberate bet: build against the best available
+guess, isolated behind `ICrmGateway` so that adopting the real contract is a change to one file's
+request/response records (and `AuthorizeAsync`, if the auth scheme differs), not a redesign. It
+does **not** resolve TR-INT-21 — the mapping still needs both teams' sign-off before this goes
+live — and TR-INT-19's business-rejection/technical-failure split is implemented against a guess
+(4xx vs. everything else) that may not match CRM's actual error semantics.
 
-**What exists:** `ICrmGateway` with the full operation set, `CrmHttpGateway` throwing
-`NotSupportedException`, and `IIntegrationOutbox` (storage only — enqueue, claim, mark succeeded
-or failed, replay) that a dispatcher will drain once this item is answered. The activation
-request module (TRD 5, built) already enqueues INT-CRM-01 and INT-CRM-02 on submission and stops
-there; nothing claims or dispatches a message yet. Wiring the real calls touches `CrmHttpGateway`
-and adds the dispatcher — the application services that enqueue do not change.
+**What exists:** `ICrmGateway.CreateCustomerAsync`/`CreateActivationTicketAsync` implemented;
+`ICrmGateway`'s other four methods still throw. `IIntegrationOutbox` (enqueue, claim, mark
+succeeded or failed, replay) and `OutboxDispatcher` (the background hosted service that drains
+it, with exponential backoff and dead-lettering, TR-INT-04/05) are both built and used by every
+target system, not CRM alone. `tools/CrmSimulator` stands in for CRM locally, honouring the same
+`Idempotency-Key` header `CrmHttpGateway` sends (TR-INT-03/17), so the provisional shape is
+exercisable end to end without a real CRM endpoint to call.
 
 ### Item 5 — Where the SAP financial code is populated
 *From: Wholesale / Finance.*
@@ -159,7 +165,7 @@ depends on it — no line selection means no complaint ticket. `IBiGateway` and
 
 | Item | Blocks | Can work start? |
 | --- | --- | --- |
-| 1 CRM Direction A contract | All outbound CRM, activation flow | **No** |
+| 1 CRM Direction A contract | Complaint/service-change CRM calls; the real, signed-off mapping | Activation's two calls: built provisional. Rest: **No** |
 | 5 SAP financial code population point | INT-SAP-01, its direction | **No** |
 | 3 Inbound API authentication | Production use of the event API | Endpoint yes, enablement no |
 | 4 CRM status / event type list | Status projection, notifications, dashboard | Partly |

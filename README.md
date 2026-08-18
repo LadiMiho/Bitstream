@@ -3,14 +3,15 @@
 Project scaffold for the ISP Platform (Bitstream Portal), built to
 *Technical Requirements Document v1.0, August 2026*.
 
-**Foundation, Access Management (TRD §4) and Activation Requests (TRD §5) are built.**
-Structure, contracts, schema, configuration, logging, health, CI and deployment are in place,
-and so are the first two full application modules: authentication, 2FA, sessions, RBAC and
-ISP/user administration; and activation request submission, the GIS verification admin screen
-and the TRD §5.3 state machine. Every other application service — complaint tickets, reporting,
-the CRM/BI/SAP adapters — is still unimplemented, and their endpoints still answer
-`501 Not Implemented`. CRM is deliberately still a stub even for what activation requests
-enqueue: see "Activation Requests" below.
+**Foundation, Access Management (TRD §4), Activation Requests (TRD §5) and CRM integration
+(TRD §7.3) are built.** Structure, contracts, schema, configuration, logging, health, CI and
+deployment are in place; authentication, 2FA, sessions, RBAC and ISP/user administration are
+built; activation request submission, the GIS verification admin screen and the TRD §5.3 state
+machine are built; and that state machine is now driven end to end by a real (if provisional)
+CRM integration — an outbox dispatcher calling CRM for customer and ticket creation, and the
+inbound event API applying sales order, provisioning and completion events back. Every other
+application service — complaint tickets, service changes, reporting, the BI/SAP adapters — is
+still unimplemented, and their endpoints still answer `501 Not Implemented`.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
@@ -33,6 +34,9 @@ tests/
   Bitstream.Api.Tests                   middleware, health endpoints, config validators
     Identity/                           auth, RBAC, lockout, sessions — see below
     Activation/                         submission, state machine, GIS verification — see below
+    Integration/                        CRM outbox, dispatcher, Direction A/B, end-to-end — see below
+tools/
+  CrmSimulator                          standalone stand-in for CRM, for local development
 deploy/
   environments/                         one file per environment, values only
   *.ps1                                 prerequisites, site, secrets, deployment
@@ -129,8 +133,8 @@ Server, which is unavailable in this environment) does not support.
 
 ## Activation Requests (TRD §5)
 
-`ActivationRequestService` drives the TRD §5.3 state machine — Submitted through Completed — for
-every step that does not require CRM to have actually answered. Full write-up in
+`ActivationRequestService` drives the TRD §5.3 state machine, Submitted through Completed — the
+CRM-driven steps included, now that CRM integration (below) is built. Full write-up in
 [`docs/architecture.md`](docs/architecture.md#activation-requests-trd-5).
 
 | Requirement | Where |
@@ -141,18 +145,35 @@ every step that does not require CRM to have actually answered. Full write-up in
 | TRD §5.3 state machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change goes through it, so an invalid jump fails rather than corrupting the record |
 | TR-ACT-12 to TR-ACT-19 GIS verification | `RecordGisOutcomeAsync` — the no-line and line-exists branches, only permitted from `AwaitingGisVerification`; a no-line outcome requires a reason |
 
-**CRM is enqueued, never called.** `SubmitAsync` puts INT-CRM-01 and INT-CRM-02 on
-`IIntegrationOutbox` and stops — `IIntegrationOutbox` is now implemented
-(`Infrastructure.Persistence/IntegrationOutbox.cs`), but as storage only: enqueue, claim, mark
-succeeded or failed, replay. Nothing yet claims a message and dispatches it through
-`ICrmGateway`; that dispatcher, and the transitions that follow from CRM's response
-(`PendingCrmSync` onward), are Phase 4, blocked on TRD §11.4 open item 1 exactly as `CrmHttpGateway`
-already documents.
-
 **The state table is tested exhaustively, not just along the paths this module drives.**
 `ActivationRequestTransitionsTests` checks all 100 ordered pairs of the ten TRD §5.3 statuses —
 every permitted transition and every rejection — against an independently restated copy of the
 table, so a rejected transition is proven rejected, not merely unasserted.
+
+## CRM Integration (TRD §7.3)
+
+Full write-up in [`docs/architecture.md`](docs/architecture.md#crm-integration-trd-73).
+
+| Requirement | Where |
+| --- | --- |
+| TR-ARC-03 outbox / dispatcher | `IIntegrationOutbox` (storage) + `OutboxDispatcher` (Application, background hosted service) — claims due messages, calls the gateway, marks succeeded or dead-letters |
+| TR-INT-04, TR-INT-05 retry and dead-letter | Exponential backoff up to `OutboxDispatcherOptions.MaxAttempts`, then dead-lettered; a business rejection (TR-INT-19) dead-letters immediately, never retried |
+| TR-INT-03 idempotency | Every outbound call carries an `Idempotency-Key` header set to the request's own public identifier; inbound dedup is on `eventId` (`IIntegrationOutbox.RecordInboundAsync`) |
+| TR-INT-15 to TR-INT-21 Direction A | `CrmHttpGateway.CreateCustomerAsync` / `CreateActivationTicketAsync`, against a provisional TRD §7.4 payload shape, isolated so the real contract is a one-file change |
+| TR-INT-22 to TR-INT-31 Direction B | `POST /api/v1/tickets/{identifier}/events` — persist-then-interpret, `eventId` dedup, `occurredAt` ordering, the full response-code table (200/400/404/409/422/429) |
+
+**A CRM simulator, and a fake that stands in for it in tests.** `tools/CrmSimulator` is a
+standalone minimal API matching `CrmHttpGateway`'s provisional shape, for pointing
+`Integration:Crm:BaseAddress` at during local development (`dotnet run --project
+tools/CrmSimulator`). The automated tests use `FakeCrmGateway` instead — an in-process double
+with the same idempotent-by-key behaviour — so the suite never has to manage a second process.
+
+**Proven end to end.** `tests/Bitstream.Api.Tests/Integration/CrmClosureEndToEndTests.cs` submits
+a request, drives `OutboxDispatcher` through both Direction A calls, verifies the GIS admin
+screen, then posts the sales order, provisioning and completion events on the real inbound
+endpoint — asserting a repeated `eventId` is a no-op and a stale `occurredAt` is discarded along
+the way — through to `Completed`. A separate test proves a business rejection dead-letters
+immediately and moves the request to `IntegrationFailed`.
 
 ## The four Phase 0 deliverables
 
@@ -217,8 +238,9 @@ Honest accounting of what has and has not been run:
 | Tailwind build | **Verified** — `npm run build:css` runs clean and emits the expected classes |
 | CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
 | C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
-| Tests, including `Identity/*` and `Activation/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
-| T-SQL execution, incl. `0009_sessions_and_two_factor.sql` | **Not verified** — no SQL Server instance available |
+| Tests, including `Identity/*`, `Activation/*` and `Integration/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
+| `tools/CrmSimulator` | **Not run** — same SDK constraint; traced against `CrmHttpGateway`'s request/response shapes by hand |
+| T-SQL execution, incl. `0010_activation_event_ordering.sql` | **Not verified** — no SQL Server instance available |
 | PowerShell deployment scripts | **Not run** — they need Windows, IIS and SQL Server |
 
 So the first thing to do on a machine with the .NET 10 SDK is `dotnet build` and

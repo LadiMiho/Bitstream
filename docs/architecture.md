@@ -117,9 +117,8 @@ Two design choices worth knowing before extending this module:
 ## Activation requests (TRD 5)
 
 The second fully implemented module. `ActivationRequestService` owns the TRD 5.3 state machine
-end to end for the steps that do not require CRM to have answered: submission, the GIS
-verification admin screen, and applying a sales order once one exists. CRM itself is not called
-— see "CRM stays a stub here" below.
+end to end, Submitted through Completed, including the steps CRM drives — see
+[CRM integration](#crm-integration-trd-73) below for how those actually reach it.
 
 | Concern | Where | Requirement |
 | --- | --- | --- |
@@ -128,27 +127,73 @@ verification admin screen, and applying a sales order once one exists. CRM itsel
 | Coordinate parsing | `CoordinateParser` — a bare pair or a map URL's `@lat,lng` / `q=`/`ll=` parameter, normalised and range-checked | TR-ACT-02, TR-ACT-03 |
 | State machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change in the service goes through it | TRD 5.3 |
 | GIS verification | `RecordGisOutcomeAsync` — the no-line and line-exists branches, only permitted from `AwaitingGisVerification` | TR-ACT-12 to TR-ACT-19 |
-| Outbound CRM messages | Enqueued on `IIntegrationOutbox`, never called directly | TR-ARC-03, TR-INT-02 |
+| CRM sync outcome | `MarkCrmSyncSucceededAsync` / `MarkCrmSyncFailedAsync` — PendingCrmSync to AwaitingGisVerification or IntegrationFailed, called by `OutboxDispatcher` | TRD 5.3 |
+| Sales order, provisioning, completion | `ApplySalesOrderAsync`, `StartProvisioningAsync`, `CompleteAsync` — called by `InboundEventService` from Direction B events | TR-ACT-18, TRD 5.3 |
 
-**CRM stays a stub here, deliberately.** `SubmitAsync` enqueues INT-CRM-01 (create customer) and
-INT-CRM-02 (create activation ticket) on the outbox and stops; it does not call `ICrmGateway`.
-`IIntegrationOutbox` is implemented (`Infrastructure.Persistence/IntegrationOutbox.cs`) as pure
-storage — enqueue, claim, mark succeeded or failed, replay — but nothing claims a message and
-dispatches it to a gateway yet. That dispatcher, and the transitions that follow from CRM's
-response (`PendingCrmSync` onward to `Completed`, driven by the inbound event API), are Phase 4.
-Until then, a request that reaches `AwaitingGisVerification` gets there by direct seeding in
-tests, not by a real CRM round trip — consistent with `CrmHttpGateway` throwing
-`NotSupportedException` for the same reason (TRD 11.4 open item 1).
-
-**The state machine is proven exhaustively, not just at the paths this module drives.**
+**The state machine is proven exhaustively, not just at the paths any one caller drives.**
 `ActivationRequestTransitionsTests` checks every ordered pair of the ten statuses against an
 independently restated copy of the TRD 5.3 table — every permitted transition and every
 rejection, including self-transitions and skipped steps — so the table in
 `ActivationRequestTransitions` cannot silently drift from the design without a test failing.
 
+## CRM integration (TRD 7.3)
+
+**Direction A (portal → CRM).** `ActivationRequestService.SubmitAsync` enqueues INT-CRM-01
+(create customer) on `IIntegrationOutbox` and stops — it never calls `ICrmGateway` directly
+(TR-ARC-01, TR-ARC-03). `OutboxDispatcher` (Application, `Services/Integration`) is the
+background hosted service that claims due messages and calls the gateway:
+
+1. Claims INT-CRM-01, calls `ICrmGateway.CreateCustomerAsync`. On success it enqueues INT-CRM-02
+   itself, now carrying the real Business Partner the call returned — not a placeholder, and not
+   something `SubmitAsync` could have known up front.
+2. Claims INT-CRM-02, calls `CreateActivationTicketAsync`. On success it calls
+   `IActivationRequestService.MarkCrmSyncSucceededAsync`, moving `PendingCrmSync` to
+   `AwaitingGisVerification`.
+3. On failure: a business rejection (TR-INT-19) or a technical failure that has exhausted
+   `OutboxDispatcherOptions.MaxAttempts` (TR-INT-04) dead-letters the message and calls
+   `MarkCrmSyncFailedAsync`, moving the request to `IntegrationFailed`. A technical failure with
+   attempts remaining schedules a backoff retry and leaves the request exactly where it was —
+   still `PendingCrmSync`, since nothing about it is wrong yet.
+
+`CrmHttpGateway` (`Infrastructure.Integration/Crm`) implements the two calls against a
+*provisional* payload shape (TRD §7.4's field list is the real target; the real CRM contract is
+still TRD 11.4 open item 1). Every request carries an `Idempotency-Key` header set to the
+envelope's `IdempotencyKey` — the request's own public identifier — so a retried message is
+recognisable as a repeat rather than a second create (TR-INT-03, TR-INT-17). Everything that
+would change when the real contract arrives is isolated to that one file: the request/response
+record shapes, and `AuthorizeAsync` if the auth scheme differs from a bearer token.
+
+**Direction B (CRM → portal).** `POST /api/v1/tickets/{identifier}/events` (`CrmInboundEndpoints`)
+persists the raw event through `IIntegrationOutbox.RecordInboundAsync` before anything else
+(TR-INT-07, TR-INT-24) — a repeated `eventId` is recognised there and returns the original
+outcome without calling into interpretation again (TR-INT-25). A new event is handed to
+`InboundEventService.ApplyAsync`, which discards (but still acknowledges) an event no later than
+the request's `LastAppliedEventAt` (TR-INT-25, TR-PAS-17), then routes by event type:
+`SALES_ORDER_OPENED`, `PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` call the matching
+`ActivationRequestService` method; every other recognised type is a complaint-ticket concept
+(TRD 6) not yet built, and is rejected 422 rather than silently accepted (TR-INT-27) — the full
+event vocabulary is TRD 11.4 open item 4 regardless.
+
+**A response code answers a different question than the state machine does.** 404 means the
+identifier does not resolve to any known request; 422 means the event's shape is fine but it
+does not apply here; 409 means it is a TRD 5.3 concept but not a permitted transition from the
+current status. `ActivationRequestConflictException`, thrown by the same
+`ActivationRequestService` methods Direction A's dispatcher calls, is what a sales order event
+arriving before the request is even `LineAvailable` turns into.
+
+**CRM simulator.** `tools/CrmSimulator` is a standalone minimal API standing in for CRM's
+customer- and ticket-creation endpoints, matching `CrmHttpGateway`'s provisional shape and
+honouring the same `Idempotency-Key` header (a repeated key returns the same identifiers rather
+than minting new ones). Point `Integration:Crm:BaseAddress` at it for local development; there is
+no real CRM to point at yet. The automated tests do not depend on it being run — they substitute
+`FakeCrmGateway`, an in-process double with the same idempotent-by-key behaviour, so the test
+suite has no second process to manage.
+
 ## Deliberate gaps
 
 Every application service besides identity, administration and activation requests is still a
-stub, and the CRM, BI and SAP adapters still throw. That is not an oversight — see
-[`open-items.md`](open-items.md) for which TRD §11.4 answers are needed before which piece can be
-built.
+stub — complaint tickets, service changes, reporting — and the BI and SAP adapters still throw.
+Direction A and B of CRM are built for activation requests specifically; the complaint-ticket
+events they already recognise but reject exist so nothing about the inbound endpoint has to
+change shape when that module is built. See [`open-items.md`](open-items.md) for which TRD §11.4
+answers are needed before which piece can be built.
