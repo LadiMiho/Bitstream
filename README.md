@@ -175,6 +175,37 @@ endpoint — asserting a repeated `eventId` is a no-op and a stale `occurredAt` 
 the way — through to `Completed`. A separate test proves a business rejection dead-letters
 immediately and moves the request to `IntegrationFailed`.
 
+## Post-Activation Support (TRD §6)
+
+Full write-up in [`docs/architecture.md`](docs/architecture.md#post-activation-support-trd-6).
+
+| Requirement | Where |
+| --- | --- |
+| TR-PAS-01 to TR-PAS-07 BI active-lines sync | `ActiveLineSyncService`, scheduled by `ActiveLineSyncScheduler` (default hourly) and triggerable manually via `POST /api/v1/ops/bi/active-lines/sync`; upserts on `(IspId, ContractId)` so a repeated page is idempotent, and `ops.SyncState` tracks the change marker and consecutive-failure count for `TR-PAS-07`'s freshness reporting |
+| TR-PAS-08 to TR-PAS-12 complaint tickets | `ComplaintTicketService.CreateAsync` — three-level category validated against `CatalogueOptions.ComplaintCategories`, identifier issued, INT-CRM-04 enqueued on the outbox |
+| TR-PAS-13 to TR-PAS-17 status suppression | `InboundEventService.ApplyToComplaintTicketAsync` — a status update is applied always, but the ISP is notified only when the incoming status is `Technically Completed` or is in the configured `IspNotifiableStatuses` list; an internal forward (`ForwardingGroup` set) never notifies |
+| TRD §6.4 closure handshake | `TicketClosureService.ApplyClearingCodeAsync` (CRM-driven, sets the ticket `Pending ISP Confirmation` and the working-day-out `ConfirmationDueAt`) and `RecordIspDecisionAsync` (Confirm closes; No reopens) |
+| TR-PAS-21 to TR-PAS-21h auto-confirmation | `TicketClosureService.RunAutoConfirmationSweepAsync`, run by `AutoConfirmationSweepScheduler`: reminders at working day 2 and 4 (`Reminder2SentAt`/`Reminder4SentAt`), auto-confirm at working day 5 recorded as `ClosureDecision.AutoConfirmed` — distinct from `ClosureDecision.Confirmed` — and a 10-calendar-day challenge window (`RaiseFollowUpAsync`) off the closed date. Working-day arithmetic is `WorkingDayCalculator`, driven by `WorkingCalendarOptions` |
+| §6.6 comments | `ComplaintTicketService.AddCommentAsync`, replicated to CRM via INT-CRM-06 |
+| §6.7 complaints dashboard | `ComplaintTicketService.SearchAsync` behind `GET /api/v1/tickets`, ISP-scoped unless the caller holds `TicketReadAll` |
+| §6.8 service status management | `ServiceChangeRequestService` — Upgrade/Downgrade eligibility computed from `CatalogueOptions.Packages` tiers (as-is line package vs. eligible to-be packages), Termination validated against a future date with no to-be package; replicated via INT-CRM-09 |
+
+**The auto-confirmation timing is proven by advancing a fake clock, not by inspection.**
+`tests/Bitstream.Api.Tests/PostActivation/TicketClosureServiceTests.cs` anchors on a Monday,
+drives `WorkingDayCalculator` for real (not faked) against a Mon–Fri calendar with no holidays,
+and asserts each reminder fires exactly once at its working-day threshold, auto-confirmation
+lands exactly on working day 5 (skipping the intervening weekend) with a `ClosureDecision`
+distinct from an ISP confirmation, and a persisted ISP decision pre-empts the sweep even after
+the due date has passed. `ActiveLineSyncServiceTests.cs` separately proves the BI sync's
+upsert-not-duplicate idempotency (TR-PAS-04) and its unknown-Business-Partner and failure
+handling.
+
+**Known scope cuts, both documented in code:** `BiGateway`'s real HTTP implementation stays a
+stub — the BI reference-table structure is a genuinely unresolved external dependency (TRD
+§11.2), and `ActiveLineSyncService` is fully exercised through `FakeBiGateway` regardless.
+`TicketComment.CrmSyncStatus` is not updated back to `Sent` when the outbox dispatch of
+INT-CRM-06 succeeds; a real status-callback loop is future work.
+
 ## The four Phase 0 deliverables
 
 **1. Layered solution (TRD §2.1, TR-ARC-01/02).** Five projects with the reference direction
@@ -223,7 +254,8 @@ Several TRD §11.4 items block design decisions, and none of them has been guess
   *direction*. Pull, push and manual entry put the interface in different components.
 
 A third, from §11.2 rather than §11.4: **the BI active-lines reference table structure** blocks
-the entire post-activation support module.
+`BiGateway`'s real HTTP implementation. The rest of post-activation support (TRD §6) does not
+depend on it and is built — see below.
 
 The full analysis — what each of the thirteen items blocks, what exists in the scaffold in the
 meantime, and which are configuration rather than design — is in
@@ -238,9 +270,9 @@ Honest accounting of what has and has not been run:
 | Tailwind build | **Verified** — `npm run build:css` runs clean and emits the expected classes |
 | CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
 | C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
-| Tests, including `Identity/*`, `Activation/*` and `Integration/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
+| Tests, including `Identity/*`, `Activation/*`, `Integration/*` and `PostActivation/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
 | `tools/CrmSimulator` | **Not run** — same SDK constraint; traced against `CrmHttpGateway`'s request/response shapes by hand |
-| T-SQL execution, incl. `0010_activation_event_ordering.sql` | **Not verified** — no SQL Server instance available |
+| T-SQL execution, incl. `0011_post_activation_support.sql` | **Not verified** — no SQL Server instance available |
 | PowerShell deployment scripts | **Not run** — they need Windows, IIS and SQL Server |
 
 So the first thing to do on a machine with the .NET 10 SDK is `dotnet build` and

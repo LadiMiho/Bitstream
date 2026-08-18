@@ -77,6 +77,13 @@ values are rejected at the API with 422 and surfaced to the administrator (TR-IN
 than being silently mapped to something plausible. `ActivationRequest.Status` *is* constrained,
 because TRD §5.3 defines that state machine completely.
 
+**What exists now:** `CatalogueOptions.IspNotifiableStatuses` (configuration, defaults empty) is
+read by `InboundEventService.ApplyToComplaintTicketAsync`, which applies every status change to
+the ticket but queues an ISP notification only for `Technically Completed` (hard-coded per TRD
+6.3) or a status in that list — never for an event carrying a `ForwardingGroup`. An empty list is
+the safe default: nothing is notifiable until item 4 supplies the real vocabulary, rather than
+guessing and risking an internal-forward leak (TR-PAS-13).
+
 ### Item 8 — Three-level defect category catalogue and its CRM mapping
 *From: Service Desk / CRM.*
 
@@ -84,8 +91,13 @@ because TRD §5.3 defines that state machine completely.
 TR-PAS-08 requires categories to map one-to-one on both sides, which cannot be verified against
 a catalogue that has not been supplied.
 
-**What exists:** `CategoryL1/L2/L3` columns; the catalogue is configuration or a CRM sync job
-(TR-PAS-09), so no code change is needed when it arrives.
+**What exists:** `CategoryL1/L2/L3` columns, plus a provisional, fully wired catalogue —
+`CatalogueOptions.ComplaintCategories` (configuration), validated for completeness and duplicate
+triples, and enforced by `ComplaintTicketService.CreateAsync` on ticket creation. Validation is
+skipped rather than refused when the list is empty, so the form and its cascade are already
+exercisable; the catalogue itself is still a placeholder (four sample rows in
+`appsettings.json`) until the real hierarchy arrives, at which point it is a configuration change
+(TR-PAS-09), not a code change.
 
 ### Item 6 — FM and FM Contractor distribution lists · Item 7 — Sales order email sample
 *From: FM · Wholesale.*
@@ -157,19 +169,22 @@ worth knowing before the sprint that includes complaint ticket creation.
 
 **The BI active-lines reference table structure** (BI team) is listed as a dependency rather
 than an open item, but it blocks INT-BI-01 exactly the way item 1 blocks CRM: without the
-structure and access method there is nothing to map. The whole post-activation support module
-depends on it — no line selection means no complaint ticket. `IBiGateway` and
-`portal.ActiveLine` are shaped for either a REST endpoint or a read-only view.
+structure and access method there is nothing to map. `IBiGateway` and `portal.ActiveLine` are
+shaped for either a REST endpoint or a read-only view, and `ActiveLineSyncService` is fully built
+and tested against `FakeBiGateway`; only `BiGateway`'s HTTP implementation is blocked. It no
+longer blocks the *rest* of post-activation support — complaint tickets, the closure handshake,
+auto-confirmation and service changes are built independently of line sync, since a line already
+present in `portal.ActiveLine` is enough to raise a ticket against.
 
 ## Summary
 
 | Item | Blocks | Can work start? |
 | --- | --- | --- |
-| 1 CRM Direction A contract | Complaint/service-change CRM calls; the real, signed-off mapping | Activation's two calls: built provisional. Rest: **No** |
+| 1 CRM Direction A contract | Complaint/service-change CRM calls; the real, signed-off mapping | Built provisional (all six INT-CRM operations, incl. -04/-06/-08/-09). Real, signed-off mapping: **No** |
 | 5 SAP financial code population point | INT-SAP-01, its direction | **No** |
 | 3 Inbound API authentication | Production use of the event API | Endpoint yes, enablement no |
-| 4 CRM status / event type list | Status projection, notifications, dashboard | Partly |
-| 8 Category catalogue | Complaint ticket form | Partly |
+| 4 CRM status / event type list | Status projection, notifications, dashboard | Built provisional (`IspNotifiableStatuses`, defaults empty) |
+| 8 Category catalogue | Complaint ticket form | Built provisional (`ComplaintCategories`, placeholder rows) |
 | 6, 7 Recipients and email sample | Correct notifications | Yes, not go-live |
 | 13 2FA channel | Which channel is live in production | Built (Totp default), yes |
 | 2 Identifier prefix | Go-live only | Yes |
@@ -177,4 +192,4 @@ depends on it — no line selection means no complaint ticket. `IBiGateway` and
 | 10 Retention periods | Archival job | Yes |
 | 11 Interface languages | Localisation approach | Yes |
 | 12 Attachments in Release 1 | Attachment feature | Yes |
-| §11.2 BI reference table | Post-activation support module | **No** |
+| §11.2 BI reference table | `BiGateway`'s real HTTP implementation only | **No** |

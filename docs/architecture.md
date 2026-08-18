@@ -170,9 +170,12 @@ outcome without calling into interpretation again (TR-INT-25). A new event is ha
 `InboundEventService.ApplyAsync`, which discards (but still acknowledges) an event no later than
 the request's `LastAppliedEventAt` (TR-INT-25, TR-PAS-17), then routes by event type:
 `SALES_ORDER_OPENED`, `PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` call the matching
-`ActivationRequestService` method; every other recognised type is a complaint-ticket concept
-(TRD 6) not yet built, and is rejected 422 rather than silently accepted (TR-INT-27) — the full
-event vocabulary is TRD 11.4 open item 4 regardless.
+`ActivationRequestService` method after trying an activation-request lookup first; if the
+identifier instead resolves to a complaint ticket, `STATUS_CHANGED`, `COMMENT_ADDED`,
+`CLOSED_WITH_CLEARING_CODE`, `AUTO_COMPLETED` and `REOPENED` route to
+`InboundEventService.ApplyToComplaintTicketAsync` (TRD 6, below). Any other event type is rejected
+422 rather than silently accepted (TR-INT-27) — the full event vocabulary is TRD 11.4 open item 4
+regardless.
 
 **A response code answers a different question than the state machine does.** 404 means the
 identifier does not resolve to any known request; 422 means the event's shape is fine but it
@@ -189,11 +192,81 @@ no real CRM to point at yet. The automated tests do not depend on it being run �
 `FakeCrmGateway`, an in-process double with the same idempotent-by-key behaviour, so the test
 suite has no second process to manage.
 
+## Post-activation support (TRD 6)
+
+**BI active-lines sync (TR-PAS-01 to TR-PAS-07).** `ActiveLineSyncService.SynchroniseAsync` pages
+through `IBiGateway.GetActiveLinesAsync`, resuming from the change marker stored in
+`ops.SyncState` unless a full reload is requested. Each record resolves its ISP by CRM Business
+Partner reference (`IIspRepository.FindByCrmBpReferenceAsync`); an unresolvable BP is skipped and
+logged rather than failing the run, since one bad row should not block the rest of the page.
+Upsert is keyed on `(IspId, ContractId)`, so a repeated page updates the one row instead of
+duplicating it — the idempotency TR-PAS-04 requires. `ActiveLineSyncScheduler` runs this on a
+configurable interval (`ActiveLineSyncOptions.SyncInterval`, default hourly); an administrator can
+also trigger it on demand via `POST /api/v1/ops/bi/active-lines/sync`, and read freshness back via
+`GET .../sync/status`, which is `ops.SyncState.LastSuccessfulSyncAt` and the consecutive-failure
+count TR-PAS-07 asks be monitored. `ActiveLineSyncOptions` (Application) and `BiOptions`
+(Infrastructure.Integration) deliberately bind to the *same* `Integration:Bi` configuration
+section rather than one referencing the other's type — the Application layer cannot reference
+Infrastructure (TR-ARC-01), so it declares its own narrow view of the fields it needs.
+
+**Complaint tickets (TR-PAS-08 to TR-PAS-12).** `ComplaintTicketService.CreateAsync` validates
+that the line belongs to the caller's ISP, validates the three-level category against
+`CatalogueOptions.ComplaintCategories` (skipped, not rejected, when the catalogue is empty — the
+real list is TRD 11.4 open item 8, and refusing every ticket until it arrives would be worse than
+not validating), issues the identifier and enqueues INT-CRM-04 for CRM replication. Comments
+(§6.6) follow the same shape: `AddCommentAsync` persists the comment and enqueues INT-CRM-06 with
+a composite idempotency key (`{ticketPublicId}#comment-{commentId}`) so replication is per-comment
+idempotent, not just per-ticket. `SearchAsync` (§6.7 dashboard) forces ISP scoping unless the
+caller holds `ticket.read.all`; `GetByPublicIdAsync` follows the TR-SEC-19 not-found-not-forbidden
+pattern already used for activation requests.
+
+**Status suppression (TR-PAS-13 to TR-PAS-17).** `InboundEventService.ApplyToComplaintTicketAsync`
+applies every incoming `STATUS_CHANGED` event to the ticket's `Status` unconditionally, but only
+queues an ISP notification when the new status is `Technically Completed` (hard-coded — TRD 6.3
+requires it always notify) or appears in the configured `IspNotifiableStatuses` list, and never
+when the event carries a `ForwardingGroup` (an internal forward). `IspNotifiableStatuses` defaults
+to empty, which is the safe default until TRD 11.4 open item 4 supplies the real CRM status
+vocabulary: nothing is notifiable by guess.
+
+**The closure handshake (TRD 6.4).** A `CLOSED_WITH_CLEARING_CODE` inbound event calls
+`TicketClosureService.ApplyClearingCodeAsync`, which stores the clearing code and text, moves the
+ticket to `Pending ISP Confirmation`, and computes `ConfirmationDueAt` once, at this moment, as
+five working days out (`IWorkingDayCalculator.AddWorkingDays`) — not recomputed on every sweep
+pass. `RecordIspDecisionAsync` accepts only `Confirmed` or `Rejected` from the ISP: Confirmed
+closes the ticket and replicates the decision (INT-CRM-08); Rejected reopens it and clears the due
+date, since there is nothing left to auto-confirm.
+
+**Auto-confirmation (TR-PAS-21 to TR-PAS-21h).** `AutoConfirmationSweepScheduler` runs
+`TicketClosureService.RunAutoConfirmationSweepAsync` on a configurable interval. For every ticket
+awaiting confirmation it sends the day-2 and day-4 reminders exactly once each
+(`Reminder2SentAt`/`Reminder4SentAt` — two dedicated columns, not a general collection, trading
+configurability past two reminder points for schema simplicity), then re-fetches the ticket
+immediately before deciding whether to auto-confirm, so a decision the ISP recorded between the
+sweep's query and this point is never overwritten — **a persisted ISP decision always wins**.
+Auto-confirmation at working day 5 sets `ClosureDecision.AutoConfirmed`, a value distinct from
+`ClosureDecision.Confirmed`, satisfying TR-PAS-21c/e by construction rather than by convention.
+`RaiseFollowUpAsync` implements the 10-*calendar*-day challenge window off the ticket's `ClosedAt`
+(TR-PAS-21f is explicit that this window is calendar days, unlike every other duration in this
+module) by creating a new ticket with `ParentTicketId` set.
+`tests/Bitstream.Api.Tests/PostActivation/TicketClosureServiceTests.cs` proves this timing by
+advancing a fake clock against a real `WorkingDayCalculator`, anchored on a Monday so the weekend
+crossing is exercised rather than assumed.
+
+**Service status management (TRD 6.8).** `ServiceChangeRequestService.GetEligibleTargetPackagesAsync`
+computes Upgrade as active packages with a higher `Tier` than the line's current package (ascending)
+and Downgrade as lower-tier packages (descending) — the as-is/to-be logic is data (`CatalogueOptions.
+Packages[].Tier`), not a hard-coded table. `SubmitAsync` requires a to-be package and no termination
+date for Upgrade/Downgrade, and a future termination date with no to-be package for Termination;
+replicated via INT-CRM-09.
+
 ## Deliberate gaps
 
-Every application service besides identity, administration and activation requests is still a
-stub — complaint tickets, service changes, reporting — and the BI and SAP adapters still throw.
-Direction A and B of CRM are built for activation requests specifically; the complaint-ticket
-events they already recognise but reject exist so nothing about the inbound endpoint has to
-change shape when that module is built. See [`open-items.md`](open-items.md) for which TRD §11.4
-answers are needed before which piece can be built.
+`BiGateway`'s real HTTP implementation is still a stub — the BI reference-table structure (TRD
+§11.2) is a genuinely unresolved external dependency, and `ActiveLineSyncService` is fully
+exercised through `FakeBiGateway` regardless, so nothing about the sync service itself is
+unproven. `TicketComment.CrmSyncStatus` stays `Pending` after INT-CRM-06 dispatches successfully;
+correlating a dispatched outbox message back to the specific comment row it replicated would need
+the idempotency key parsed for the comment id it encodes, and a full status-callback loop is
+future work. `GetReconciliationReport` (TR-INT-10) is still a 501 stub — out of scope for this
+turn. Reporting is still unbuilt entirely. See [`open-items.md`](open-items.md) for which TRD
+§11.4 answers are needed before which remaining piece can be built.
