@@ -45,7 +45,7 @@ public sealed class CrmApiFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<DbContextOptions<BitstreamDbContext>>();
+            services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
 
             services.RemoveAll<ICrmGateway>();
