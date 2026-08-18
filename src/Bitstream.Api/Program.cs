@@ -189,6 +189,7 @@ app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapAdministrationEndpoints();
 app.MapActivationEndpoints();
+app.MapPostActivationEndpoints();
 
 app.Run();
 

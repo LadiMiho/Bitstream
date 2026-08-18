@@ -1,4 +1,11 @@
 using Bitstream.Api.Contracts;
+using Bitstream.Api.Security;
+using Bitstream.Application.Abstractions.Integration;
+using Bitstream.Application.Abstractions.Persistence;
+using Bitstream.Application.Services;
+using Bitstream.Application.Services.PostActivation;
+using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bitstream.Api.Endpoints;
@@ -34,9 +41,9 @@ public static class OperationsEndpoints
             .Produces<DeadLetterMessage[]>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status501NotImplemented);
+            .RequirePermission(PostActivationPermissionCodes.IntegrationDeadLetterRead);
 
-        group.MapPost("/integration/dead-letter/{messageId:long}/replay", ReplayDeadLetter)
+        group.MapPost("/integration/dead-letter/{messageId:long}/replay", ReplayDeadLetterMessage)
             .WithName("ReplayDeadLetterMessage")
             .WithSummary("Re-queue a dead-lettered integration message")
             .WithDescription(
@@ -46,8 +53,7 @@ public static class OperationsEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status501NotImplemented);
+            .RequirePermission(PostActivationPermissionCodes.IntegrationDeadLetterReplay);
 
         group.MapPost("/bi/active-lines/sync", TriggerActiveLineSync)
             .WithName("TriggerActiveLineSync")
@@ -60,7 +66,7 @@ public static class OperationsEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status501NotImplemented);
+            .RequirePermission(PostActivationPermissionCodes.IntegrationSyncTrigger);
 
         group.MapGet("/bi/active-lines/sync/status", GetActiveLineSyncStatus)
             .WithName("GetActiveLineSyncStatus")
@@ -71,7 +77,7 @@ public static class OperationsEndpoints
             .Produces<ActiveLineSyncStatus>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status501NotImplemented);
+            .RequireAuthorization();
 
         group.MapGet("/reconciliation", GetReconciliationReport)
             .WithName("GetReconciliationReport")
@@ -91,26 +97,78 @@ public static class OperationsEndpoints
     /// <param name="targetSystem">Optional filter: Crm, Bi, Sap or Smtp.</param>
     /// <param name="skip">Rows to skip.</param>
     /// <param name="take">Rows to return.</param>
-    private static IResult GetDeadLetterQueue(
+    private static async Task<IResult> GetDeadLetterQueue(
         [FromQuery] string? targetSystem,
+        IIntegrationOutbox outbox,
+        CancellationToken cancellationToken,
         [FromQuery] int skip = 0,
-        [FromQuery] int take = 50) =>
-        NotImplemented("Dead-letter inspection is not implemented at scaffold stage.");
+        [FromQuery] int take = 50)
+    {
+        TargetSystem? parsedTarget = null;
+
+        if (!string.IsNullOrWhiteSpace(targetSystem))
+        {
+            if (!Enum.TryParse<TargetSystem>(targetSystem, ignoreCase: true, out var value))
+            {
+                return Results.Problem(title: "Invalid targetSystem", detail: $"'{targetSystem}' is not Crm, Bi, Sap or Smtp.", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            parsedTarget = value;
+        }
+
+        var messages = await outbox.GetDeadLetteredAsync(parsedTarget, skip, take, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(messages.Select(ToDeadLetterMessage));
+    }
 
     /// <param name="messageId">Message to re-queue.</param>
-    private static IResult ReplayDeadLetter([FromRoute] long messageId) =>
-        NotImplemented("Dead-letter replay is not implemented at scaffold stage.");
+    private static async Task<IResult> ReplayDeadLetterMessage(
+        [FromRoute] long messageId, IIntegrationOutbox outbox, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await outbox.ReplayAsync(messageId, cancellationToken).ConfigureAwait(false);
+            return Results.Accepted();
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.NotFound();
+        }
+    }
 
     /// <param name="fullReload">True to ignore the stored change marker and reload everything.</param>
-    private static IResult TriggerActiveLineSync([FromQuery] bool fullReload = false) =>
-        NotImplemented("Active-lines synchronisation is not implemented at scaffold stage.");
+    private static async Task<IResult> TriggerActiveLineSync(
+        IActiveLineSyncService syncService, CancellationToken cancellationToken, [FromQuery] bool fullReload = false)
+    {
+        var startedAt = DateTimeOffset.UtcNow;
 
-    private static IResult GetActiveLineSyncStatus() =>
-        NotImplemented("Synchronisation status is not implemented at scaffold stage.");
+        try
+        {
+            await syncService.SynchroniseAsync(fullReload, cancellationToken).ConfigureAwait(false);
+            return Results.Accepted(value: new SyncRunAccepted(Guid.NewGuid(), startedAt));
+        }
+        catch (ActiveLineSyncException exception)
+        {
+            return Results.Problem(title: "Synchronisation failed", detail: exception.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
+    private static async Task<IResult> GetActiveLineSyncStatus(
+        ISyncStateStore syncStateStore, IActiveLineRepository lineRepository, CancellationToken cancellationToken)
+    {
+        var state = await syncStateStore.GetOrCreateAsync(ActiveLineSyncService.SyncKey, cancellationToken).ConfigureAwait(false);
+        var linesInScope = await lineRepository.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new ActiveLineSyncStatus(state.LastSuccessfulSyncAt, state.ConsecutiveFailures, linesInScope));
+    }
 
     /// <param name="date">Report date; defaults to the most recent run.</param>
     private static IResult GetReconciliationReport([FromQuery] DateOnly? date) =>
         NotImplemented("Reconciliation reporting is not implemented at scaffold stage.");
+
+    private static DeadLetterMessage ToDeadLetterMessage(IntegrationMessage message) =>
+        new(message.MessageId, message.Direction.ToString(), message.TargetSystem.ToString(), message.InterfaceCode,
+            message.RelatedPublicId, message.Attempts, message.LastError, message.CreatedAt);
 
     private static IResult NotImplemented(string detail) =>
         TypedResults.Problem(
