@@ -64,3 +64,17 @@ internal sealed class IntegrationMessageConfiguration : IEntityTypeConfiguration
         builder.HasIndex(x => x.CorrelationId).HasDatabaseName("IX_IntegrationMessage_CorrelationId");
     }
 }
+
+internal sealed class SyncStateConfiguration : IEntityTypeConfiguration<SyncState>
+{
+    public void Configure(EntityTypeBuilder<SyncState> builder)
+    {
+        builder.ToTable("SyncState", Schemas.Operations);
+        builder.HasKey(x => x.SyncKey);
+
+        builder.Property(x => x.SyncKey).HasMaxLength(50);
+        builder.Property(x => x.LastRunAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.LastSuccessfulSyncAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ChangeMarker).HasMaxLength(200);
+    }
+}

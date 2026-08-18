@@ -17,6 +17,9 @@ public sealed class IspRepository : IIspRepository
     public Task<bool> NiptExistsAsync(string nipt, CancellationToken cancellationToken = default) =>
         _dbContext.Isps.AnyAsync(isp => isp.Nipt == nipt, cancellationToken);
 
+    public Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default) =>
+        _dbContext.Isps.FirstOrDefaultAsync(isp => isp.CrmBpReference == crmBpReference, cancellationToken);
+
     public async Task AddAsync(Isp isp, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(isp);

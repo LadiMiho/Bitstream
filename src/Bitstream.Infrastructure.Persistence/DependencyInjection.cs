@@ -69,6 +69,13 @@ public static class DependencyInjection
         services.AddScoped<IPublicIdentifierGenerator, SqlPublicIdentifierGenerator>();
         services.AddScoped<IIntegrationOutbox, IntegrationOutbox>();
 
+        // TRD 6 — post-activation support.
+        services.AddScoped<IActiveLineRepository, ActiveLineRepository>();
+        services.AddScoped<IComplaintTicketRepository, ComplaintTicketRepository>();
+        services.AddScoped<IServiceChangeRequestRepository, ServiceChangeRequestRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<ISyncStateStore, SyncStateStore>();
+
         return services;
     }
 

@@ -26,11 +26,12 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0008_permissions.sql` | Grants for the application service account |
 | `0009_sessions_and_two_factor.sql` | UserSession, TwoFactorChallenge — TRD 4 access management (schema version 2) |
 | `0010_activation_event_ordering.sql` | `ActivationRequest.LastAppliedEventAt` — TRD 7.3.2 inbound event ordering (schema version 3) |
+| `0011_post_activation_support.sql` | `ComplaintTicket` auto-confirmation columns, `ops.SyncState` — TRD 6 (schema version 4) |
 
 ## Checking where a database actually is
 
 ```powershell
-.\Get-SchemaStatus.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -ExpectedVersion 3
+.\Get-SchemaStatus.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -ExpectedVersion 4
 ```
 
 Compares the files in `mssql/` with the rows in `ops.SchemaVersion` and lists what is pending.

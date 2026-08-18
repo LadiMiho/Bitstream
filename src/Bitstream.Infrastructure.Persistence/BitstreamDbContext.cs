@@ -18,9 +18,10 @@ public sealed class BitstreamDbContext : DbContext
     /// <summary>
     /// Schema version this build is written against; see <c>ops.SchemaVersion</c>. Bumped from 1
     /// to 2 when db/mssql/0009_sessions_and_two_factor.sql (TRD 4 access management) was added,
-    /// and from 2 to 3 when db/mssql/0010_activation_event_ordering.sql (TRD 7.3.2) was added.
+    /// from 2 to 3 when db/mssql/0010_activation_event_ordering.sql (TRD 7.3.2) was added, and
+    /// from 3 to 4 when db/mssql/0011_post_activation_support.sql (TRD 6) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 3;
+    public const int ExpectedSchemaVersion = 4;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -59,6 +60,8 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<AuditLog> AuditLog => Set<AuditLog>();
 
     public DbSet<IntegrationMessage> IntegrationMessages => Set<IntegrationMessage>();
+
+    public DbSet<SyncState> SyncStates => Set<SyncState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -54,6 +54,15 @@ public sealed class ComplaintTicket
     /// <summary>Deadline of the Pending ISP Confirmation window, in working days (TR-PAS-21a/h).</summary>
     public DateTimeOffset? ConfirmationDueAt { get; set; }
 
+    /// <summary>When the clearing code was applied — the anchor the reminder and auto-confirmation clocks count working days from (TR-PAS-21a).</summary>
+    public DateTimeOffset? ClearingCodeAppliedAt { get; set; }
+
+    /// <summary>Set once the day-2 reminder has been sent, so the sweep never sends it twice (TR-PAS-21b).</summary>
+    public DateTimeOffset? Reminder2SentAt { get; set; }
+
+    /// <summary>Set once the day-4 reminder has been sent (TR-PAS-21b).</summary>
+    public DateTimeOffset? Reminder4SentAt { get; set; }
+
     /// <summary>Original ticket when this is a post-closure challenge follow-up (TR-PAS-21f).</summary>
     public long? ParentTicketId { get; set; }
 

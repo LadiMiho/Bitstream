@@ -100,6 +100,9 @@ internal sealed class ComplaintTicketConfiguration : IEntityTypeConfiguration<Co
         builder.Property(x => x.ClosureDecision).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.ClosureDecisionAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.ConfirmationDueAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ClearingCodeAppliedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.Reminder2SentAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.Reminder4SentAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastAppliedEventAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.OpenedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.ClosedAt).HasColumnType("datetimeoffset(7)");

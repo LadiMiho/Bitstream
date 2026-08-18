@@ -30,6 +30,6 @@
         ServerInstance = 'SQLPROD01'
         Name           = 'BitstreamPortal'
         AppUser        = 'CORP\svc_bitstream_prod'
-        SchemaVersion  = 3
+        SchemaVersion  = 4
     }
 }
