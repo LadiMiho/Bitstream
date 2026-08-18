@@ -93,6 +93,9 @@ public sealed class FakeIspRepository : IIspRepository
     public Task<bool> NiptExistsAsync(string nipt, CancellationToken cancellationToken = default) =>
         Task.FromResult(Isps.Values.Any(isp => isp.Nipt == nipt));
 
+    public Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Isps.Values.FirstOrDefault(isp => isp.CrmBpReference == crmBpReference));
+
     public Task AddAsync(Isp isp, CancellationToken cancellationToken = default)
     {
         Isps[isp.IspId] = isp;

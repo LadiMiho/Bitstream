@@ -52,8 +52,13 @@ public sealed class ActivationRequestServiceTests
     {
         var isp = new Isp
         {
-            IspId = ispId, Name = "Alpha", Nipt = "L1", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP1",
+            IspId = ispId,
+            Name = "Alpha",
+            Nipt = "L1",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1",
             Status = IspStatus.Active
         };
         _ispRepository.Isps[ispId] = isp;

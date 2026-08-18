@@ -90,8 +90,13 @@ public sealed class ActiveLineSyncServiceTests
     {
         var isp = new Isp
         {
-            IspId = ispId, Name = "Alpha", Nipt = "L1", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = bp
+            IspId = ispId,
+            Name = "Alpha",
+            Nipt = "L1",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = bp
         };
         _ispRepository.Isps[ispId] = isp;
         return isp;

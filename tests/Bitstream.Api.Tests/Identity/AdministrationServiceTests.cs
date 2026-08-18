@@ -59,8 +59,13 @@ public sealed class AdministrationServiceTests
         var service = CreateService();
         _ispRepository.Isps[1] = new Isp
         {
-            IspId = 1, Name = "Existing", Nipt = "L12345678A", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP1"
+            IspId = 1,
+            Name = "Existing",
+            Nipt = "L12345678A",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1"
         };
 
         var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
@@ -111,8 +116,13 @@ public sealed class AdministrationServiceTests
 
         _ispRepository.Isps[1] = new Isp
         {
-            IspId = 1, Name = "Alpha", Nipt = "L1", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP1"
+            IspId = 1,
+            Name = "Alpha",
+            Nipt = "L1",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1"
         };
         _userRepository.Users[100] = MakeUser(100, ispId: 1, status: UserStatus.Active);
         _userRepository.Users[101] = MakeUser(101, ispId: 1, status: UserStatus.Active);
@@ -144,8 +154,13 @@ public sealed class AdministrationServiceTests
 
         _ispRepository.Isps[1] = new Isp
         {
-            IspId = 1, Name = "Alpha", Nipt = "L1", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP1",
+            IspId = 1,
+            Name = "Alpha",
+            Nipt = "L1",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1",
             Status = IspStatus.Locked
         };
         _userRepository.Users[100] = MakeUser(100, ispId: 1, status: UserStatus.Locked);
@@ -181,8 +196,13 @@ public sealed class AdministrationServiceTests
         _currentUser.RoleName = "IspUser";
         _ispRepository.Isps[2] = new Isp
         {
-            IspId = 2, Name = "Beta", Nipt = "L2", ContactPerson = "B",
-            ContactEmail = "b@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP2"
+            IspId = 2,
+            Name = "Beta",
+            Nipt = "L2",
+            ContactPerson = "B",
+            ContactEmail = "b@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP2"
         };
 
         var result = await service.GetIspAsync(2);
@@ -200,8 +220,13 @@ public sealed class AdministrationServiceTests
         _currentUser.RoleName = "IspUser";
         _ispRepository.Isps[1] = new Isp
         {
-            IspId = 1, Name = "Alpha", Nipt = "L1", ContactPerson = "A",
-            ContactEmail = "a@example.com", ContactMobile = "+355691234567", CrmBpReference = "BP1"
+            IspId = 1,
+            Name = "Alpha",
+            Nipt = "L1",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1"
         };
 
         var result = await service.GetIspAsync(1);
