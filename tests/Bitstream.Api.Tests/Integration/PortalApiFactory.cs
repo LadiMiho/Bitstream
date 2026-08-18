@@ -2,6 +2,7 @@ using Bitstream.Api.Tests.Activation;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +23,7 @@ namespace Bitstream.Api.Tests.Integration;
 /// catch anything that only works because the two used to be a single process.
 /// </para>
 /// </summary>
-public sealed class PortalApiFactory : WebApplicationFactory<Program>
+public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
 {
     private readonly string _databaseName;
     private readonly FakeCrmGateway _crmGateway;

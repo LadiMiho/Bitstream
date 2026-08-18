@@ -1,3 +1,4 @@
+using Bitstream.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +19,7 @@ namespace Bitstream.Api.Tests;
 /// suite does not wait on TCP, and a time zone every host has.
 /// </para>
 /// </summary>
-public sealed class BitstreamApiFactory : WebApplicationFactory<Program>
+public sealed class BitstreamApiFactory : WebApplicationFactory<WebHostEntryPoint>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

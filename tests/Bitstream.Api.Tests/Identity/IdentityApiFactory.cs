@@ -1,4 +1,5 @@
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ namespace Bitstream.Api.Tests.Identity;
 /// <c>IClassFixture</c>.
 /// </para>
 /// </summary>
-public sealed class IdentityApiFactory : WebApplicationFactory<Program>
+public sealed class IdentityApiFactory : WebApplicationFactory<WebHostEntryPoint>
 {
     private readonly string _databaseName = $"bitstream-identity-tests-{Guid.NewGuid()}";
 
