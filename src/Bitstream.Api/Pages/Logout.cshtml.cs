@@ -3,6 +3,9 @@ using Bitstream.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+// Sdk.Web's implicit global usings bring in Microsoft.AspNetCore.Builder, which also declares a
+// SessionOptions (the session-state-middleware one) — disambiguate in favour of ours.
+using SessionOptions = Bitstream.Application.Configuration.SessionOptions;
 
 namespace Bitstream.Api.Pages;
 
