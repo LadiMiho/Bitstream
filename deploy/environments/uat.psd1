@@ -12,21 +12,37 @@
 @{
     Name = 'UAT'
 
-    Site = @{
-        Name          = 'BitstreamPortal-UAT'
-        PhysicalPath  = 'D:\Sites\BitstreamPortal-UAT'
-        AppPoolName   = 'BitstreamPortal-UAT'
-        # Domain service account. Must match the AppUser granted rights by
-        # db/mssql/0008_permissions.sql.
-        AppPoolIdentity = 'CORP\svc_bitstream_uat'
-        LogPath       = 'D:\Logs\BitstreamPortal-UAT'
-    }
+    # Two IIS sites: the portal people sign in to, and the integration host CRM posts to.
+    # They are separate applications so they can be firewalled, scaled and restarted apart —
+    # only the API host needs to be reachable from CRM, and only it runs the background jobs
+    # that call CRM outbound (see AddBitstreamBackgroundJobs).
+    Sites = @{
+        Web = @{
+            Name            = 'BitstreamPortal-UAT'
+            PhysicalPath    = 'D:\Sites\BitstreamPortal-UAT'
+            AppPoolName     = 'BitstreamPortal-UAT'
+            AppPoolIdentity = 'CORP\svc_bitstream_uat'
+            LogPath         = 'D:\Logs\BitstreamPortal-UAT'
+            Bindings = @(
+                @{ Protocol = 'https'; HostHeader = 'bitstream-uat.example.com'; Port = 443; CertificateThumbprint = 'REPLACE_WITH_UAT_CERT_THUMBPRINT' }
+                # TR-SEC-26: plain HTTP exists only to redirect.
+                @{ Protocol = 'http';  HostHeader = 'bitstream-uat.example.com'; Port = 80 }
+            )
+        }
 
-    Bindings = @(
-        @{ Protocol = 'https'; HostHeader = 'bitstream-uat.example.com'; Port = 443; CertificateThumbprint = 'REPLACE_WITH_UAT_CERT_THUMBPRINT' }
-        # TR-SEC-26: plain HTTP exists only to redirect; the application refuses it for API paths.
-        @{ Protocol = 'http';  HostHeader = 'bitstream-uat.example.com'; Port = 80 }
-    )
+        Api = @{
+            Name            = 'BitstreamApi-UAT'
+            PhysicalPath    = 'D:\Sites\BitstreamApi-UAT'
+            AppPoolName     = 'BitstreamApi-UAT'
+            AppPoolIdentity = 'CORP\svc_bitstream_uat'
+            LogPath         = 'D:\Logs\BitstreamApi-UAT'
+            Bindings = @(
+                # No plain-HTTP binding: CRM is a machine caller and has no redirect to follow,
+                # so an unencrypted listener here would only ever be a mistake (TR-SEC-26).
+                @{ Protocol = 'https'; HostHeader = 'crm-bitstream-uat.example.com'; Port = 443; CertificateThumbprint = 'REPLACE_WITH_UAT_CERT_THUMBPRINT' }
+            )
+        }
+    }
 
     Application = @{
         Environment = 'UAT'

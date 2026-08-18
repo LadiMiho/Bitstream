@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using Bitstream.Web.Contracts;
 using Bitstream.Api.Tests.Identity;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Web.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

@@ -4,7 +4,6 @@ using Bitstream.Application.Services.Identity;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
 using Bitstream.Web.Contracts;
-using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 // Sdk.Web's implicit global usings bring in Microsoft.AspNetCore.Builder, which also declares a

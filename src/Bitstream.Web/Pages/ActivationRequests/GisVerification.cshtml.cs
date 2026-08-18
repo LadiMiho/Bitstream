@@ -1,6 +1,5 @@
 using Bitstream.Application.Services.Activation;
 using Bitstream.Hosting.Security;
-using Bitstream.Web.Security;
 
 namespace Bitstream.Web.Pages.ActivationRequests;
 

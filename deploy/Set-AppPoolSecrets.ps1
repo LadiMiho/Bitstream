@@ -33,6 +33,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)] [string] $Environment,
+    [Parameter(Mandatory = $true)] [ValidateSet('Web', 'Api')] [string] $Component,
     [SecureString] $AppPoolPassword
 )
 
@@ -42,7 +43,9 @@ Set-StrictMode -Version Latest
 Import-Module WebAdministration -ErrorAction Stop
 
 $config = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot "environments\$Environment.psd1")
-$site = $config.Site
+# Two sites per environment; -Component picks which one this run targets.
+$site = $config.Sites[$Component]
+if (-not $site) { throw "Environment '$Environment' has no '$Component' site defined." }
 $appPoolPath = "IIS:\AppPools\$($site.AppPoolName)"
 
 if (-not (Test-Path $appPoolPath)) {

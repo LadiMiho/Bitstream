@@ -12,6 +12,24 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The implicit usings Microsoft.NET.Sdk.Web adds and Microsoft.NET.Sdk does not. The code
+      here is presentation-layer plumbing that moved out of a web host, and it is written
+      against that set; declaring it explicitly keeps those files identical to how they read
+      in a host project rather than sprinkling framework usings through every one of them.
+    -->
+    <Using Include="System.Net.Http.Json" />
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Hosting" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Cross-cutting concerns only. This project sits beside the two hosts in the
          presentation layer; it never becomes a back door for Domain or Application to reach
          ASP.NET Core, because nothing below the hosts references it (TR-ARC-01). -->

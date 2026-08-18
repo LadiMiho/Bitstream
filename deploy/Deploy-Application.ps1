@@ -38,6 +38,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)] [string] $Environment,
+    [Parameter(Mandatory = $true)] [ValidateSet('Web', 'Api')] [string] $Component,
     [Parameter(Mandatory = $true)] [string] $PackagePath,
     [switch] $SkipSchemaCheck
 )
@@ -48,10 +49,13 @@ Set-StrictMode -Version Latest
 Import-Module WebAdministration -ErrorAction Stop
 
 $config = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot "environments\$Environment.psd1")
-$site = $config.Site
+# Two sites per environment; -Component picks which one this run targets.
+$site = $config.Sites[$Component]
+if (-not $site) { throw "Environment '$Environment' has no '$Component' site defined." }
 
-if (-not (Test-Path (Join-Path $PackagePath 'Bitstream.Api.dll'))) {
-    throw "$PackagePath does not look like a publish output: Bitstream.Api.dll is missing."
+$expectedAssembly = if ($Component -eq 'Web') { 'Bitstream.Web.dll' } else { 'Bitstream.Api.dll' }
+if (-not (Test-Path (Join-Path $PackagePath $expectedAssembly))) {
+    throw "$PackagePath does not look like the $Component publish output: $expectedAssembly is missing."
 }
 
 # --- 1. Schema gate ---------------------------------------------------------------------
@@ -116,7 +120,7 @@ finally {
 if ($PSCmdlet.ShouldProcess($site.AppPoolName, 'Recycle and warm')) {
     Restart-WebAppPool -Name $site.AppPoolName
 
-    $binding = $config.Bindings | Where-Object { $_.Protocol -eq 'https' } | Select-Object -First 1
+    $binding = $site.Bindings | Where-Object { $_.Protocol -eq 'https' } | Select-Object -First 1
     $healthUrl = "https://$($binding.HostHeader)/health/ready"
 
     Write-Host "Warming $healthUrl ..."

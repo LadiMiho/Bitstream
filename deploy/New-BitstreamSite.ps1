@@ -33,7 +33,8 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [Parameter(Mandatory = $true)] [string] $Environment
+    [Parameter(Mandatory = $true)] [string] $Environment,
+    [Parameter(Mandatory = $true)] [ValidateSet('Web', 'Api')] [string] $Component
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,7 +49,9 @@ if (-not (Test-Path $definitionPath)) {
 }
 
 $config = Import-PowerShellDataFile -Path $definitionPath
-$site = $config.Site
+# Two sites per environment; -Component picks which one this run targets.
+$site = $config.Sites[$Component]
+if (-not $site) { throw "Environment '$Environment' has no '$Component' site defined." }
 
 Write-Host "Provisioning $($config.Name): site $($site.Name)"
 
@@ -96,7 +99,7 @@ if ($PSCmdlet.ShouldProcess($site.AppPoolName, 'Configure application pool')) {
 
 # --- Site ------------------------------------------------------------------------------
 $sitePath = "IIS:\Sites\$($site.Name)"
-$firstBinding = $config.Bindings | Where-Object { $_.Protocol -eq 'https' } | Select-Object -First 1
+$firstBinding = $site.Bindings | Where-Object { $_.Protocol -eq 'https' } | Select-Object -First 1
 
 if (-not $firstBinding) {
     throw "Environment $Environment has no https binding. TLS is mandatory (TR-SEC-26)."
@@ -124,7 +127,7 @@ else {
 }
 
 # --- Bindings --------------------------------------------------------------------------
-foreach ($binding in $config.Bindings) {
+foreach ($binding in $site.Bindings) {
     $existing = Get-WebBinding -Name $site.Name -Protocol $binding.Protocol -ErrorAction SilentlyContinue |
         Where-Object { $_.bindingInformation -like "*:$($binding.Port):$($binding.HostHeader)" }
 

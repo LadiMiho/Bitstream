@@ -1,6 +1,6 @@
-using Bitstream.Hosting.Middleware;
 using Bitstream.Application;
 using Bitstream.Application.Abstractions;
+using Bitstream.Hosting.Middleware;
 using Microsoft.AspNetCore.Http;
 using Xunit;
 
