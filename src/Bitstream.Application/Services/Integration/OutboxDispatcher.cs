@@ -108,6 +108,22 @@ public sealed class OutboxDispatcher : BackgroundService
                         await DispatchCreateTicketAsync(services, message, cancellationToken).ConfigureAwait(false);
                         break;
 
+                    case (TargetSystem.Crm, "INT-CRM-04"):
+                        await DispatchCreateComplaintTicketAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case (TargetSystem.Crm, "INT-CRM-06"):
+                        await DispatchReplicateCommentAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case (TargetSystem.Crm, "INT-CRM-08"):
+                        await DispatchClosureDecisionAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case (TargetSystem.Crm, "INT-CRM-09"):
+                        await DispatchServiceChangeAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
                     default:
                         _logger.LogError(
                             "No dispatcher registered for {TargetSystem}/{InterfaceCode}; dead-lettering message {MessageId}.",
@@ -195,6 +211,102 @@ public sealed class OutboxDispatcher : BackgroundService
             businessPartner: command.BusinessPartner,
             crmTicketId: result.Value!.CrmTicketId,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DispatchCreateComplaintTicketAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<CreateComplaintTicketCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.CreateComplaintTicketAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            await HandleFailureAsync(services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var outbox = services.GetRequiredService<IIntegrationOutbox>();
+        await outbox.MarkSucceededAsync(message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+
+        var tickets = services.GetRequiredService<IComplaintTicketRepository>();
+        var ticket = await tickets.FindByPublicIdAsync(command.TicketPublicId, cancellationToken).ConfigureAwait(false);
+
+        if (ticket is not null)
+        {
+            ticket.CrmTicketId = result.Value!.CrmTicketId;
+            await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task DispatchReplicateCommentAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<ReplicateCommentCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.ReplicateCommentAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            await HandleFailureAsync(services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        // No entity to update on success: TicketComment.CrmSyncStatus stays "Pending" — updating
+        // it back to "Sent" would need the message's idempotency key parsed for the comment id
+        // it encodes (see ComplaintTicketService.AddCommentAsync); a full status callback loop
+        // is future work, not attempted here.
+        await services.GetRequiredService<IIntegrationOutbox>().MarkSucceededAsync(
+            message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DispatchClosureDecisionAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<ClosureDecisionCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.SubmitClosureDecisionAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            await HandleFailureAsync(services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        // The ticket was already updated synchronously by TicketClosureService before this
+        // message was even enqueued — telling CRM is the only thing left to do.
+        await services.GetRequiredService<IIntegrationOutbox>().MarkSucceededAsync(
+            message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DispatchServiceChangeAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<ServiceChangeCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.SubmitServiceChangeAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            await HandleFailureAsync(services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var outbox = services.GetRequiredService<IIntegrationOutbox>();
+        await outbox.MarkSucceededAsync(message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+
+        var changes = services.GetRequiredService<IServiceChangeRequestRepository>();
+        var change = await changes.FindByPublicIdAsync(command.ChangePublicId, cancellationToken).ConfigureAwait(false);
+
+        if (change is not null)
+        {
+            change.CrmReference = result.Value!.CrmReference;
+            await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static async Task HandleFailureAsync(

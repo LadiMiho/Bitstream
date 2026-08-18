@@ -55,16 +55,15 @@ public sealed class CrmOptions
 /// <summary>
 /// HTTP adapter for CRM (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09; TRD 7.3.1 Direction A).
 /// <para>
-/// BLOCKED for four of its six operations — TRD 11.4 open item 1. Only customer creation
-/// (INT-CRM-01) and activation ticket creation (INT-CRM-02) are implemented, against the
-/// provisional payload shape in TRD §7.4: a POST that echoes the fields the command already
-/// carries and returns the CRM-assigned identifiers. <c>ReplicateCommentAsync</c>,
-/// <c>SubmitClosureDecisionAsync</c>, <c>SubmitServiceChangeAsync</c> and
-/// <c>FindTicketByIdempotencyKeyAsync</c> belong to the complaint-ticket and service-change
-/// modules, which are not built yet, and still throw.
+/// Five of six operations are implemented — customer and activation ticket creation
+/// (INT-CRM-01/02), complaint ticket creation (INT-CRM-04), comment replication (INT-CRM-06),
+/// closure decision (INT-CRM-08) and service change (INT-CRM-09) — all against the provisional
+/// payload shape in TRD §7.4, since the real CRM contract is still TRD 11.4 open item 1. Only
+/// <c>FindTicketByIdempotencyKeyAsync</c> (the ambiguous-timeout status query, TR-INT-20) still
+/// throws — there is nothing to poll without knowing what CRM's status response looks like.
 /// </para>
 /// <para>
-/// When the real contract arrives: everything that needs to change is in this file — the two
+/// When the real contract arrives: everything that needs to change is in this file — the
 /// request/response shapes below and, if the auth scheme differs, <see cref="AuthorizeAsync"/>.
 /// Nothing in the application or presentation layers has to change, because they only ever see
 /// <see cref="ICrmGateway"/> and <see cref="IntegrationResult{TValue}"/>.
@@ -121,25 +120,67 @@ public sealed class CrmHttpGateway : ICrmGateway
             cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<IntegrationResult<CreateCrmTicketResult>> CreateComplaintTicketAsync(
+    public async Task<IntegrationResult<CreateCrmTicketResult>> CreateComplaintTicketAsync(
         CreateComplaintTicketCommand command,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(PendingContract);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
 
-    public Task<IntegrationResult<ReplicateCommentResult>> ReplicateCommentAsync(
+        var body = new ComplaintTicketRequestBody(
+            command.TicketPublicId, command.BusinessPartner, command.ContractId, command.SubscriberReference,
+            command.CategoryL1, command.CategoryL2, command.CategoryL3, command.Description);
+
+        return await SendAsync(
+            "complaint-tickets", command.Envelope.IdempotencyKey, body,
+            (TicketResponseBody response) => new CreateCrmTicketResult(response.CrmTicketId),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IntegrationResult<ReplicateCommentResult>> ReplicateCommentAsync(
         ReplicateCommentCommand command,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(PendingContract);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
 
-    public Task<IntegrationResult<ClosureDecisionResult>> SubmitClosureDecisionAsync(
+        var body = new CommentRequestBody(
+            command.TicketPublicId, command.CrmTicketId, command.AuthorDisplayName, command.AuthorType, command.Body, command.CreatedAt);
+
+        return await SendAsync(
+            "comments", command.Envelope.IdempotencyKey, body,
+            (CommentResponseBody response) => new ReplicateCommentResult(response.CrmCommentId),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IntegrationResult<ClosureDecisionResult>> SubmitClosureDecisionAsync(
         ClosureDecisionCommand command,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(PendingContract);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
 
-    public Task<IntegrationResult<ServiceChangeResult>> SubmitServiceChangeAsync(
+        var body = new ClosureDecisionRequestBody(
+            command.TicketPublicId, command.CrmTicketId, command.Decision, command.SystemInitiated, command.SystemReason);
+
+        return await SendAsync(
+            "closure-decisions", command.Envelope.IdempotencyKey, body,
+            (ClosureDecisionResponseBody response) => new ClosureDecisionResult(response.CrmTicketStatus),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IntegrationResult<ServiceChangeResult>> SubmitServiceChangeAsync(
         ServiceChangeCommand command,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException(PendingContract);
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var body = new ServiceChangeRequestBody(
+            command.ChangePublicId, command.ContractId, command.ChangeType, command.PackageAsIs,
+            command.PackageToBe, command.RequestedTerminationDate);
+
+        return await SendAsync(
+            "service-changes", command.Envelope.IdempotencyKey, body,
+            (ServiceChangeResponseBody response) => new ServiceChangeResult(response.CrmReference),
+            cancellationToken).ConfigureAwait(false);
+    }
 
     public Task<IntegrationResult<CreateCrmTicketResult>> FindTicketByIdempotencyKeyAsync(
         string idempotencyKey,
@@ -266,6 +307,45 @@ public sealed class CrmHttpGateway : ICrmGateway
         [property: JsonPropertyName("comments")] string? Comments);
 
     private sealed record TicketResponseBody([property: JsonPropertyName("crmTicketId")] string CrmTicketId);
+
+    private sealed record ComplaintTicketRequestBody(
+        [property: JsonPropertyName("ticketPublicId")] string TicketPublicId,
+        [property: JsonPropertyName("businessPartner")] string BusinessPartner,
+        [property: JsonPropertyName("contractId")] string ContractId,
+        [property: JsonPropertyName("subscriberReference")] string SubscriberReference,
+        [property: JsonPropertyName("categoryL1")] string CategoryL1,
+        [property: JsonPropertyName("categoryL2")] string CategoryL2,
+        [property: JsonPropertyName("categoryL3")] string CategoryL3,
+        [property: JsonPropertyName("description")] string Description);
+
+    private sealed record CommentRequestBody(
+        [property: JsonPropertyName("ticketPublicId")] string TicketPublicId,
+        [property: JsonPropertyName("crmTicketId")] string CrmTicketId,
+        [property: JsonPropertyName("authorDisplayName")] string AuthorDisplayName,
+        [property: JsonPropertyName("authorType")] string AuthorType,
+        [property: JsonPropertyName("body")] string Body,
+        [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+
+    private sealed record CommentResponseBody([property: JsonPropertyName("crmCommentId")] string CrmCommentId);
+
+    private sealed record ClosureDecisionRequestBody(
+        [property: JsonPropertyName("ticketPublicId")] string TicketPublicId,
+        [property: JsonPropertyName("crmTicketId")] string CrmTicketId,
+        [property: JsonPropertyName("decision")] string Decision,
+        [property: JsonPropertyName("systemInitiated")] bool SystemInitiated,
+        [property: JsonPropertyName("systemReason")] string? SystemReason);
+
+    private sealed record ClosureDecisionResponseBody([property: JsonPropertyName("crmTicketStatus")] string CrmTicketStatus);
+
+    private sealed record ServiceChangeRequestBody(
+        [property: JsonPropertyName("changePublicId")] string ChangePublicId,
+        [property: JsonPropertyName("contractId")] string ContractId,
+        [property: JsonPropertyName("changeType")] string ChangeType,
+        [property: JsonPropertyName("packageAsIs")] string PackageAsIs,
+        [property: JsonPropertyName("packageToBe")] string? PackageToBe,
+        [property: JsonPropertyName("requestedTerminationDate")] DateOnly? RequestedTerminationDate);
+
+    private sealed record ServiceChangeResponseBody([property: JsonPropertyName("crmReference")] string CrmReference);
 
     private sealed record CrmErrorBody([property: JsonPropertyName("message")] string? Message);
 }
