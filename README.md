@@ -3,15 +3,22 @@
 Project scaffold for the ISP Platform (Bitstream Portal), built to
 *Technical Requirements Document v1.0, August 2026*.
 
-**Foundation, Access Management (TRD §4), Activation Requests (TRD §5) and CRM integration
-(TRD §7.3) are built.** Structure, contracts, schema, configuration, logging, health, CI and
+**Foundation, Access Management (TRD §4), Activation Requests (TRD §5), Post-Activation
+Support (TRD §6) and CRM integration (TRD §7.3) are built, and the solution builds and its
+tests pass in CI.** Structure, contracts, schema, configuration, logging, health, CI and
 deployment are in place; authentication, 2FA, sessions, RBAC and ISP/user administration are
 built; activation request submission, the GIS verification admin screen and the TRD §5.3 state
-machine are built; and that state machine is now driven end to end by a real (if provisional)
-CRM integration — an outbox dispatcher calling CRM for customer and ticket creation, and the
-inbound event API applying sales order, provisioning and completion events back. Every other
-application service — complaint tickets, service changes, reporting, the BI/SAP adapters — is
-still unimplemented, and their endpoints still answer `501 Not Implemented`.
+machine are built, and that state machine is driven end to end by a real (if provisional) CRM
+integration — an outbox dispatcher calling CRM for customer and ticket creation, and the
+inbound event API applying sales order, provisioning and completion events back; complaint
+tickets, the closure handshake, the working-day auto-confirmation engine and service status
+changes are built on top of it. A Razor Pages UI covers sign-in with 2FA, ISP and user
+administration, and the activation request screens.
+
+**Not built yet:** reporting (TRD §9), the SAP adapter (blocked on TRD §11.4 open item 5),
+`BiGateway`'s real HTTP calls (blocked on the §11.2 BI table structure), and an audit-log
+read/export API — the audit log is written but nothing reads it back. Their endpoints, where
+they exist, still answer `501 Not Implemented`.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
@@ -276,17 +283,19 @@ Honest accounting of what has and has not been run:
 
 | | |
 | --- | --- |
-| Tailwind build | **Verified** — the standalone CLI runs clean against `ClientAssets/app.css` and emits the expected classes, including from the new `.cshtml` sources |
-| CI workflow YAML | **Verified** as valid YAML; never executed on a runner |
-| C# compilation | **Not verified** — the .NET SDK could not be installed here; the egress policy blocks `builds.dotnet.microsoft.com` |
-| Tests, including `Identity/*`, `Activation/*`, `Integration/*` and `PostActivation/*` | **Not run** — they need the SDK. Manually traced against the implementation (types, method signatures, request/response shapes) but never executed |
-| `tools/CrmSimulator` | **Not run** — same SDK constraint; traced against `CrmHttpGateway`'s request/response shapes by hand |
-| T-SQL execution, incl. `0011_post_activation_support.sql` | **Not verified** — no SQL Server instance available |
+| C# compilation | **Verified** — `dotnet build Bitstream.sln -c Release` succeeds on the CI runner (Windows Server 2025, .NET SDK 10.0.400) with 0 warnings and 0 errors, warnings-as-errors and `EnforceCodeStyleInBuild` both on |
+| Lint / formatting | **Verified** — `dotnet format --verify-no-changes --severity warn` is clean |
+| Tests — `Identity/*`, `Activation/*`, `Integration/*`, `PostActivation/*` | **Verified** — 281 pass, 0 fail |
+| `Bitstream.ArchitectureTests` (the TR-ARC-01 layering rules) | **Verified** — 9 pass, 0 fail |
+| CI workflow | **Verified** — executes green end to end on a runner, through to publishing the artifact |
+| Tailwind build | **Verified** — the standalone CLI runs clean against `ClientAssets/app.css` and emits the expected classes, including from the `.cshtml` sources |
+| Gap-free identifier series (TR-DAT-02b) | **Not verified** — it lives in `ops.usp_NextPublicIdentifier`, so it needs a real SQL Server. Every test path either fakes `IPublicIdentifierGenerator` or never reaches it, so no automated test proves the *gap-free* property |
+| T-SQL execution, incl. `0011_post_activation_support.sql` | **Not verified** — no SQL Server instance available to CI or to the authoring environment |
+| `tools/CrmSimulator` | **Compiles**, but never run against `CrmHttpGateway` — the automated tests substitute `FakeCrmGateway` instead |
 | PowerShell deployment scripts | **Not run** — they need Windows, IIS and SQL Server |
+| The Razor UI in a browser | **Not verified** — the pages compile and their scripts were exercised against a mocked API in a headless browser, but no run against the real backend |
 
-So the first thing to do on a machine with the .NET 10 SDK is `dotnet build` and
-`dotnet test`, and to apply `db/mssql` against a scratch database. Expect small fixes —
-package versions and a stray using are the usual candidates, and
-`dotnet format --verify-no-changes` will likely want a first formatting pass, since the code
-was written by hand rather than emitted by the formatter. Nothing in the design depends on that
-pass; it is a compile-and-run check of code that has been written but not executed.
+The remaining gaps all share one cause: **there is no SQL Server anywhere in the loop.** That is
+what leaves the schema scripts, the deployment scripts and the gap-free identifier series
+unproven, and it is the next thing worth fixing — a SQL Server service container in the CI job
+would close all three at once.
