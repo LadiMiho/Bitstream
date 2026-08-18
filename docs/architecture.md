@@ -160,6 +160,42 @@ independently restated copy of the TRD 5.3 table — every permitted transition 
 rejection, including self-transitions and skipped steps — so the table in
 `ActivationRequestTransitions` cannot silently drift from the design without a test failing.
 
+### Activation request screens (GUI-4) and the API gaps they surfaced
+
+`Pages/ActivationRequests/{New,Detail,GisVerification}.cshtml` call the three endpoints above
+from client-side script (`wwwroot/js/pages/activation-{new,detail,gis}.js`) — submission
+validation, coordinate parsing, state-machine enforcement and the GIS outcome decision all stay
+entirely server-side; the pages only render what the API returns.
+
+**Confirmed rather than assumed: a request is visible with a `PendingCrmSync`-style status
+before CRM integration is "live".** `ActivationRequestService.SubmitAsync` enqueues INT-CRM-01
+on the outbox and transitions `Submitted` → `PendingCrmSync` *synchronously, in the same call*,
+before returning — the CRM call itself is made later by the out-of-process `OutboxDispatcher`.
+So the `201 Created` response, and every subsequent `GET`, already shows `PendingCrmSync`
+regardless of whether `Integration:Crm:BaseAddress` is configured or the dispatcher has run at
+all. The new-request and detail screens surface every status verbatim, integration-pending ones
+included (TR-ACT-11) — `wwwroot/js/status-presentation.js` only maps a label and a colour, it
+does not decide which status a request is in.
+
+Building these screens surfaced the same class of gap as GUI-3's Access Management screens,
+reported rather than compensated for:
+
+- **No list or search endpoint for activation requests.** `GET /api/v1/activation-requests/{publicId}`
+  is the only read — `IActivationRequestRepository` has no query beyond find-by-id or
+  find-by-public-id either. The ISP-facing "list" is therefore a look-up-by-public-ID detail
+  view, not a browsable table, and the GIS verification screen has no queue of requests
+  currently `AwaitingGisVerification` to work from — an administrator has to already have the
+  public ID in hand. The GIS screen still works end to end (the read endpoint's response
+  includes the numeric `requestId` the write endpoint needs), it just cannot be discovered from
+  a list.
+- **No API exposes the package/classification/contract-duration catalogue.** These are
+  `appsettings.json:Catalogues` values, deliberately "extensible without a release" (TR-ACT-01,
+  TR-ACT-04) — but nothing serves that configuration to the frontend. Hard-coding a copy of the
+  current values into the form would silently drift the first time an administrator changed the
+  catalogue without a redeploy, so the submission form uses plain text fields for those three
+  instead of a dropdown; the server's own validation message is what tells the caller a value
+  is not currently offered.
+
 ## CRM integration (TRD 7.3)
 
 **Direction A (portal → CRM).** `ActivationRequestService.SubmitAsync` enqueues INT-CRM-01

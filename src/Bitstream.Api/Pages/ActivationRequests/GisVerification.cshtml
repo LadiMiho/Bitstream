@@ -1,0 +1,84 @@
+@page
+@model Bitstream.Api.Pages.ActivationRequests.GisVerificationModel
+@{
+    ViewData["Title"] = "GIS Verification";
+}
+
+<div class="grid gap-6">
+    <div>
+        <a href="/ActivationRequests" class="text-sm text-brand-600 underline">&larr; Activation Requests</a>
+        <h1 class="mt-2 text-xl font-semibold">GIS Verification</h1>
+    </div>
+
+    @if (!Model.CanRecordGis)
+    {
+        <section class="card">
+            <p class="text-sm text-ink-muted">Your role does not hold <code class="rounded bg-surface-muted px-1">activation.gis.record</code>.</p>
+        </section>
+    }
+    else
+    {
+        <section class="card border-l-4 border-state-pending" aria-labelledby="gis-gap-heading">
+            <h2 id="gis-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">No queue of pending requests</h2>
+            <p class="mt-2 max-w-2xl text-sm text-ink-muted">
+                There is no endpoint that lists requests currently awaiting verification — look
+                one up by its public ID below.
+            </p>
+        </section>
+
+        <section class="card" data-role="activation-gis-page">
+            <form id="gis-lookup-form" class="flex max-w-md items-end gap-3" novalidate>
+                <div class="flex-1">
+                    <label class="field-label" for="gis-lookup-id">Public ID</label>
+                    <input class="field-input" id="gis-lookup-id" name="publicId" type="text" placeholder="e.g. ACT_1001" required />
+                </div>
+                <button type="submit" class="btn-secondary">Look up</button>
+            </form>
+            <p id="gis-lookup-error" class="field-error mt-2" role="alert" hidden></p>
+
+            <div id="gis-detail" class="mt-6" hidden>
+                <div class="flex items-center gap-3">
+                    <h2 id="gis-detail-public-id" class="text-lg font-semibold"></h2>
+                    <span id="gis-detail-status"></span>
+                </div>
+                <dl class="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP ID</dt><dd id="gis-detail-isp-id" class="mt-1 text-sm"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd id="gis-detail-package" class="mt-1 text-sm"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd id="gis-detail-location" class="mt-1 text-sm"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd id="gis-detail-coordinates" class="mt-1 text-sm"></dd></div>
+                </dl>
+
+                <form id="gis-outcome-form" class="mt-6 grid max-w-md gap-4" novalidate>
+                    <p id="gis-outcome-error" class="field-error" role="alert" hidden></p>
+                    <p id="gis-outcome-not-eligible" class="text-sm text-ink-muted" hidden>
+                        This request is not awaiting GIS verification, so no outcome can be recorded right now.
+                    </p>
+
+                    <fieldset id="gis-outcome-fields" class="grid gap-4">
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="radio" name="lineAvailable" value="true" required /> Line exists
+                            </label>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="radio" name="lineAvailable" value="false" required /> No line
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="gis-reason">Reason (required for "No line")</label>
+                            <input class="field-input" id="gis-reason" name="reason" type="text" />
+                        </div>
+
+                        <div>
+                            <button type="submit" class="btn-primary">Record outcome</button>
+                        </div>
+                    </fieldset>
+                </form>
+            </div>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/activation-gis.js"></script>
+}

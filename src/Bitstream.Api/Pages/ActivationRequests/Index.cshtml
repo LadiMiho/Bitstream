@@ -7,8 +7,27 @@
 <section class="card" aria-labelledby="page-heading">
     <h1 id="page-heading" class="text-xl font-semibold">Activation Requests</h1>
     <p class="mt-2 max-w-2xl text-sm text-ink-muted">
-        Submission, GIS verification and CRM-driven progress for activation requests
-        (TRD §5) will be built here — this page is a placeholder reachable from the
-        navigation until then.
+        Submission, status and GIS verification for activation requests (TRD §5).
     </p>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-3">
+        @if (Model.CanCreate)
+        {
+            <a href="/ActivationRequests/New" class="rounded-md border border-line p-4 hover:bg-surface-muted">
+                <div class="text-sm font-semibold">New request</div>
+                <div class="mt-1 text-sm text-ink-muted">Package, location, classification, contract duration, comments.</div>
+            </a>
+        }
+        <a href="/ActivationRequests/Detail" class="rounded-md border border-line p-4 hover:bg-surface-muted">
+            <div class="text-sm font-semibold">Look up a request</div>
+            <div class="mt-1 text-sm text-ink-muted">By its public ID — live status, including integration-pending states.</div>
+        </a>
+        @if (Model.CanRecordGis)
+        {
+            <a href="/ActivationRequests/GisVerification" class="rounded-md border border-line p-4 hover:bg-surface-muted">
+                <div class="text-sm font-semibold">GIS verification</div>
+                <div class="mt-1 text-sm text-ink-muted">Record the line-exists / no-line outcome.</div>
+            </a>
+        }
+    </div>
 </section>

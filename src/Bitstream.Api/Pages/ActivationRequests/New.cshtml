@@ -1,0 +1,82 @@
+@page
+@model Bitstream.Api.Pages.ActivationRequests.NewModel
+@{
+    ViewData["Title"] = "New Activation Request";
+}
+
+<div class="grid gap-6">
+    <div>
+        <a href="/ActivationRequests" class="text-sm text-brand-600 underline">&larr; Activation Requests</a>
+        <h1 class="mt-2 text-xl font-semibold">New Activation Request</h1>
+    </div>
+
+    @if (!Model.CanCreate)
+    {
+        <section class="card">
+            <p class="text-sm text-ink-muted">Your role does not hold <code class="rounded bg-surface-muted px-1">activation.create</code>.</p>
+        </section>
+    }
+    else
+    {
+        <section class="card border-l-4 border-state-pending" aria-labelledby="catalogue-gap-heading">
+            <h2 id="catalogue-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Package, classification and duration are free text</h2>
+            <p class="mt-2 max-w-2xl text-sm text-ink-muted">
+                These are configured, changeable lists (TR-ACT-01, TR-ACT-04) with no API to read
+                them from — entering a value not currently offered is rejected by the server with
+                a specific message rather than prevented here.
+            </p>
+        </section>
+
+        <section class="card" data-role="activation-new-page" data-caller-isp-id="@Model.CallerIspId">
+            <form id="activation-new-form" class="grid max-w-xl gap-4" novalidate>
+                <p id="activation-new-error" class="field-error" role="alert" hidden></p>
+
+                <div>
+                    <label class="field-label" for="activation-isp-id">ISP ID</label>
+                    <input class="field-input" id="activation-isp-id" name="ispId" type="number" min="1" required />
+                </div>
+
+                <div>
+                    <label class="field-label" for="activation-package">Package code</label>
+                    <input class="field-input" id="activation-package" name="packageCode" type="text" placeholder="e.g. BITSTREAM_STD" required />
+                </div>
+
+                <div>
+                    <label class="field-label" for="activation-location">Location</label>
+                    <input class="field-input" id="activation-location" name="locationRaw" type="text" placeholder="Map link, or 'latitude,longitude'" required />
+                </div>
+
+                <div>
+                    <label class="field-label" for="activation-classification">Ticket classification</label>
+                    <input class="field-input" id="activation-classification" name="classification" type="text" placeholder="Leave blank for the default" />
+                </div>
+
+                <div>
+                    <label class="field-label" for="activation-duration">Contract duration (months)</label>
+                    <input class="field-input" id="activation-duration" name="contractDurationMonths" type="number" placeholder="e.g. 12 or 24" required />
+                </div>
+
+                <div>
+                    <label class="field-label" for="activation-comments">Comments</label>
+                    <textarea class="field-input" id="activation-comments" name="comments" rows="4" maxlength="2000"></textarea>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn-primary">Submit request</button>
+                </div>
+            </form>
+
+            <div id="activation-new-result" class="mt-6" hidden>
+                <p class="text-sm">
+                    Created <span id="activation-new-public-id" class="font-semibold"></span> —
+                    status <span id="activation-new-status"></span>.
+                </p>
+                <a id="activation-new-view-link" class="mt-2 inline-block text-sm text-brand-600 underline" href="#">View this request</a>
+            </div>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/activation-new.js"></script>
+}
