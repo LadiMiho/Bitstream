@@ -95,6 +95,8 @@ public static class OperationsEndpoints
     }
 
     /// <param name="targetSystem">Optional filter: Crm, Bi, Sap or Smtp.</param>
+    /// <param name="outbox">Reads the dead-lettered messages.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     /// <param name="skip">Rows to skip.</param>
     /// <param name="take">Rows to return.</param>
     private static async Task<IResult> GetDeadLetterQueue(
@@ -122,6 +124,8 @@ public static class OperationsEndpoints
     }
 
     /// <param name="messageId">Message to re-queue.</param>
+    /// <param name="outbox">Re-queues the message.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     private static async Task<IResult> ReplayDeadLetterMessage(
         [FromRoute] long messageId, IIntegrationOutbox outbox, CancellationToken cancellationToken)
     {
@@ -136,6 +140,8 @@ public static class OperationsEndpoints
         }
     }
 
+    /// <param name="syncService">Runs the synchronisation.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     /// <param name="fullReload">True to ignore the stored change marker and reload everything.</param>
     private static async Task<IResult> TriggerActiveLineSync(
         IActiveLineSyncService syncService, CancellationToken cancellationToken, [FromQuery] bool fullReload = false)

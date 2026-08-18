@@ -15,7 +15,13 @@ public sealed record IntegrationEnvelope(
 
 // --- INT-CRM-01 Create Customer -------------------------------------------------
 
+/// <param name="Envelope">TR-INT-02 envelope.</param>
 /// <param name="RequestPublicId">Portal request identifier, carried on every message (TR-DAT-04).</param>
+/// <param name="IspName">ISP legal name.</param>
+/// <param name="IspNipt">ISP tax identification number.</param>
+/// <param name="ContactPerson">ISP's primary contact.</param>
+/// <param name="ContactEmail">ISP's primary contact email.</param>
+/// <param name="ContactMobile">ISP's primary contact mobile.</param>
 public sealed record CreateCrmCustomerCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
@@ -25,12 +31,23 @@ public sealed record CreateCrmCustomerCommand(
     string ContactEmail,
     string ContactMobile);
 
+/// <param name="CrmCustomerId">CRM-side customer ID.</param>
 /// <param name="BusinessPartner">BP assigned by CRM, required for the subsequent ticket (TR-ACT-08).</param>
 public sealed record CreateCrmCustomerResult(string CrmCustomerId, string BusinessPartner);
 
 // --- INT-CRM-02 Create Activation Ticket ----------------------------------------
 
+/// <param name="Envelope">TR-INT-02 envelope.</param>
+/// <param name="RequestPublicId">Portal request identifier, carried on every message (TR-DAT-04).</param>
 /// <param name="CrmCustomerId">The CRM-side customer ID INT-CRM-01 returned, carried forward so the caller does not have to look its own earlier response back up.</param>
+/// <param name="BusinessPartner">BP assigned by CRM.</param>
+/// <param name="Classification">Ticket classification.</param>
+/// <param name="PackageCode">Requested package.</param>
+/// <param name="ContractDurationMonths">Selected contract duration.</param>
+/// <param name="LocationRaw">Location exactly as entered.</param>
+/// <param name="LocationLat">Parsed latitude.</param>
+/// <param name="LocationLng">Parsed longitude.</param>
+/// <param name="Comments">Free-text comments.</param>
 public sealed record CreateActivationTicketCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
@@ -74,8 +91,13 @@ public sealed record ReplicateCommentResult(string CrmCommentId);
 
 // --- INT-CRM-08 Closure Decision -------------------------------------------------
 
+/// <param name="Envelope">TR-INT-02 envelope.</param>
+/// <param name="TicketPublicId">Portal complaint ticket identifier.</param>
+/// <param name="CrmTicketId">CRM-side ticket ID.</param>
 /// <param name="Decision">CONFIRM or REJECT.</param>
 /// <param name="SystemInitiated">True for auto-confirmation; carries reason and elapsed period (TR-PAS-21d).</param>
+/// <param name="SystemReason">Reason recorded for a system-initiated decision. Present only when <paramref name="SystemInitiated"/> is true.</param>
+/// <param name="ElapsedSinceClearingCode">Time since the clearing code was applied. Present only when <paramref name="SystemInitiated"/> is true.</param>
 public sealed record ClosureDecisionCommand(
     IntegrationEnvelope Envelope,
     string TicketPublicId,
@@ -103,6 +125,8 @@ public sealed record ServiceChangeResult(string CrmReference);
 // --- INT-BI-01 Active Lines Sync -------------------------------------------------
 
 /// <param name="ChangeMarker">Watermark returned by the previous run; null for a full load (TR-PAS-04).</param>
+/// <param name="PageSize">Maximum rows to return in this page.</param>
+/// <param name="PageNumber">1-based page number.</param>
 public sealed record ActiveLinesQuery(string? ChangeMarker, int PageSize, int PageNumber);
 
 public sealed record ActiveLineRecord(

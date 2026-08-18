@@ -25,7 +25,11 @@ public sealed record IspResponse(
 public sealed record SetStatusRequest([property: JsonPropertyName("status")] string Status);
 
 /// <param name="IspId">Owning ISP, or null for an internal user (TR-SEC-14).</param>
+/// <param name="FullName">User's full name.</param>
+/// <param name="Email">RFC-compliant, unique across the portal.</param>
+/// <param name="Mobile">E.164 format.</param>
 /// <param name="RoleName">Administrator, IspUser, ServiceDesk or Auditor.</param>
+/// <param name="InitialPassword">Must satisfy the configured password policy (TR-SEC-03).</param>
 public sealed record CreateUserHttpRequest(
     [property: JsonPropertyName("ispId")] long? IspId,
     [property: JsonPropertyName("fullName")] string FullName,

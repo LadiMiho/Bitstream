@@ -12,7 +12,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
 
     <!-- Presentation -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- 10.0.11, not 10.0.0: pulls Microsoft.OpenApi >= 2.7.5, patching GHSA-v5pm-xwqc-g5wc
+         (a circular-schema-reference stack overflow in Microsoft.OpenApi 2.0.0-preview.11
+         through 2.7.4). NU1903 (Warning As Error) fails restore on the vulnerable range. -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
 
     <!-- Security -->
     <!-- Argon2id (TR-SEC-02). Pure managed implementation, no native dependency — matters on a

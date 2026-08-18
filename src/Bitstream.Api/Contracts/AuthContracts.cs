@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 namespace Bitstream.Api.Contracts;
 
 /// <param name="Email">TR-SEC-01.</param>
+/// <param name="Password">Checked against the stored Argon2 hash (TR-SEC-02).</param>
 public sealed record LoginRequest(
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("password")] string Password);
@@ -24,6 +25,11 @@ public sealed record SessionResponse(
     [property: JsonPropertyName("user")] CurrentUserResponse User,
     [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt);
 
+/// <param name="UserId">The authenticated caller's ID.</param>
+/// <param name="FullName">The authenticated caller's full name.</param>
+/// <param name="Email">The authenticated caller's email.</param>
+/// <param name="Role">The authenticated caller's role name.</param>
+/// <param name="IspId">The authenticated caller's own ISP, or null for an internal user.</param>
 /// <param name="Permissions">Codes the caller's role grants (TR-SEC-17) — informs which controls the frontend renders; every one is still checked server-side (TR-SEC-20).</param>
 public sealed record CurrentUserResponse(
     [property: JsonPropertyName("userId")] long UserId,

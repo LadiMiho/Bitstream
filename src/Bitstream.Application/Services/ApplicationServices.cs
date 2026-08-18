@@ -55,7 +55,12 @@ public interface IActivationRequestService
     Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default);
 }
 
+/// <param name="IspId">Owning ISP.</param>
+/// <param name="PackageCode">From the configured catalogue (TR-ACT-01).</param>
+/// <param name="LocationRaw">A map URL or a 'latitude,longitude' pair, exactly as entered (TR-ACT-02).</param>
+/// <param name="Classification">From the configured list; defaults when not supplied (TR-ACT-04).</param>
 /// <param name="ContractDurationMonths">12 or 24, from the configured list.</param>
+/// <param name="Comments">Free text, max 2000 characters, HTML stripped (TR-ACT-05).</param>
 public sealed record SubmitActivationRequest(
     long IspId,
     string PackageCode,
@@ -186,6 +191,7 @@ public interface IReportingService
     Task<ExportStatus> GetExportStatusAsync(Guid exportId, CancellationToken cancellationToken = default);
 }
 
+/// <param name="Dataset">Which report dataset to export.</param>
 /// <param name="Format">CSV or XLSX (TR-REP-01).</param>
 /// <param name="Filters">Applied filter set; echoed into the file header (TR-REP-06).</param>
 public sealed record ExportRequest(
@@ -253,6 +259,7 @@ public enum LoginOutcome
     AccountLocked
 }
 
+/// <param name="Outcome">Which of the three login outcomes this is.</param>
 /// <param name="ChallengeToken">Opaque token to submit with the code. Present only when <see cref="Outcome"/> is <see cref="LoginOutcome.ChallengeIssued"/>.</param>
 /// <param name="Channel">Second-factor channel the challenge was issued on.</param>
 /// <param name="ExpiresAt">At most 5 minutes from issuance (TR-SEC-04).</param>
@@ -285,7 +292,10 @@ public enum TwoFactorOutcome
     TooManyAttempts
 }
 
+/// <param name="Outcome">Which of the second-factor outcomes this is.</param>
 /// <param name="SessionToken">Raw session token — the presentation layer sets this as the HttpOnly session cookie. Present only when <see cref="Outcome"/> is <see cref="TwoFactorOutcome.Succeeded"/>.</param>
+/// <param name="SessionExpiresAt">Present only on success.</param>
+/// <param name="User">The authenticated caller's profile. Present only on success.</param>
 public sealed record TwoFactorResult(
     TwoFactorOutcome Outcome,
     string? SessionToken,
@@ -350,6 +360,10 @@ public interface IAdministrationService
     Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default);
 }
 
+/// <param name="Name">ISP name.</param>
+/// <param name="Nipt">Albanian tax identification number.</param>
+/// <param name="ContactPerson">Primary contact's name.</param>
+/// <param name="ContactEmail">Primary contact's email.</param>
 /// <param name="ContactMobile">E.164 format (TR-SEC-14, TR-SEC-15).</param>
 /// <param name="CrmBpReference">CRM Business Partner reference; verified against CRM before activation per TR-SEC-16 (Should — CRM contract is TRD 11.4 open item 1, so this is recorded but not yet cross-checked).</param>
 public sealed record CreateIspRequest(
@@ -361,6 +375,9 @@ public sealed record CreateIspRequest(
     string CrmBpReference);
 
 /// <param name="IspId">Owning ISP, or null for an internal user (Administrator, Service Desk, Auditor) (TR-SEC-14).</param>
+/// <param name="FullName">User's full name.</param>
+/// <param name="Email">RFC-compliant, unique across the portal.</param>
+/// <param name="Mobile">E.164 format.</param>
 /// <param name="RoleName">One of the seeded roles: Administrator, IspUser, ServiceDesk, Auditor.</param>
 /// <param name="InitialPassword">Must satisfy the configured password policy (TR-SEC-03); the user is expected to change it, though self-service change is not yet built (see docs/open-items.md).</param>
 public sealed record CreateUserRequest(

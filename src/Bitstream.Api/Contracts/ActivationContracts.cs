@@ -7,6 +7,7 @@ namespace Bitstream.Api.Contracts;
 /// <param name="LocationRaw">A map URL or a 'latitude,longitude' pair, exactly as entered (TR-ACT-02).</param>
 /// <param name="Classification">Defaults to the configured default classification when omitted (TR-ACT-04).</param>
 /// <param name="ContractDurationMonths">One of the configured selectable durations, e.g. 12 or 24.</param>
+/// <param name="Comments">Free text, max 2000 characters, HTML stripped (TR-ACT-05).</param>
 public sealed record SubmitActivationHttpRequest(
     [property: JsonPropertyName("ispId")] long IspId,
     [property: JsonPropertyName("packageCode")] string PackageCode,

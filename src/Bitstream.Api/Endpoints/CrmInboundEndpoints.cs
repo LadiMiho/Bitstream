@@ -100,6 +100,10 @@ public static class CrmInboundEndpoints
     /// <summary>POST /api/v1/tickets/{identifier}/events — TRD 7.3.2.</summary>
     /// <param name="identifier">Portal public identifier of the ticket, e.g. ISP_1024.</param>
     /// <param name="request">The CRM event.</param>
+    /// <param name="outbox">Records the raw inbound message before interpretation (TR-INT-07).</param>
+    /// <param name="inboundEventService">Applies the event to the matching activation request or complaint ticket.</param>
+    /// <param name="correlationContext">Current request's correlation ID (TR-ARC-04).</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     private static async Task<IResult> SubmitEvent(
         [FromRoute] string identifier,
         [FromBody] TicketEventRequest request,
@@ -161,6 +165,8 @@ public static class CrmInboundEndpoints
 
     /// <summary>POST /api/v1/tickets/events/replay — TR-INT-31.</summary>
     /// <param name="request">Ticket identifier or time window to replay.</param>
+    /// <param name="inboundEventService">Re-applies each replayed event.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     private static async Task<IResult> ReplayEvents(
         [FromBody] EventReplayRequest request,
         IInboundEventService inboundEventService,
