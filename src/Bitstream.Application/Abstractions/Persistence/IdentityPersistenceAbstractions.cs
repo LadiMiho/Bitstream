@@ -56,6 +56,9 @@ public interface IIspRepository
     Task<bool> NiptExistsAsync(string nipt, CancellationToken cancellationToken = default);
 
     Task AddAsync(Isp isp, CancellationToken cancellationToken = default);
+
+    /// <summary>Resolves the ISP a BI or CRM record belongs to (TR-PAS-04); null when the BP is not a known ISP.</summary>
+    Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Session store, TR-SEC-07.</summary>

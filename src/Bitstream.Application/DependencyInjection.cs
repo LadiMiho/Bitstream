@@ -4,6 +4,7 @@ using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Application.Services.Identity;
 using Bitstream.Application.Services.Integration;
+using Bitstream.Application.Services.PostActivation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -103,6 +104,20 @@ public static class DependencyInjection
         services.AddHostedService(provider => provider.GetRequiredService<OutboxDispatcher>());
 
         services.AddScoped<IInboundEventService, InboundEventService>();
+
+        // TRD 6 — post-activation support.
+        services.AddOptions<ActiveLineSyncOptions>()
+            .Bind(configuration.GetSection(ActiveLineSyncOptions.SectionName));
+
+        services.AddSingleton<IWorkingDayCalculator, WorkingDayCalculator>();
+        services.AddScoped<IActiveLineSyncService, ActiveLineSyncService>();
+        services.AddScoped<IComplaintTicketService, ComplaintTicketService>();
+        services.AddScoped<ITicketClosureService, TicketClosureService>();
+        services.AddScoped<IServiceChangeRequestService, ServiceChangeRequestService>();
+        services.AddScoped<INotificationService, NotificationService>();
+
+        services.AddHostedService<ActiveLineSyncScheduler>();
+        services.AddHostedService<AutoConfirmationSweepScheduler>();
 
         return services;
     }

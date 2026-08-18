@@ -56,9 +56,27 @@ public sealed class CatalogueOptions
     /// <summary>
     /// CRM statuses that generate an ISP notification. Everything else — internal forwards in
     /// particular — is recorded but not notified (TR-PAS-13, TR-PAS-16, TR-INT-28).
-    /// Contents are TRD 11.4 open item 4.
+    /// Contents are TRD 11.4 open item 4. Technically Completed notifies regardless of this
+    /// list — TRD 6.3 names it explicitly, so it does not wait on open item 4 either.
     /// </summary>
     public IList<string> IspNotifiableStatuses { get; set; } = [];
+
+    /// <summary>
+    /// Three-level defect category cascade (TR-PAS-08). The real catalogue and its CRM mapping
+    /// are TRD 11.4 open item 8; these are the codes the complaint ticket form validates
+    /// against until it arrives.
+    /// </summary>
+    public IList<ComplaintCategoryDefinition> ComplaintCategories { get; set; } = [];
+}
+
+/// <summary>One leaf of the three-level complaint category cascade (TR-PAS-08).</summary>
+public sealed class ComplaintCategoryDefinition
+{
+    public string L1 { get; set; } = string.Empty;
+
+    public string L2 { get; set; } = string.Empty;
+
+    public string L3 { get; set; } = string.Empty;
 }
 
 /// <summary>A package in the catalogue.</summary>
@@ -100,6 +118,9 @@ public sealed class TicketClosureOptions
 
     /// <summary>Calendar days during which a closed ticket may be challenged (TR-PAS-21f).</summary>
     public int ChallengeWindowCalendarDays { get; set; } = 10;
+
+    /// <summary>How often the auto-confirmation sweep runs.</summary>
+    public TimeSpan SweepInterval { get; set; } = TimeSpan.FromMinutes(30);
 }
 
 /// <summary>

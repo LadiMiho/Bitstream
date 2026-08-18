@@ -124,6 +124,26 @@ public sealed class CatalogueOptionsValidator : IValidateOptions<CatalogueOption
             failures.Add("Catalogues:ContractDurationsMonths must contain positive values only.");
         }
 
+        foreach (var category in options.ComplaintCategories)
+        {
+            if (string.IsNullOrWhiteSpace(category.L1) || string.IsNullOrWhiteSpace(category.L2) || string.IsNullOrWhiteSpace(category.L3))
+            {
+                failures.Add("Catalogues:ComplaintCategories entries must all have L1, L2 and L3 set (TR-PAS-08).");
+                break;
+            }
+        }
+
+        var duplicateCategories = options.ComplaintCategories
+            .GroupBy(c => (c.L1, c.L2, c.L3))
+            .Where(group => group.Count() > 1)
+            .Select(group => $"{group.Key.L1}/{group.Key.L2}/{group.Key.L3}")
+            .ToList();
+
+        if (duplicateCategories.Count > 0)
+        {
+            failures.Add($"Catalogues:ComplaintCategories contains duplicate entries: {string.Join(", ", duplicateCategories)}.");
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
@@ -147,6 +167,11 @@ public sealed class TicketClosureOptionsValidator : IValidateOptions<TicketClosu
         if (options.ChallengeWindowCalendarDays < 0)
         {
             failures.Add("TicketClosure:ChallengeWindowCalendarDays must not be negative (TR-PAS-21f).");
+        }
+
+        if (options.SweepInterval <= TimeSpan.Zero)
+        {
+            failures.Add("TicketClosure:SweepInterval must be greater than zero.");
         }
 
         if (options.AutoConfirmationEnabled)

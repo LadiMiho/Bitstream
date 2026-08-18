@@ -24,3 +24,22 @@ public sealed class OutboxDispatcherOptions
     /// <summary>Attempts before a technically-failing message is dead-lettered (TR-INT-04, TR-INT-05).</summary>
     public int MaxAttempts { get; set; } = 5;
 }
+
+/// <summary>
+/// The one setting <see cref="Services.PostActivation.ActiveLineSyncService"/> needs from the BI
+/// adapter's own configuration. Binds to the same "Integration:Bi" section
+/// <c>Infrastructure.Integration.Bi.BiOptions</c> does — the Application layer cannot reference
+/// that type directly (TR-ARC-01), so this is its own narrow view of the same JSON.
+/// </summary>
+public sealed class ActiveLineSyncOptions
+{
+    public const string SectionName = "Integration:Bi";
+
+    public int PageSize { get; set; } = 1000;
+
+    /// <summary>How often the scheduled sync runs (TR-PAS-03).</summary>
+    public TimeSpan SyncInterval { get; set; } = TimeSpan.FromMinutes(60);
+
+    /// <summary>Set false to stop the background loop — a test host driving sync manually, for instance.</summary>
+    public bool ScheduledSyncEnabled { get; set; } = true;
+}

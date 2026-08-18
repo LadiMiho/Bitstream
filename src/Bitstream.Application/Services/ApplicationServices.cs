@@ -74,6 +74,11 @@ public interface IComplaintTicketService
 
     /// <summary>Scoped server-side to the caller's ISP (TR-SEC-18, TR-PAS-06).</summary>
     Task<IReadOnlyList<ComplaintTicket>> SearchAsync(ComplaintTicketFilter filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Null when the ticket does not exist, or when the caller is not entitled to see it (TR-SEC-19-style).</summary>
+    Task<ComplaintTicket?> GetByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TicketComment>> GetCommentsAsync(long ticketId, CancellationToken cancellationToken = default);
 }
 
 public sealed record CreateComplaintTicket(
