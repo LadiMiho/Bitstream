@@ -1,0 +1,239 @@
+using Bitstream.Application.Services;
+using Bitstream.Application.Services.Identity;
+using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
+using Bitstream.Hosting.Configuration;
+using Bitstream.Web.Contracts;
+using Bitstream.Web.Security;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Bitstream.Web.Endpoints;
+
+/// <summary>
+/// TRD 4.2: ISP and user administration. Creation and lock/unlock require the Administrator
+/// role's permissions (TR-SEC-09); the two read endpoints are open to any authenticated caller
+/// at the route level, and <see cref="IAdministrationService"/> decides — from identity, before
+/// touching the repository — whether the specific record is theirs to see (TR-SEC-18, TR-SEC-19).
+/// </summary>
+public static class AdministrationEndpoints
+{
+    public static IEndpointRouteBuilder MapAdministrationEndpoints(this IEndpointRouteBuilder app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+
+        var isps = app.MapGroup("/api/v1/isps")
+            .WithTags("ISP administration")
+            .RequireRateLimiting(RateLimitPolicies.Administration);
+
+        isps.MapPost("/", CreateIspAsync)
+            .WithName("CreateIsp")
+            .WithSummary("Create an ISP")
+            .WithDescription("TR-SEC-09, TR-SEC-15: name, NIPT, contact person, contact email, contact mobile and the CRM Business Partner reference are all required and validated.")
+            .Accepts<CreateIspHttpRequest>("application/json")
+            .Produces<IspResponse>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequirePermission(PermissionCodes.IspCreate);
+
+        isps.MapGet("/{ispId:long}", GetIspAsync)
+            .WithName("GetIsp")
+            .WithSummary("Read an ISP")
+            .WithDescription(
+                "TR-SEC-18: an ISP user may read their own ISP. TR-SEC-19: a request for a " +
+                "different ISP returns 404, identically to one that does not exist, and is " +
+                "logged as a security event.")
+            .Produces<IspResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequireAuthorization();
+
+        isps.MapPatch("/{ispId:long}/status", SetIspStatusAsync)
+            .WithName("SetIspStatus")
+            .WithSummary("Lock or unlock an ISP")
+            .WithDescription(
+                "TR-SEC-11, TR-SEC-13: locking cascades to every currently-active user of the " +
+                "ISP and revokes their sessions immediately. Unlocking does not reciprocally " +
+                "unlock them.")
+            .Accepts<SetStatusRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequirePermission(PermissionCodes.IspLock);
+
+        var users = app.MapGroup("/api/v1/users")
+            .WithTags("User administration")
+            .RequireRateLimiting(RateLimitPolicies.Administration);
+
+        users.MapPost("/", CreateUserAsync)
+            .WithName("CreateUser")
+            .WithSummary("Create a portal user")
+            .WithDescription("TR-SEC-09, TR-SEC-14: full name, RFC-compliant unique email and E.164 mobile are required; the initial password must satisfy the configured policy (TR-SEC-03).")
+            .Accepts<CreateUserHttpRequest>("application/json")
+            .Produces<UserResponse>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequirePermission(PermissionCodes.UserCreate);
+
+        users.MapGet("/{userId:long}", GetUserAsync)
+            .WithName("GetUser")
+            .WithSummary("Read a user")
+            .WithDescription("Self, or an Administrator/Auditor holding isp.read.all. Anyone else gets 404 (TR-SEC-19).")
+            .Produces<UserResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequireAuthorization();
+
+        users.MapPatch("/{userId:long}/status", SetUserStatusAsync)
+            .WithName("SetUserStatus")
+            .WithSummary("Lock or unlock a user")
+            .WithDescription("TR-SEC-11, TR-SEC-12: a locked user is denied authentication and their sessions are revoked immediately (TR-SEC-07).")
+            .Accepts<SetStatusRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequirePermission(PermissionCodes.UserLock);
+
+        return app;
+    }
+
+    private static async Task<IResult> CreateIspAsync(
+        [FromBody] CreateIspHttpRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isp = await administrationService.CreateIspAsync(
+                new CreateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference),
+                cancellationToken).ConfigureAwait(false);
+
+            var response = ToResponse(isp);
+
+            return Results.CreatedAtRoute("GetIsp", new { ispId = isp.IspId }, response);
+        }
+        catch (AdministrationValidationException exception)
+        {
+            return ValidationProblem(exception);
+        }
+    }
+
+    private static async Task<IResult> GetIspAsync(
+        [FromRoute] long ispId,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        var isp = await administrationService.GetIspAsync(ispId, cancellationToken).ConfigureAwait(false);
+
+        // Not found and forbidden are the same response on purpose (TR-SEC-19): the service has
+        // already decided, from identity alone, whether this ispId is one the caller may see.
+        return isp is null ? Results.NotFound() : Results.Ok(ToResponse(isp));
+    }
+
+    private static async Task<IResult> SetIspStatusAsync(
+        [FromRoute] long ispId,
+        [FromBody] SetStatusRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseStatus<IspStatus>(request.Status, out var status))
+        {
+            return Results.Problem(
+                title: "Invalid status",
+                detail: $"Status must be 'Active' or 'Locked'. Received: '{request.Status}'.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            await administrationService.SetIspStatusAsync(ispId, status, cancellationToken).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (AdministrationValidationException)
+        {
+            // Administrator-only endpoint: reaching this point with an unknown ispId is an
+            // ordinary not-found, not a TR-SEC-19 event — the caller was already entitled to
+            // look, the target just does not exist.
+            return Results.NotFound();
+        }
+    }
+
+    private static async Task<IResult> CreateUserAsync(
+        [FromBody] CreateUserHttpRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var user = await administrationService.CreateUserAsync(
+                new CreateUserRequest(request.IspId, request.FullName, request.Email, request.Mobile, request.RoleName, request.InitialPassword),
+                cancellationToken).ConfigureAwait(false);
+
+            var response = ToResponse(user);
+
+            return Results.CreatedAtRoute("GetUser", new { userId = user.UserId }, response);
+        }
+        catch (AdministrationValidationException exception)
+        {
+            return ValidationProblem(exception);
+        }
+    }
+
+    private static async Task<IResult> GetUserAsync(
+        [FromRoute] long userId,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        var user = await administrationService.GetUserAsync(userId, cancellationToken).ConfigureAwait(false);
+
+        return user is null ? Results.NotFound() : Results.Ok(ToResponse(user));
+    }
+
+    private static async Task<IResult> SetUserStatusAsync(
+        [FromRoute] long userId,
+        [FromBody] SetStatusRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseStatus<UserStatus>(request.Status, out var status))
+        {
+            return Results.Problem(
+                title: "Invalid status",
+                detail: $"Status must be 'Active' or 'Locked'. Received: '{request.Status}'.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            await administrationService.SetUserStatusAsync(userId, status, cancellationToken).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (AdministrationValidationException)
+        {
+            return Results.NotFound();
+        }
+    }
+
+    private static IResult ValidationProblem(AdministrationValidationException exception) =>
+        Results.ValidationProblem(
+            exception.Violations.Count > 0
+                ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+
+    private static bool TryParseStatus<TStatus>(string value, out TStatus status)
+        where TStatus : struct, Enum =>
+        Enum.TryParse(value, ignoreCase: false, out status);
+
+    private static IspResponse ToResponse(Isp isp) =>
+        new(isp.IspId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile,
+            isp.CrmBpReference, isp.Status.ToString(), isp.CreatedAt);
+
+    private static UserResponse ToResponse(User user) =>
+        new(user.UserId, user.IspId, user.FullName, user.Email, user.Mobile, user.Role.Name,
+            user.Status.ToString(), user.LastLoginAt);
+}

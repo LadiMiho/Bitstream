@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.Hosting</RootNamespace>
+    <!-- Presentation-layer plumbing shared by the two web hosts (Bitstream.Web and
+         Bitstream.Api). Framework reference rather than Sdk.Web because this is a library:
+         it contributes middleware, options and endpoint mappings, it does not host anything. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Cross-cutting concerns only. This project sits beside the two hosts in the
+         presentation layer; it never becomes a back door for Domain or Application to reach
+         ASP.NET Core, because nothing below the hosts references it (TR-ARC-01). -->
+    <ProjectReference Include="..\Bitstream.Application\Bitstream.Application.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Bitstream.Api.Contracts;
+using Bitstream.Web.Contracts;
 using Bitstream.Api.Tests.Identity;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Services.Integration;
@@ -30,6 +30,7 @@ public sealed class CrmClosureEndToEndTests
     public async Task Activation_request_reaches_Completed_through_both_CRM_directions()
     {
         await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
         string ispUserToken;
         string adminToken;
         long ispId;
@@ -51,12 +52,13 @@ public sealed class CrmClosureEndToEndTests
         }
 
         using var client = factory.CreateClient();
+        using var portalClient = portal.CreateClient();
 
         // --- Submit (TR-ACT-06, TR-DAT-01) --------------------------------------------------
-        client.DefaultRequestHeaders.Remove("Cookie");
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        portalClient.DefaultRequestHeaders.Remove("Cookie");
+        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
 
-        using var submitResponse = await client.PostAsJsonAsync(
+        using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, "Closure example"));
 
@@ -96,10 +98,10 @@ public sealed class CrmClosureEndToEndTests
         }
 
         // --- GIS verification admin screen (TR-ACT-12 to TR-ACT-19) -------------------------
-        client.DefaultRequestHeaders.Remove("Cookie");
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={adminToken}");
+        portalClient.DefaultRequestHeaders.Remove("Cookie");
+        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={adminToken}");
 
-        using var gisResponse = await client.PatchAsJsonAsync(
+        using var gisResponse = await portalClient.PatchAsJsonAsync(
             new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(true, null));
         Assert.Equal(HttpStatusCode.NoContent, gisResponse.StatusCode);
@@ -149,6 +151,8 @@ public sealed class CrmClosureEndToEndTests
     [Fact]
     public async Task An_inbound_event_for_an_unknown_identifier_is_rejected_with_404()
     {
+        // No portal host here: nothing is submitted, so there is no request for the identifier
+        // to resolve to — which is exactly what this asserts.
         await using var factory = new CrmApiFactory();
         using var client = factory.CreateClient();
 
@@ -163,6 +167,7 @@ public sealed class CrmClosureEndToEndTests
     public async Task A_sales_order_event_out_of_sequence_is_rejected_with_409()
     {
         await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
         string ispUserToken;
         long ispId;
 
@@ -177,9 +182,10 @@ public sealed class CrmClosureEndToEndTests
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        using var portalClient = portal.CreateClient();
+        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
 
-        using var submitResponse = await client.PostAsJsonAsync(
+        using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
@@ -196,6 +202,7 @@ public sealed class CrmClosureEndToEndTests
     public async Task A_business_rejection_from_CRM_dead_letters_immediately_and_marks_the_request_IntegrationFailed()
     {
         await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
         string ispUserToken;
         long ispId;
 
@@ -210,9 +217,10 @@ public sealed class CrmClosureEndToEndTests
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        using var portalClient = portal.CreateClient();
+        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
 
-        using var submitResponse = await client.PostAsJsonAsync(
+        using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();

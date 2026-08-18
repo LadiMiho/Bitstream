@@ -23,9 +23,14 @@ namespace Bitstream.Api.Tests.Integration;
 /// dispatch happens exactly when the test says it does, not on a timer race.
 /// </para>
 /// </summary>
-public sealed class CrmApiFactory : WebApplicationFactory<Program>
+public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
 {
-    private readonly string _databaseName = $"bitstream-crm-tests-{Guid.NewGuid()}";
+    /// <summary>
+    /// Shared with <see cref="PortalApiFactory"/> so the two hosts see one database, which is
+    /// what the split actually looks like in deployment: a request submitted on the portal is
+    /// dispatched to CRM, and CRM's events applied, by the API host — same data, two processes.
+    /// </summary>
+    public string DatabaseName { get; } = $"bitstream-crm-tests-{Guid.NewGuid()}";
 
     public FakeCrmGateway CrmGateway { get; } = new();
 
@@ -48,7 +53,7 @@ public sealed class CrmApiFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveEntityFrameworkCoreServices();
-            services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+            services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(DatabaseName));
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(CrmGateway);

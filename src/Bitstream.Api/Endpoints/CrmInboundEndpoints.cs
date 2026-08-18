@@ -6,6 +6,7 @@ using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Application.Services.Integration;
 using Bitstream.Domain.Enums;
+using Bitstream.Hosting.Configuration;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bitstream.Api.Endpoints;

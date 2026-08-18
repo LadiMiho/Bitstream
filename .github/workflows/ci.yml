@@ -78,9 +78,9 @@ jobs:
       # The frontend build is part of CI because a Tailwind class that no longer exists fails
       # here rather than silently producing a page with no styling. No Node.js or npm: the
       # standalone Tailwind CLI is a self-contained native binary, downloaded by the same
-      # MSBuild target that a local `-p:BuildFrontend=true` build uses (Bitstream.Api.csproj).
+      # MSBuild target that a local `-p:BuildFrontend=true` build uses (Bitstream.Web.csproj).
       - name: Build stylesheet
-        run: dotnet msbuild src/Bitstream.Api/Bitstream.Api.csproj -t:BuildFrontendAssets -p:BuildFrontend=true -p:Configuration=Release
+        run: dotnet msbuild src/Bitstream.Web/Bitstream.Web.csproj -t:BuildFrontendAssets -p:BuildFrontend=true -p:Configuration=Release
 
       - name: Verify no container artifacts were introduced
         shell: pwsh
@@ -96,13 +96,22 @@ jobs:
           }
           Write-Host "No container artifacts."
 
-      - name: Publish
+      # Two sites now: the portal people use and the integration host CRM calls. They deploy
+      # as separate IIS applications, so they publish as separate artifacts.
+      - name: Publish portal site
+        run: >
+          dotnet publish src/Bitstream.Web/Bitstream.Web.csproj
+          --configuration Release
+          --no-restore
+          --output ${{ github.workspace }}/artifacts/publish/web
+          -p:BuildFrontend=false
+
+      - name: Publish integration API
         run: >
           dotnet publish src/Bitstream.Api/Bitstream.Api.csproj
           --configuration Release
           --no-restore
-          --output ${{ github.workspace }}/artifacts/publish
-          -p:BuildFrontend=false
+          --output ${{ github.workspace }}/artifacts/publish/api
 
       - name: Upload publish artifact
         uses: actions/upload-artifact@v4

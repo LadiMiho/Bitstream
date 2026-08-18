@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using Bitstream.Api.Middleware;
+using Bitstream.Hosting.Middleware;
 using Xunit;
 
 namespace Bitstream.Api.Tests;

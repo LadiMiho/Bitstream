@@ -1,0 +1,223 @@
+using System.Data;
+using System.Data.Common;
+using System.Text.RegularExpressions;
+using Bitstream.Application.Abstractions.Security;
+using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
+using Bitstream.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Bitstream.Web;
+
+/// <summary>
+/// Development-only convenience: applies <c>db/mssql</c> and seeds a local administrator, so a
+/// fresh clone reaches a usable UI with <c>dotnet run</c> and nothing else.
+/// <para>
+/// <b>This can never run outside Development.</b> Two independent guards enforce that — the
+/// environment must be Development, and <c>Database:DevelopmentAutoMigrate</c> must be true —
+/// and the environment check is the one no configuration value can override. Applying DDL at
+/// start-up and inserting a known-password account are both things that must never happen by
+/// accident on UAT or production, where <c>db/Deploy-Database.ps1</c> is the only supported
+/// path (TR-ARC-08) and accounts are created through the administration screens.
+/// </para>
+/// <para>
+/// The scripts under <c>db/mssql</c> are hand-written and idempotent by design (ADR-0002), so
+/// replaying them is safe; this applies them in numeric order and stamps
+/// <c>ops.SchemaVersion</c> exactly as the PowerShell deployer does, which is what
+/// <c>SchemaVersionGuard</c> then checks.
+/// </para>
+/// </summary>
+public static class DevelopmentBootstrapper
+{
+    /// <summary>Configuration flag, required in addition to the environment being Development.</summary>
+    public const string EnabledKey = "Database:DevelopmentAutoMigrate";
+
+    /// <summary>
+    /// Fixed rather than random so that the same authenticator entry keeps working across
+    /// re-seeds and across developers. It is a development credential and is documented as one.
+    /// </summary>
+    private static readonly byte[] DevelopmentTotpSecret =
+        [0x42, 0x49, 0x54, 0x53, 0x54, 0x52, 0x45, 0x41, 0x4D, 0x44,
+         0x45, 0x56, 0x54, 0x4F, 0x54, 0x50, 0x53, 0x45, 0x45, 0x44];
+
+    /// <summary>Applies pending schema scripts and seeds the development administrator. A no-op outside Development, or when the flag is off.</summary>
+    public static async Task RunDevelopmentBootstrapAsync(this WebApplication app)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+
+        // Not configurable: no setting makes this run outside Development.
+        if (!app.Environment.IsDevelopment() || !app.Configuration.GetValue<bool>(EnabledKey))
+        {
+            return;
+        }
+
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DevelopmentBootstrapper));
+
+        await using var scope = app.Services.CreateAsyncScope();
+
+        try
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+
+            await ApplySchemaScriptsAsync(dbContext, app.Environment.ContentRootPath, logger).ConfigureAwait(false);
+            await SeedAdministratorAsync(dbContext, scope.ServiceProvider, app.Configuration, logger).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            // A developer convenience must never be the reason the app will not start: log it
+            // and let the host come up, where SchemaVersionGuard reports the real schema state.
+            logger.LogError(
+                exception,
+                "Development bootstrap failed. The application will still start; run db/Deploy-Database.ps1 by hand to see the underlying error.");
+        }
+    }
+
+    private static async Task ApplySchemaScriptsAsync(BitstreamDbContext dbContext, string contentRootPath, ILogger logger)
+    {
+        var scriptDirectory = FindScriptDirectory(contentRootPath);
+
+        if (scriptDirectory is null)
+        {
+            logger.LogWarning("Development bootstrap: db/mssql not found from {ContentRoot}; skipping schema apply.", contentRootPath);
+            return;
+        }
+
+        var connection = dbContext.Database.GetDbConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync().ConfigureAwait(false);
+        }
+
+        var scripts = Directory.GetFiles(scriptDirectory, "*.sql")
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var path in scripts)
+        {
+            var sql = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+
+            // GO is sqlcmd's batch separator, not T-SQL — ADO.NET has to split on it itself.
+            foreach (var batch in SplitBatches(sql))
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = batch;
+                command.CommandTimeout = 120;
+                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+
+            await StampSchemaVersionAsync(connection, Path.GetFileName(path), BitstreamDbContext.ExpectedSchemaVersion).ConfigureAwait(false);
+            logger.LogInformation("Development bootstrap: applied {Script}.", Path.GetFileName(path));
+        }
+
+        logger.LogInformation("Development bootstrap: schema at version {Version}.", BitstreamDbContext.ExpectedSchemaVersion);
+    }
+
+    /// <summary>Walks up from the content root looking for db/mssql, so it resolves from bin/ or the project directory alike.</summary>
+    private static string? FindScriptDirectory(string contentRootPath)
+    {
+        var directory = new DirectoryInfo(contentRootPath);
+
+        for (var depth = 0; directory is not null && depth < 6; depth++, directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "db", "mssql");
+
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> SplitBatches(string sql) =>
+        Regex.Split(sql, @"^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5))
+            .Select(batch => batch.Trim())
+            .Where(batch => batch.Length > 0);
+
+    private static async Task StampSchemaVersionAsync(DbConnection connection, string scriptName, int schemaVersion)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            MERGE ops.SchemaVersion AS target
+            USING (VALUES (@ScriptName, @SchemaVersion)) AS source (ScriptName, SchemaVersion)
+                ON target.ScriptName = source.ScriptName
+            WHEN MATCHED THEN UPDATE SET SchemaVersion = source.SchemaVersion, AppliedAt = SYSDATETIMEOFFSET(), AppliedBy = SUSER_SNAME()
+            WHEN NOT MATCHED BY TARGET THEN INSERT (ScriptName, SchemaVersion) VALUES (source.ScriptName, source.SchemaVersion);
+            """;
+
+        AddParameter(command, "@ScriptName", scriptName);
+        AddParameter(command, "@SchemaVersion", schemaVersion);
+
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private static async Task SeedAdministratorAsync(
+        BitstreamDbContext dbContext,
+        IServiceProvider services,
+        IConfiguration configuration,
+        ILogger logger)
+    {
+        var email = configuration["Development:AdminEmail"] ?? "admin@bitstream.local";
+        var password = configuration["Development:AdminPassword"];
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            logger.LogWarning("Development bootstrap: Development:AdminPassword is not set; no administrator seeded.");
+            return;
+        }
+
+        if (await dbContext.Users.AnyAsync(user => user.Email == email).ConfigureAwait(false))
+        {
+            logger.LogInformation("Development bootstrap: administrator {Email} already exists.", email);
+            return;
+        }
+
+        // The Administrator role and its permission grants come from
+        // 0007_seed_roles_permissions.sql, which the pass above has just applied.
+        var role = await dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Administrator").ConfigureAwait(false);
+
+        if (role is null)
+        {
+            logger.LogWarning("Development bootstrap: the Administrator role is missing; no administrator seeded.");
+            return;
+        }
+
+        var passwordHasher = services.GetRequiredService<IPasswordHasher>();
+        var totpProtector = services.GetRequiredService<ITotpSecretProtector>();
+        var totpService = services.GetRequiredService<ITotpService>();
+
+        dbContext.Users.Add(new User
+        {
+            IspId = null,
+            FullName = "Development Administrator",
+            Email = email,
+            Mobile = "+355690000000",
+            RoleId = role.RoleId,
+            Status = UserStatus.Active,
+            PasswordHash = passwordHasher.Hash(password),
+            PasswordHashAlgorithm = "argon2id",
+            PasswordUpdatedAt = DateTimeOffset.UtcNow,
+            TotpSecret = await totpProtector.ProtectAsync(DevelopmentTotpSecret).ConfigureAwait(false),
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        await dbContext.SaveChangesAsync().ConfigureAwait(false);
+
+        // Logged at warning so it is visible without turning debug logging on: signing in needs
+        // the second factor, and the developer has no other way to learn this secret.
+        logger.LogWarning(
+            "Development bootstrap: seeded administrator {Email}. Add this to an authenticator app for the second factor: {Uri}",
+            email,
+            totpService.BuildProvisioningUri(DevelopmentTotpSecret, email, "Bitstream Portal"));
+    }
+}

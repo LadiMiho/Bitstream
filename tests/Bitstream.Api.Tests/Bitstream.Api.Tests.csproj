@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bitstream.Api\Bitstream.Api.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Web\Bitstream.Web.csproj" />
+    <ProjectReference Include="..\..\src\Bitstream.Hosting\Bitstream.Hosting.csproj" />
     <ProjectReference Include="..\..\src\Bitstream.Application\Bitstream.Application.csproj" />
     <ProjectReference Include="..\..\src\Bitstream.Domain\Bitstream.Domain.csproj" />
     <ProjectReference Include="..\..\src\Bitstream.Infrastructure.Persistence\Bitstream.Infrastructure.Persistence.csproj" />

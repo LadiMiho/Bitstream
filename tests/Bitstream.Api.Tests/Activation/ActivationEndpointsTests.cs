@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Bitstream.Api.Contracts;
+using Bitstream.Web.Contracts;
 using Bitstream.Api.Tests.Identity;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;

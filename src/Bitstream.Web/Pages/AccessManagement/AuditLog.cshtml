@@ -1,0 +1,28 @@
+@page
+@model Bitstream.Web.Pages.AccessManagement.AuditLogModel
+@{
+    ViewData["Title"] = "Audit Log";
+}
+
+<div class="grid gap-6">
+    <div>
+        <a href="/AccessManagement" class="text-sm text-brand-600 underline">&larr; Access Management</a>
+        <h1 class="mt-2 text-xl font-semibold">Audit Log</h1>
+    </div>
+
+    <section class="card border-l-4 border-state-blocked" aria-labelledby="audit-gap-heading">
+        <h2 id="audit-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Not available — no backend endpoint</h2>
+        <p class="mt-2 max-w-2xl text-sm text-ink-muted">
+            Every write to the audit log goes through <code class="rounded bg-surface-muted px-1">IAuditWriter</code>,
+            so audit entries are being recorded. There is, however, no API to search or export
+            them: no <code class="rounded bg-surface-muted px-1">GET /api/v1/audit</code> (or
+            equivalent) endpoint exists, even though the <code class="rounded bg-surface-muted px-1">audit.read</code>
+            permission is already seeded and granted to the Auditor and Administrator roles.
+        </p>
+        <p class="mt-3 max-w-2xl text-sm text-ink-muted">
+            This screen intentionally stays a placeholder rather than querying the database
+            directly or otherwise reimplementing that read path in the frontend — the search
+            and export endpoint needs to be built on the backend first.
+        </p>
+    </section>
+</div>

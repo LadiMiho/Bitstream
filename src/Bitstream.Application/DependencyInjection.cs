@@ -100,8 +100,9 @@ public static class DependencyInjection
 
         // Registered as its own singleton, not only as IHostedService, so a test can resolve it
         // directly and call DispatchBatchAsync deterministically instead of racing the poll timer.
+        // The IHostedService registration that actually runs it is AddBitstreamBackgroundJobs,
+        // which exactly one host calls — see the remarks there.
         services.AddSingleton<OutboxDispatcher>();
-        services.AddHostedService(provider => provider.GetRequiredService<OutboxDispatcher>());
 
         services.AddScoped<IInboundEventService, InboundEventService>();
 
@@ -116,6 +117,32 @@ public static class DependencyInjection
         services.AddScoped<IServiceChangeRequestService, ServiceChangeRequestService>();
         services.AddScoped<INotificationService, NotificationService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Starts the recurring background work: the outbox dispatcher (TR-ARC-03), the BI
+    /// active-lines sync (TR-PAS-03) and the auto-confirmation sweep (TR-PAS-21).
+    /// <para>
+    /// <b>Exactly one host may call this.</b> These jobs are not idempotent with respect to
+    /// each other running twice at the same moment: two dispatchers would each claim and send
+    /// the same outbox message, and two sweeps would each auto-confirm the same ticket. The
+    /// portal site (<c>Bitstream.Web</c>) therefore registers the services but not the jobs,
+    /// and the integration host (<c>Bitstream.Api</c>) — which is the one that talks to CRM —
+    /// runs them. That also keeps the split honest: a request a user submits on the portal is
+    /// dispatched to CRM by the host that owns CRM communication, not by the one serving pages.
+    /// </para>
+    /// <para>
+    /// It follows that the API host must be deployed for outbound CRM traffic to move at all.
+    /// A portal-only deployment accepts submissions and queues them, and they sit on the outbox
+    /// until an API host exists to drain it.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddBitstreamBackgroundJobs(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddHostedService(provider => provider.GetRequiredService<OutboxDispatcher>());
         services.AddHostedService<ActiveLineSyncScheduler>();
         services.AddHostedService<AutoConfirmationSweepScheduler>();
 

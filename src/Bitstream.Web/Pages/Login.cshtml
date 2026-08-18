@@ -1,0 +1,45 @@
+@page
+@model Bitstream.Web.Pages.LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<section class="card mx-auto max-w-md" aria-labelledby="login-heading" data-role="login-page" data-return-url="@Model.SafeReturnUrl">
+    <h1 id="login-heading" class="text-xl font-semibold">Sign in</h1>
+
+    <form id="login-credentials-form" class="mt-6 grid gap-4" novalidate>
+        <p id="login-credentials-error" class="field-error" role="alert" hidden></p>
+
+        <div>
+            <label class="field-label" for="login-email">Email</label>
+            <input class="field-input" id="login-email" name="email" type="email" autocomplete="username" required />
+        </div>
+
+        <div>
+            <label class="field-label" for="login-password">Password</label>
+            <input class="field-input" id="login-password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+
+        <div>
+            <button type="submit" class="btn-primary">Continue</button>
+        </div>
+    </form>
+
+    <form id="login-code-form" class="mt-6 grid gap-4" novalidate hidden>
+        <p id="login-code-error" class="field-error" role="alert" hidden></p>
+        <p id="login-code-channel" class="text-sm text-ink-muted"></p>
+
+        <div>
+            <label class="field-label" for="login-code">Verification code</label>
+            <input class="field-input" id="login-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required />
+        </div>
+
+        <div>
+            <button type="submit" class="btn-primary">Sign in</button>
+        </div>
+    </form>
+</section>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/login.js"></script>
+}

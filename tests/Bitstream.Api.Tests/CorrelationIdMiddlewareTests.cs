@@ -1,4 +1,4 @@
-using Bitstream.Api.Middleware;
+using Bitstream.Hosting.Middleware;
 using Bitstream.Application;
 using Bitstream.Application.Abstractions;
 using Microsoft.AspNetCore.Http;

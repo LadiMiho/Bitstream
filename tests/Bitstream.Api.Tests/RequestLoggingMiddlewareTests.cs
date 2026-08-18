@@ -1,4 +1,4 @@
-using Bitstream.Api.Middleware;
+using Bitstream.Hosting.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Xunit;

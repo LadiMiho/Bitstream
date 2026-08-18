@@ -1,0 +1,110 @@
+@page
+@model Bitstream.Web.Pages.AccessManagement.UsersModel
+@{
+    ViewData["Title"] = "User Administration";
+}
+
+<div class="grid gap-6" data-role="user-admin-page" data-can-lock="@Model.CanLock.ToString().ToLowerInvariant()">
+    <div>
+        <a href="/AccessManagement" class="text-sm text-brand-600 underline">&larr; Access Management</a>
+        <h1 class="mt-2 text-xl font-semibold">User Administration</h1>
+    </div>
+
+    <section class="card border-l-4 border-state-pending" aria-labelledby="user-gap-heading">
+        <h2 id="user-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">No list endpoint yet</h2>
+        <p class="mt-2 max-w-2xl text-sm text-ink-muted">
+            The backend does not currently expose a way to browse or search users — only
+            <code class="rounded bg-surface-muted px-1">GET /api/v1/users/{userId}</code> by a
+            known ID. Look up a user by their ID below, or use the ID a user was created with.
+        </p>
+    </section>
+
+    @if (Model.CanCreate)
+    {
+        <section class="card" aria-labelledby="user-create-heading">
+            <h2 id="user-create-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Create user</h2>
+            <form id="user-create-form" class="mt-4 grid max-w-xl gap-4" novalidate>
+                <p id="user-create-error" class="field-error" role="alert" hidden></p>
+                <div>
+                    <label class="field-label" for="user-create-full-name">Full name</label>
+                    <input class="field-input" id="user-create-full-name" name="fullName" type="text" required />
+                </div>
+                <div>
+                    <label class="field-label" for="user-create-email">Email</label>
+                    <input class="field-input" id="user-create-email" name="email" type="email" required />
+                </div>
+                <div>
+                    <label class="field-label" for="user-create-mobile">Mobile</label>
+                    <input class="field-input" id="user-create-mobile" name="mobile" type="tel" placeholder="+355..." required />
+                </div>
+                <div>
+                    <label class="field-label" for="user-create-role">Role</label>
+                    <select class="field-input" id="user-create-role" name="roleName" required>
+                        @foreach (var role in Bitstream.Web.Pages.AccessManagement.UsersModel.Roles)
+                        {
+                            <option value="@role">@role</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="user-create-isp-id">ISP ID</label>
+                    <input class="field-input" id="user-create-isp-id" name="ispId" type="number" min="1" />
+                    <span class="mt-1 block text-xs text-ink-muted">Leave blank for an internal user (Administrator, Service Desk, Auditor).</span>
+                </div>
+                <div>
+                    <label class="field-label" for="user-create-password">Initial password</label>
+                    <input class="field-input" id="user-create-password" name="initialPassword" type="password" required />
+                    <span class="mt-1 block text-xs text-ink-muted">Must satisfy the configured password policy — the API reports specifics if it does not.</span>
+                </div>
+                <div>
+                    <button type="submit" class="btn-primary">Create user</button>
+                </div>
+            </form>
+        </section>
+    }
+    else
+    {
+        <section class="card" aria-labelledby="user-create-denied-heading">
+            <h2 id="user-create-denied-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Create user</h2>
+            <p class="mt-2 text-sm text-ink-muted">Your role does not hold <code class="rounded bg-surface-muted px-1">user.create</code>.</p>
+        </section>
+    }
+
+    <section class="card" aria-labelledby="user-lookup-heading">
+        <h2 id="user-lookup-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Look up a user</h2>
+        <form id="user-lookup-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
+            <div class="flex-1">
+                <label class="field-label" for="user-lookup-id">User ID</label>
+                <input class="field-input" id="user-lookup-id" name="userId" type="number" min="1" required />
+            </div>
+            <button type="submit" class="btn-secondary">Look up</button>
+        </form>
+        <p id="user-lookup-error" class="field-error mt-2" role="alert" hidden></p>
+
+        <div id="user-detail" class="mt-6" hidden>
+            <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">User ID</dt><dd id="user-detail-id" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd id="user-detail-status" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Full name</dt><dd id="user-detail-full-name" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Email</dt><dd id="user-detail-email" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Mobile</dt><dd id="user-detail-mobile" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Role</dt><dd id="user-detail-role" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP ID</dt><dd id="user-detail-isp-id" class="mt-1 text-sm"></dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Last login</dt><dd id="user-detail-last-login" class="mt-1 text-sm"></dd></div>
+            </dl>
+
+            @if (Model.CanLock)
+            {
+                <div class="mt-4 flex gap-2">
+                    <button type="button" id="user-lock-button" class="btn-secondary">Lock</button>
+                    <button type="button" id="user-unlock-button" class="btn-secondary">Unlock</button>
+                </div>
+                <p id="user-status-error" class="field-error mt-2" role="alert" hidden></p>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/user-admin.js"></script>
+}
