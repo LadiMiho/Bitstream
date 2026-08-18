@@ -7,7 +7,13 @@ namespace Bitstream.Api.Contracts;
 /// update: status changes, comments, the clearing code at closure and automatic completion.
 /// </summary>
 /// <param name="EventId">Deduplication key. A repeated eventId returns the original result and re-applies nothing (TR-INT-25).</param>
-/// <param name="EventType">STATUS_CHANGED, COMMENT_ADDED, TECHNICALLY_COMPLETED, CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. Extensible by configuration; an unknown value is rejected with 422 (TR-INT-27).</param>
+/// <param name="EventType">
+/// Activation requests currently act on SALES_ORDER_OPENED, PROVISIONING_STARTED and
+/// TECHNICALLY_COMPLETED (TRD 5.3). STATUS_CHANGED, COMMENT_ADDED, CLOSED_WITH_CLEARING_CODE,
+/// AUTO_COMPLETED and REOPENED are complaint-ticket lifecycle events (TRD 6) recognised as valid
+/// shape but not yet acted on, since that module is not built. Any of these, or an entirely
+/// unknown type, is rejected with 422 (TR-INT-27) — the vocabulary itself is TRD 11.4 open item 4.
+/// </param>
 /// <param name="Identifier">Portal public identifier of the ticket, e.g. ISP_1024.</param>
 /// <param name="CrmTicketId">CRM-side identifier, accepted as an alternative lookup key if agreed.</param>
 /// <param name="OccurredAt">Event time in UTC. Determines order per ticket; an event older than the last applied one is discarded (TR-INT-25).</param>
@@ -37,6 +43,8 @@ public sealed record TicketEventRequest(
 /// <param name="RequiresIspConfirmation">True when the ISP must Confirm or reject (TRD 6.4); false for automatic completion (TR-PAS-22).</param>
 /// <param name="ForwardingGroup">Internal group the ticket was forwarded to. Recorded but never notified to the ISP (TR-PAS-13, TR-PAS-14).</param>
 /// <param name="Agent">CRM agent who raised the event.</param>
+/// <param name="SalesOrderId">For SALES_ORDER_OPENED (INT-CRM-03, TR-ACT-18): the sales order reference to store against the activation request.</param>
+/// <param name="BusinessPartner">For SALES_ORDER_OPENED: the customer BP the sales order was raised for (TR-ACT-15).</param>
 public sealed record TicketEventPayload(
     [property: JsonPropertyName("status")] string? Status,
     [property: JsonPropertyName("comment")] string? Comment,
@@ -45,7 +53,9 @@ public sealed record TicketEventPayload(
     [property: JsonPropertyName("closedBy")] string? ClosedBy,
     [property: JsonPropertyName("requiresIspConfirmation")] bool? RequiresIspConfirmation,
     [property: JsonPropertyName("forwardingGroup")] string? ForwardingGroup,
-    [property: JsonPropertyName("agent")] string? Agent);
+    [property: JsonPropertyName("agent")] string? Agent,
+    [property: JsonPropertyName("salesOrderId")] string? SalesOrderId,
+    [property: JsonPropertyName("businessPartner")] string? BusinessPartner);
 
 /// <summary>
 /// Acknowledgement returned to CRM. Sent only after the event has been persisted
@@ -61,19 +71,6 @@ public sealed record TicketEventAccepted(
     [property: JsonPropertyName("identifier")] string Identifier,
     [property: JsonPropertyName("duplicate")] bool Duplicate,
     [property: JsonPropertyName("receivedAt")] DateTimeOffset ReceivedAt);
-
-/// <summary>
-/// Sales order notification, TRD 7.1 INT-CRM-03, TR-ACT-16.
-/// <para>
-/// Carried as an event type on the single inbound interface (TR-INT-22) rather than as its
-/// own endpoint. This shape documents the payload CRM sends for that event type.
-/// </para>
-/// </summary>
-/// <param name="SalesOrderId">Sales order reference to store against the request (TR-ACT-18).</param>
-/// <param name="BusinessPartner">Customer BP the sales order was raised for (TR-ACT-15).</param>
-public sealed record SalesOrderEventPayload(
-    [property: JsonPropertyName("salesOrderId")] string SalesOrderId,
-    [property: JsonPropertyName("businessPartner")] string? BusinessPartner);
 
 /// <summary>Request to reprocess events for a ticket or a time window during recovery (TR-INT-31).</summary>
 /// <param name="TicketIdentifier">Portal identifier to replay; null replays the whole window.</param>
