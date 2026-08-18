@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Bitstream.CrmSimulator</RootNamespace>
+    <!-- Not part of the layered solution (see Directory.Build.props): a standalone stand-in
+         for the real CRM system, run alongside the portal for local development and manual
+         testing only. Never deployed. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>
