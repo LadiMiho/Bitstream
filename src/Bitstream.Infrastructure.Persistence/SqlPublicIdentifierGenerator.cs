@@ -2,6 +2,8 @@ using System.Data;
 using System.Text.RegularExpressions;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Configuration;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 
 namespace Bitstream.Infrastructure.Persistence;
