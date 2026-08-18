@@ -100,6 +100,9 @@ public sealed class FakeIntegrationOutbox : IIntegrationOutbox
     public Task<IReadOnlyList<IntegrationMessage>> ClaimDueOutboundAsync(int batchSize, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by the activation request tests.");
 
+    public Task<IntegrationMessage?> FindByIdAsync(long messageId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Outbound.FirstOrDefault(m => m.MessageId == messageId));
+
     public Task MarkSucceededAsync(long messageId, string? responsePayload, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by the activation request tests.");
 
@@ -110,5 +113,8 @@ public sealed class FakeIntegrationOutbox : IIntegrationOutbox
         throw new NotSupportedException("Not exercised by the activation request tests.");
 
     public Task ReplayAsync(long messageId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not exercised by the activation request tests.");
+
+    public Task<IReadOnlyList<IntegrationMessage>> FindInboundAsync(string? relatedPublicId, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by the activation request tests.");
 }

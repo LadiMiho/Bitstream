@@ -79,17 +79,20 @@ public sealed class ActivationRequestServiceTests
     }
 
     [Fact]
-    public async Task SubmitAsync_enqueues_INT_CRM_01_and_INT_CRM_02_but_never_calls_CRM_directly()
+    public async Task SubmitAsync_enqueues_INT_CRM_01_but_never_calls_CRM_directly()
     {
+        // INT-CRM-02 needs the Business Partner INT-CRM-01 returns, so it is not enqueued here
+        // at all — OutboxDispatcher enqueues it once INT-CRM-01 actually succeeds (see
+        // Integration/CrmClosureEndToEndTests, which drives both messages through the real
+        // dispatcher and a fake CRM).
         AddActiveIsp();
         var service = CreateService();
 
         await service.SubmitAsync(ValidRequest());
 
-        Assert.Equal(2, _outbox.Outbound.Count);
-        Assert.Contains(_outbox.Outbound, m => m.InterfaceCode == "INT-CRM-01");
-        Assert.Contains(_outbox.Outbound, m => m.InterfaceCode == "INT-CRM-02");
-        Assert.All(_outbox.Outbound, m => Assert.Equal(TargetSystem.Crm, m.TargetSystem));
+        var message = Assert.Single(_outbox.Outbound);
+        Assert.Equal("INT-CRM-01", message.InterfaceCode);
+        Assert.Equal(TargetSystem.Crm, message.TargetSystem);
     }
 
     [Fact]

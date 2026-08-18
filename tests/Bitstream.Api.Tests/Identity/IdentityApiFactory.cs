@@ -40,7 +40,11 @@ public sealed class IdentityApiFactory : WebApplicationFactory<Program>
                 // GetDbConnection() call throws, which the guard already treats as "database not
                 // reachable yet" rather than a hard failure) — this just documents the intent.
                 ["Database:FailFastOnSchemaMismatch"] = "false",
-                ["WorkingCalendar:TimeZoneId"] = "UTC"
+                ["WorkingCalendar:TimeZoneId"] = "UTC",
+                // Tests that want OutboxDispatcher drive it explicitly (DispatchBatchAsync) for
+                // determinism; the timer-driven background loop would otherwise run unsupervised
+                // against every test's InMemory database, including tests that never touch it.
+                ["Integration:OutboxDispatcher:Enabled"] = "false"
             });
         });
 
