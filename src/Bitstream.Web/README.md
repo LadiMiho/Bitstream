@@ -18,12 +18,31 @@ source.
 ## Layout
 
 ```
-src/styles/app.css     Tailwind entry point: theme tokens and component classes
-wwwroot/index.html     Application shell
-wwwroot/js/api.js      Fetch wrapper: correlation ID, ProblemDetails handling
-wwwroot/js/app.js      Bootstrap; module views are added under wwwroot/js/views/
-wwwroot/css/app.css    Generated — do not edit
+src/styles/app.css        Tailwind entry point: theme tokens and component classes
+wwwroot/index.html        Application shell: header, top-level nav, #app-content
+wwwroot/js/api.js         Fetch wrapper: correlation ID, ProblemDetails handling
+wwwroot/js/router.js      Hash-based client-side router (no framework)
+wwwroot/js/auth-guard.js  Session check + router guard, redirects an unauthenticated visitor to /login
+wwwroot/js/app.js         Bootstrap: wires nav, routes, sign-out
+wwwroot/js/views/         One module per page: access-management, activation-requests,
+                          post-activation, reporting, login, not-found
+wwwroot/css/app.css       Generated — do not edit
 ```
+
+## Routing
+
+Hash-based (`#/access-management`, not pushState) so a deep link works on a hard refresh
+without a server-side catch-all route — the API host currently serves this folder as a plain
+static file tree. `js/router.js` is the whole router: register a path and a view function with
+`route(path, view)`, and it renders that view into `#app-content` on every `hashchange`.
+
+`js/auth-guard.js` is wired in as the router's guard (`guardWith`) and runs before every
+render. It calls `GET /api/v1/auth/me` on each navigation — not cached across them, since a
+session can start or expire between route changes — and sends an unauthenticated visitor to
+`/login`, or a signed-in visitor away from it. **This is presentation only** (TR-SEC-17): every
+module's own API calls are authorised server-side regardless of what the guard let through.
+`/login` is a placeholder until GUI-2 builds the real sign-in flow (email/password, then the
+2FA challenge).
 
 ## How it is served
 

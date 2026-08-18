@@ -101,4 +101,15 @@
   .table-head {
     @apply bg-surface-muted px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-muted;
   }
+
+  /* Top-level navigation, toggled active by js/router.js on every route change. */
+  .nav-link {
+    @apply rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors
+           hover:bg-surface-muted hover:text-ink focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+  }
+
+  .nav-link-active {
+    @apply bg-brand-50 text-brand-700;
+  }
 }

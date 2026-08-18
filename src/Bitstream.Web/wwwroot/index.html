@@ -21,9 +21,9 @@
       </div>
 
       <nav aria-label="Main" class="hidden gap-1 md:flex" data-role="main-nav">
-        <!-- Populated by js/app.js from the permissions the session actually carries.
-             TR-SEC-17: hiding a control is presentation only; every call is authorised
-             server-side regardless of what is rendered here. -->
+        <!-- Populated by js/app.js. TR-SEC-17: hiding a control is presentation only; every
+             call the pages below make is authorised server-side regardless of what is
+             rendered here. -->
       </nav>
 
       <div class="flex items-center gap-3">
@@ -34,71 +34,8 @@
   </header>
 
   <main id="main" class="mx-auto max-w-7xl px-4 py-8">
-    <div class="card">
-      <h1 class="text-xl font-semibold">Scaffold</h1>
-      <p class="mt-2 max-w-2xl text-sm text-ink-muted">
-        Project scaffold only. The activation request, post-activation support, reporting and
-        administration modules are not implemented yet; the API endpoints they will call
-        currently answer <code class="rounded bg-surface-muted px-1">501 Not Implemented</code>.
-      </p>
-
-      <dl class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-md border border-line p-4">
-          <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">API</dt>
-          <dd class="mt-1 text-sm" data-role="api-status">checking…</dd>
-        </div>
-        <div class="rounded-md border border-line p-4">
-          <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contract</dt>
-          <dd class="mt-1 text-sm">
-            <a class="text-brand-600 underline" href="/openapi/v1.json">openapi/v1.json</a>
-          </dd>
-        </div>
-        <div class="rounded-md border border-line p-4">
-          <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Stylesheet</dt>
-          <dd class="mt-1 text-sm">Tailwind CLI, no bundler</dd>
-        </div>
-        <div class="rounded-md border border-line p-4">
-          <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Script</dt>
-          <dd class="mt-1 text-sm">ES modules, no framework</dd>
-        </div>
-      </dl>
-    </div>
-
-    <!--
-      Component reference. These are the states the request and ticket lists render, kept on
-      the page so that the palette and the status vocabulary stay visible while the modules
-      are built. Delete once the real views exist.
-    -->
-    <section class="card mt-6" aria-labelledby="components-heading">
-      <h2 id="components-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">
-        Component reference
-      </h2>
-
-      <div class="mt-4 flex flex-wrap gap-2">
-        <span class="status-pill bg-state-pending/15 text-state-pending">Pending CRM Sync</span>
-        <span class="status-pill bg-state-progress/15 text-state-progress">Awaiting GIS Verification</span>
-        <span class="status-pill bg-state-done/15 text-state-done">Completed</span>
-        <span class="status-pill bg-state-blocked/15 text-state-blocked">Rejected — No Line</span>
-      </div>
-
-      <form class="mt-6 grid max-w-xl gap-4" novalidate>
-        <div>
-          <label class="field-label" for="sample-package">Package</label>
-          <select class="field-input" id="sample-package" disabled>
-            <option>Loaded from the package catalogue</option>
-          </select>
-        </div>
-        <div>
-          <label class="field-label" for="sample-location">Location</label>
-          <input class="field-input" id="sample-location" type="text" placeholder="Map link or latitude, longitude" disabled />
-          <span class="field-error">Example of a field-level validation message.</span>
-        </div>
-        <div class="flex gap-2">
-          <button type="button" class="btn-primary" disabled>Submit</button>
-          <button type="button" class="btn-secondary" disabled>Cancel</button>
-        </div>
-      </form>
-    </section>
+    <!-- Populated by the router (js/router.js) with the view for the current #/path. -->
+    <div id="app-content"></div>
   </main>
 
   <script type="module" src="./js/app.js"></script>
