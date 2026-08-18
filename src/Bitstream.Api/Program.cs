@@ -56,7 +56,7 @@ builder.Services.AddSingleton<IValidateOptions<RateLimitOptions>, RateLimitOptio
 builder.Services.AddSingleton<IHostedService>(provider => new OptionsStartupValidator(
     provider,
     [
-        .. DependencyInjection.ValidatedOptionTypes,
+        .. Bitstream.Application.DependencyInjection.ValidatedOptionTypes,
         .. Bitstream.Infrastructure.Persistence.DependencyInjection.ValidatedOptionTypes,
         .. Bitstream.Infrastructure.Integration.DependencyInjection.ValidatedOptionTypes,
         typeof(RateLimitOptions)

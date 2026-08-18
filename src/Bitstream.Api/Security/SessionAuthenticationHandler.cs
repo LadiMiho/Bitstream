@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;

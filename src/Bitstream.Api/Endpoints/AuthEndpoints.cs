@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Bitstream.Api.Contracts;
 using Bitstream.Api.Security;
-using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Identity;
 using Microsoft.AspNetCore.Mvc;

@@ -1,5 +1,4 @@
 using Bitstream.Application.Configuration;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Bitstream.Api.Tests;
