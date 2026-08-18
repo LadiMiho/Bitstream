@@ -39,6 +39,6 @@
         ServerInstance = 'SQLUAT01'
         Name           = 'BitstreamPortal'
         AppUser        = 'CORP\svc_bitstream_uat'
-        SchemaVersion  = 2
+        SchemaVersion  = 3
     }
 }

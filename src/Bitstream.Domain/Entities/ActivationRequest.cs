@@ -67,4 +67,10 @@ public sealed class ActivationRequest
     public long? CreatedBy { get; set; }
 
     public DateTimeOffset? LastUpdatedAt { get; set; }
+
+    /// <summary>
+    /// <c>OccurredAt</c> of the last inbound CRM event actually applied to this request
+    /// (TRD 7.3.2). An event older than this is discarded rather than applied (TR-INT-25).
+    /// </summary>
+    public DateTimeOffset? LastAppliedEventAt { get; set; }
 }

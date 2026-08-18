@@ -17,9 +17,10 @@ public sealed class BitstreamDbContext : DbContext
 {
     /// <summary>
     /// Schema version this build is written against; see <c>ops.SchemaVersion</c>. Bumped from 1
-    /// to 2 when db/mssql/0009_sessions_and_two_factor.sql (TRD 4 access management) was added.
+    /// to 2 when db/mssql/0009_sessions_and_two_factor.sql (TRD 4 access management) was added,
+    /// and from 2 to 3 when db/mssql/0010_activation_event_ordering.sql (TRD 7.3.2) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 2;
+    public const int ExpectedSchemaVersion = 3;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
