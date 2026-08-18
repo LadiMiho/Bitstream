@@ -10,11 +10,9 @@ namespace Bitstream.Infrastructure.Persistence;
 /// Implements <see cref="IIntegrationOutbox"/> over <see cref="BitstreamDbContext"/>
 /// (TR-ARC-03, TR-INT-04, TR-INT-24, TR-INT-25).
 /// <para>
-/// Storage only: dispatching a claimed outbound message to <see cref="ICrmGateway"/> or another
-/// gateway, and interpreting a claimed inbound one, is a background hosted service that does not
-/// exist yet (Phase 4 — see <c>docs/architecture.md</c> "Deliberate gaps"). This class exists so
-/// application services can enqueue and administrators can inspect and replay dead letters
-/// (TR-INT-05) before that dispatcher is built; nothing here calls an adapter.
+/// Storage only: this class enqueues, claims, marks and replays rows, but never calls a
+/// gateway itself — <c>OutboxDispatcher</c> (Application layer) does that, so that persistence
+/// stays free of any reference to <c>ICrmGateway</c> or the other integration ports.
 /// </para>
 /// </summary>
 public sealed class IntegrationOutbox : IIntegrationOutbox
@@ -132,6 +130,9 @@ public sealed class IntegrationOutbox : IIntegrationOutbox
         return due;
     }
 
+    public Task<IntegrationMessage?> FindByIdAsync(long messageId, CancellationToken cancellationToken = default) =>
+        _dbContext.IntegrationMessages.FirstOrDefaultAsync(m => m.MessageId == messageId, cancellationToken);
+
     public async Task MarkSucceededAsync(long messageId, string? responsePayload, CancellationToken cancellationToken = default)
     {
         var message = await FindOrThrowAsync(messageId, cancellationToken).ConfigureAwait(false);
@@ -201,6 +202,32 @@ public sealed class IntegrationOutbox : IIntegrationOutbox
         message.LastError = null;
 
         await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<IntegrationMessage>> FindInboundAsync(
+        string? relatedPublicId,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.IntegrationMessages.Where(m => m.Direction == IntegrationDirection.Inbound);
+
+        if (!string.IsNullOrWhiteSpace(relatedPublicId))
+        {
+            query = query.Where(m => m.RelatedPublicId == relatedPublicId);
+        }
+
+        if (fromUtc is { } from)
+        {
+            query = query.Where(m => m.CreatedAt >= from);
+        }
+
+        if (toUtc is { } to)
+        {
+            query = query.Where(m => m.CreatedAt <= to);
+        }
+
+        return await query.OrderBy(m => m.CreatedAt).ToListAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IntegrationMessage> FindOrThrowAsync(long messageId, CancellationToken cancellationToken)
