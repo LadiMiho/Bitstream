@@ -10,6 +10,8 @@ using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+// Microsoft.AspNetCore.Identity also declares a LockoutOptions — disambiguate in favour of ours.
+using LockoutOptions = Bitstream.Application.Configuration.LockoutOptions;
 
 namespace Bitstream.Application.Services.Identity;
 
