@@ -11,6 +11,14 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
 
+    <!-- UserManager<User>/RoleManager<Role> for credential storage (TR-SEC-01/02) and the
+         user/role CRUD surface. Deliberately the "Core" package, not
+         "Microsoft.AspNetCore.Identity.EntityFrameworkCore" — that package brings Identity's own
+         migrations-driven schema, which is exactly what ADR-0002 rules out. BitstreamUserStore/
+         BitstreamRoleStore (Bitstream.Infrastructure.Persistence) bridge the hand-written T-SQL
+         schema to this contract instead. -->
+    <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
+
     <!-- Presentation -->
     <!-- 10.0.11, not 10.0.0: pulls Microsoft.OpenApi >= 2.7.5, patching GHSA-v5pm-xwqc-g5wc
          (a circular-schema-reference stack overflow in Microsoft.OpenApi 2.0.0-preview.11

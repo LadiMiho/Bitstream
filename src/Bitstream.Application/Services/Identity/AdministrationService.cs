@@ -8,6 +8,7 @@ using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Configuration;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
 namespace Bitstream.Application.Services.Identity;
@@ -39,7 +40,8 @@ public sealed partial class AdministrationService : IAdministrationService
 
     private readonly IIspRepository _ispRepository;
     private readonly IUserRepository _userRepository;
-    private readonly IRoleRepository _roleRepository;
+    private readonly UserManager<User> _userManager;
+    private readonly RoleManager<Role> _roleManager;
     private readonly IUserSessionStore _sessionStore;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IPasswordPolicyValidator _passwordPolicyValidator;
@@ -54,7 +56,8 @@ public sealed partial class AdministrationService : IAdministrationService
     public AdministrationService(
         IIspRepository ispRepository,
         IUserRepository userRepository,
-        IRoleRepository roleRepository,
+        UserManager<User> userManager,
+        RoleManager<Role> roleManager,
         IUserSessionStore sessionStore,
         IPasswordHasher passwordHasher,
         IPasswordPolicyValidator passwordPolicyValidator,
@@ -68,7 +71,8 @@ public sealed partial class AdministrationService : IAdministrationService
     {
         _ispRepository = ispRepository;
         _userRepository = userRepository;
-        _roleRepository = roleRepository;
+        _userManager = userManager;
+        _roleManager = roleManager;
         _sessionStore = sessionStore;
         _passwordHasher = passwordHasher;
         _passwordPolicyValidator = passwordPolicyValidator;
@@ -217,8 +221,9 @@ public sealed partial class AdministrationService : IAdministrationService
             violations.Add($"Role '{request.RoleName}' is not a recognised role.");
         }
 
-        if (violations.Count == 0 && await _userRepository.EmailExistsAsync(request.Email, cancellationToken).ConfigureAwait(false))
+        if (violations.Count == 0 && await _userManager.FindByEmailAsync(request.Email).ConfigureAwait(false) is not null)
         {
+            // TR-SEC-01: unique across the platform.
             violations.Add($"A user with email '{request.Email}' already exists.");
         }
 
@@ -249,7 +254,6 @@ public sealed partial class AdministrationService : IAdministrationService
 
         var role = await ResolveRoleAsync(request.RoleName, cancellationToken).ConfigureAwait(false);
         var now = _clock.UtcNow;
-        var passwordHash = _passwordHasher.Hash(request.InitialPassword);
 
         var user = new User
         {
@@ -263,7 +267,9 @@ public sealed partial class AdministrationService : IAdministrationService
             // reads user.Role.Name from it before anything would trigger a reload.
             Role = role,
             Status = UserStatus.Active,
-            PasswordHash = passwordHash,
+            // Overwritten by UserManager.CreateAsync below (via Argon2IdentityPasswordHasher) —
+            // required only because the property itself is non-nullable.
+            PasswordHash = string.Empty,
             PasswordHashAlgorithm = _passwordHasher.AlgorithmTag,
             PasswordUpdatedAt = now,
             CreatedAt = now,
@@ -279,10 +285,18 @@ public sealed partial class AdministrationService : IAdministrationService
             user.TotpSecret = await _totpSecretProtector.ProtectAsync(secret, cancellationToken).ConfigureAwait(false);
         }
 
-        await _userRepository.AddAsync(user, cancellationToken).ConfigureAwait(false);
+        var createResult = await _userManager.CreateAsync(user, request.InitialPassword).ConfigureAwait(false);
+
+        if (!createResult.Succeeded)
+        {
+            throw new AdministrationValidationException([.. createResult.Errors.Select(error => error.Description)]);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        await _userRepository.AddPasswordHistoryAsync(user.UserId, passwordHash, _passwordHasher.AlgorithmTag, cancellationToken)
+        // user.PasswordHash is now the real Argon2id hash — UserManager.CreateAsync set it via
+        // Argon2IdentityPasswordHasher before the save above.
+        await _userRepository.AddPasswordHistoryAsync(user.UserId, user.PasswordHash, _passwordHasher.AlgorithmTag, cancellationToken)
             .ConfigureAwait(false);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -304,12 +318,12 @@ public sealed partial class AdministrationService : IAdministrationService
             return null;
         }
 
-        return await _userRepository.FindByIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        return await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
     }
 
     public async Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default)
     {
-        var user = await _userRepository.FindByIdAsync(userId, cancellationToken).ConfigureAwait(false) ??
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
             throw new AdministrationValidationException($"User {userId} does not exist.");
 
         var previousStatus = user.Status;
@@ -356,7 +370,7 @@ public sealed partial class AdministrationService : IAdministrationService
         // Roles are seeded (db/mssql/0007) rather than looked up through a repository method of
         // their own: there are exactly four, they never change through this service, and
         // TR-SEC-21's configurability is about permission assignment, not the role list itself.
-        var role = await _roleRepository.FindByNameAsync(roleName, cancellationToken).ConfigureAwait(false);
+        var role = await _roleManager.FindByNameAsync(roleName).ConfigureAwait(false);
 
         return role ??
             throw new AdministrationValidationException($"Role '{roleName}' is not seeded in this environment.");

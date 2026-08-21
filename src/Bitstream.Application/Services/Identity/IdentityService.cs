@@ -7,6 +7,7 @@ using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Configuration;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,10 +16,9 @@ namespace Bitstream.Application.Services.Identity;
 /// <summary>Implements <see cref="IIdentityService"/>: TRD 4.1 authentication, TR-SEC-04 2FA, TR-SEC-07 sessions.</summary>
 public sealed class IdentityService : IIdentityService
 {
-    private readonly IUserRepository _userRepository;
+    private readonly UserManager<User> _userManager;
     private readonly ITwoFactorChallengeStore _challengeStore;
     private readonly IUserSessionStore _sessionStore;
-    private readonly IPasswordHasher _passwordHasher;
     private readonly ITotpService _totpService;
     private readonly ITotpSecretProtector _totpSecretProtector;
     private readonly IEmailGateway _emailGateway;
@@ -32,10 +32,9 @@ public sealed class IdentityService : IIdentityService
     private readonly ILogger<IdentityService> _logger;
 
     public IdentityService(
-        IUserRepository userRepository,
+        UserManager<User> userManager,
         ITwoFactorChallengeStore challengeStore,
         IUserSessionStore sessionStore,
-        IPasswordHasher passwordHasher,
         ITotpService totpService,
         ITotpSecretProtector totpSecretProtector,
         IEmailGateway emailGateway,
@@ -48,10 +47,9 @@ public sealed class IdentityService : IIdentityService
         IOptionsMonitor<SessionOptions> sessionOptions,
         ILogger<IdentityService> logger)
     {
-        _userRepository = userRepository;
+        _userManager = userManager;
         _challengeStore = challengeStore;
         _sessionStore = sessionStore;
-        _passwordHasher = passwordHasher;
         _totpService = totpService;
         _totpSecretProtector = totpSecretProtector;
         _emailGateway = emailGateway;
@@ -74,7 +72,7 @@ public sealed class IdentityService : IIdentityService
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
 
-        var user = await _userRepository.FindByEmailAsync(email, cancellationToken).ConfigureAwait(false);
+        var user = await _userManager.FindByEmailAsync(email).ConfigureAwait(false);
 
         if (user is null)
         {
@@ -98,17 +96,13 @@ public sealed class IdentityService : IIdentityService
             return LoginResult.AccountLocked();
         }
 
-        if (!_passwordHasher.Verify(password, user.PasswordHash))
+        // TR-SEC-02: Argon2IdentityPasswordHasher also handles the opportunistic rehash under
+        // the currently configured cost parameters — UserManager persists it on the tracked
+        // entity (via BitstreamUserStore.UpdateAsync, which does not itself save), so it commits
+        // in the same SaveChangesAsync as everything else below.
+        if (!await _userManager.CheckPasswordAsync(user, password).ConfigureAwait(false))
         {
             return await HandleFailedPasswordAsync(user, cancellationToken).ConfigureAwait(false);
-        }
-
-        // TR-SEC-02: opportunistic rehash under the currently configured cost parameters.
-        if (_passwordHasher.NeedsRehash(user.PasswordHash))
-        {
-            user.PasswordHash = _passwordHasher.Hash(password);
-            user.PasswordHashAlgorithm = _passwordHasher.AlgorithmTag;
-            user.PasswordUpdatedAt = _clock.UtcNow;
         }
 
         if (user.FailedLoginCount != 0)

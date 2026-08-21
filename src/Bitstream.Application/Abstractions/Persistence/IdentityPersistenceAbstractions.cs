@@ -15,37 +15,22 @@ namespace Bitstream.Application.Abstractions.Persistence;
 /// session an ISP's users hold when the ISP is locked — get their own method instead.
 /// </para>
 /// </summary>
+/// <summary>
+/// Everything about a user that <c>UserManager&lt;User&gt;</c> does not cover, because it isn't
+/// part of Identity's contract: cascading a lock across an ISP's users (TR-SEC-13), and the
+/// password-reuse history (TR-SEC-03). Core CRUD/lookup — find by email or ID, create, check a
+/// password — goes through <c>UserManager&lt;User&gt;</c> now (see
+/// <c>Bitstream.Infrastructure.Persistence.Identity.BitstreamUserStore</c>).
+/// </summary>
 public interface IUserRepository
 {
-    /// <summary>By email, case-insensitively (TR-SEC-01: unique across the platform). Includes role and permissions.</summary>
-    Task<User?> FindByEmailAsync(string email, CancellationToken cancellationToken = default);
-
-    /// <summary>Includes role, permissions and ISP.</summary>
-    Task<User?> FindByIdAsync(long userId, CancellationToken cancellationToken = default);
-
-    Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default);
-
-    Task AddAsync(User user, CancellationToken cancellationToken = default);
-
-    /// <summary>Every user of an ISP, tracked — for cascading a lock across all of them (TR-SEC-13).</summary>
+    /// <summary>Every active user of an ISP, tracked — for cascading a lock across all of them (TR-SEC-13).</summary>
     Task<IReadOnlyList<User>> GetByIspIdAsync(long ispId, CancellationToken cancellationToken = default);
 
     /// <summary>Most recent password hashes first, for the no-reuse rule (TR-SEC-03).</summary>
     Task<IReadOnlyList<string>> GetRecentPasswordHashesAsync(long userId, int count, CancellationToken cancellationToken = default);
 
     Task AddPasswordHistoryAsync(long userId, string passwordHash, string algorithmTag, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Read access to the seeded role catalogue (db/mssql/0007_seed_roles_permissions.sql). There
-/// are exactly four roles and this service never creates or renames one — TR-SEC-21's
-/// configurability is about permission assignment, not the role list itself — so a lookup by
-/// name is the only operation this port needs.
-/// </summary>
-public interface IRoleRepository
-{
-    /// <summary>Includes the role's permissions.</summary>
-    Task<Role?> FindByNameAsync(string name, CancellationToken cancellationToken = default);
 }
 
 /// <summary>ISP data access, TR-SEC-15/16.</summary>

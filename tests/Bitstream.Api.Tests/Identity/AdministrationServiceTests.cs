@@ -18,8 +18,8 @@ namespace Bitstream.Api.Tests.Identity;
 public sealed class AdministrationServiceTests
 {
     private readonly FakeIspRepository _ispRepository = new();
-    private readonly FakeUserRepository _userRepository = new();
-    private readonly FakeRoleRepository _roleRepository = new();
+    private readonly FakeUserStore _userRepository = new();
+    private readonly FakeRoleStore _roleStore = new();
     private readonly FakeUserSessionStore _sessionStore = new();
     private readonly FakeAuditWriter _auditWriter = new();
     private readonly FakeCurrentUserContext _currentUser = new() { UserId = 1, RoleName = "Administrator" };
@@ -27,11 +27,14 @@ public sealed class AdministrationServiceTests
 
     private AdministrationService CreateService()
     {
-        _roleRepository.Roles["IspUser"] = new Role { RoleId = 10, Name = "IspUser", IsSystemRole = true };
-        _roleRepository.Roles["Administrator"] = new Role { RoleId = 20, Name = "Administrator", IsSystemRole = true };
+        _roleStore.Roles["IspUser"] = new Role { RoleId = 10, Name = "IspUser", IsSystemRole = true };
+        _roleStore.Roles["Administrator"] = new Role { RoleId = 20, Name = "Administrator", IsSystemRole = true };
 
         var passwordPolicyOptions = new TestOptionsMonitor<PasswordPolicyOptions>(new PasswordPolicyOptions());
         var passwordHasher = new Argon2PasswordHasher(passwordPolicyOptions);
+        var identityPasswordHasher = new Argon2IdentityPasswordHasher(passwordHasher);
+        var userManager = TestIdentityFactory.CreateUserManager(_userRepository, identityPasswordHasher);
+        var roleManager = TestIdentityFactory.CreateRoleManager(_roleStore);
 
         // EmailOtp, not Totp: proves ThrowingTotpService/ThrowingTotpSecretProtector are safe to
         // pass in — CreateUserAsync's Totp provisioning branch must not run under this channel.
@@ -40,7 +43,8 @@ public sealed class AdministrationServiceTests
         return new AdministrationService(
             _ispRepository,
             _userRepository,
-            _roleRepository,
+            userManager,
+            roleManager,
             _sessionStore,
             passwordHasher,
             new PasswordPolicyValidator(passwordPolicyOptions, passwordHasher),

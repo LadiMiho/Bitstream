@@ -1,7 +1,11 @@
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
+using Bitstream.Application.Services.Identity;
+using Bitstream.Domain.Entities;
 using Bitstream.Infrastructure.Persistence.HealthChecks;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Infrastructure.Persistence.Repositories;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,10 +60,37 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IIspRepository, IspRepository>();
         services.AddScoped<IUserSessionStore, UserSessionStore>();
         services.AddScoped<ITwoFactorChallengeStore, TwoFactorChallengeStore>();
+
+        // User/role credential storage and CRUD now runs through ASP.NET Core Identity's
+        // UserManager<User>/RoleManager<Role> — genuinely, not decoratively: BitstreamUserStore/
+        // BitstreamRoleStore bridge the existing hand-written schema (ADR-0002, no EF
+        // migrations) to Identity's contract, and Argon2IdentityPasswordHasher keeps TR-SEC-02
+        // (Argon2id specifically) rather than accepting Identity's PBKDF2 default. AddIdentityCore
+        // (not AddIdentity) deliberately excludes Identity's own cookie authentication and
+        // lockout store: sessions stay the custom UserSessionStore above (TR-SEC-07, kept so
+        // "list active sessions" / "revoke all" keep working), and lockout stays
+        // User.FailedLoginCount/UserStatus (TR-SEC-06, IdentityService's business rule).
+        services.AddIdentityCore<User>(options =>
+        {
+            // IPasswordPolicyValidator already enforces the real policy (TR-SEC-03) before
+            // UserManager is ever called; Identity's own password/user validators would
+            // otherwise duplicate that check and could disagree with it.
+            options.Password.RequireDigit = false;
+            options.Password.RequireLowercase = false;
+            options.Password.RequireUppercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Password.RequiredLength = 0;
+            options.Password.RequiredUniqueChars = 0;
+            options.User.RequireUniqueEmail = false;
+            options.Lockout.AllowedForNewUsers = false;
+        })
+            .AddRoles<Role>()
+            .AddUserStore<BitstreamUserStore>()
+            .AddRoleStore<BitstreamRoleStore>()
+            .AddPasswordHasher<Argon2IdentityPasswordHasher>();
 
         // TRD 5 — activation request lifecycle. The identifier generator and the outbox are
         // both persistence-backed (no adapter, no HttpClient): the former calls a stored
