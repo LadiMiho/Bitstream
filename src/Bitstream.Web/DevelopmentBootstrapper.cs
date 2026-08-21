@@ -33,6 +33,17 @@ public static class DevelopmentBootstrapper
     public const string EnabledKey = "Database:DevelopmentAutoMigrate";
 
     /// <summary>
+    /// Optional login for <c>0008_permissions.sql</c>, which is the one script written against
+    /// a service account rather than the schema. Leave it unset locally: a developer normally
+    /// connects as an administrator, for whom <c>CREATE USER ... FOR LOGIN</c> fails because
+    /// that login is already mapped to <c>dbo</c>.
+    /// </summary>
+    public const string AppUserKey = "Database:DevelopmentAppUser";
+
+    /// <summary>The sqlcmd variable <c>0008_permissions.sql</c> expects to be given.</summary>
+    private const string AppUserVariable = "$(AppUser)";
+
+    /// <summary>
     /// Fixed rather than random so that the same authenticator entry keeps working across
     /// re-seeds and across developers. It is a development credential and is documented as one.
     /// </summary>
@@ -59,7 +70,7 @@ public static class DevelopmentBootstrapper
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
 
-            await ApplySchemaScriptsAsync(dbContext, app.Environment.ContentRootPath, logger).ConfigureAwait(false);
+            await ApplySchemaScriptsAsync(dbContext, app.Environment.ContentRootPath, app.Configuration[AppUserKey], logger).ConfigureAwait(false);
             await SeedAdministratorAsync(dbContext, scope.ServiceProvider, app.Configuration, logger).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -72,7 +83,15 @@ public static class DevelopmentBootstrapper
         }
     }
 
-    private static async Task ApplySchemaScriptsAsync(BitstreamDbContext dbContext, string contentRootPath, ILogger logger)
+    /// <param name="dbContext">Supplies the connection; the scripts are applied over ADO.NET, not EF.</param>
+    /// <param name="contentRootPath">Where the walk up to <c>db/mssql</c> starts.</param>
+    /// <param name="appUser">Value for the <c>$(AppUser)</c> sqlcmd variable, or null to skip the script that needs it.</param>
+    /// <param name="logger">Reports each applied script, and each deliberately skipped one.</param>
+    private static async Task ApplySchemaScriptsAsync(
+        BitstreamDbContext dbContext,
+        string contentRootPath,
+        string? appUser,
+        ILogger logger)
     {
         var scriptDirectory = FindScriptDirectory(contentRootPath);
 
@@ -96,6 +115,26 @@ public static class DevelopmentBootstrapper
         foreach (var path in scripts)
         {
             var sql = await File.ReadAllTextAsync(path).ConfigureAwait(false);
+
+            // sqlcmd expands $(AppUser); ADO.NET does not, and the script raises rather than
+            // grant rights to a name it was never given. Substitute it, or skip the script —
+            // running it verbatim would abort the loop and leave later scripts unapplied.
+            if (sql.Contains(AppUserVariable, StringComparison.Ordinal))
+            {
+                if (string.IsNullOrWhiteSpace(appUser))
+                {
+                    logger.LogInformation(
+                        "Development bootstrap: skipped {Script}, which grants rights to a service account. "
+                        + "Set {Key} to apply it. The GRANT/DENY rules it installs are therefore not in force "
+                        + "locally — a developer connecting as an administrator bypasses them regardless, so "
+                        + "verify them on UAT via db/Deploy-Database.ps1, not here.",
+                        Path.GetFileName(path),
+                        AppUserKey);
+                    continue;
+                }
+
+                sql = sql.Replace(AppUserVariable, appUser, StringComparison.Ordinal);
+            }
 
             // GO is sqlcmd's batch separator, not T-SQL — ADO.NET has to split on it itself.
             foreach (var batch in SplitBatches(sql))

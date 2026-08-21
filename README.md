@@ -113,6 +113,19 @@ The seeded administrator has two-factor authentication enabled, so the sign-in s
 for a code. The host logs the `otpauth://` provisioning URI at start-up (warning level, so it is
 visible without turning logging up) — scan it into an authenticator app on first run.
 
+The database itself must exist first — the scripts create schemas and tables, not the database:
+
+```sql
+IF DB_ID('BitstreamPortal') IS NULL CREATE DATABASE BitstreamPortal;
+```
+
+One script, `0008_permissions.sql`, grants and denies rights to the application's service
+account rather than shaping the schema. It is skipped on start-up unless
+`Database:DevelopmentAppUser` names a login, because a developer connecting as an administrator
+is already mapped to `dbo` and `CREATE USER ... FOR LOGIN` fails for them. Its `DENY` rules are
+therefore not in force locally — verify those on UAT through `db/Deploy-Database.ps1`, which is
+the path that always applies it.
+
 To run the database step by hand instead, set `Database:DevelopmentAutoMigrate` to false and
 use:
 
