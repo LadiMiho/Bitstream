@@ -88,8 +88,13 @@ public static class DependencyInjection
         })
             .AddRoles<Role>()
             .AddUserStore<BitstreamUserStore>()
-            .AddRoleStore<BitstreamRoleStore>()
-            .AddPasswordHasher<Argon2IdentityPasswordHasher>();
+            .AddRoleStore<BitstreamRoleStore>();
+
+        // IdentityBuilder has no AddPasswordHasher fluent method — AddIdentityCore registers the
+        // default IPasswordHasher<User> with TryAddScoped, so a plain AddScoped registered after
+        // it wins on resolution (DI resolves the last registration for a non-collection
+        // dependency), overriding it with Argon2IdentityPasswordHasher.
+        services.AddScoped<Microsoft.AspNetCore.Identity.IPasswordHasher<User>, Argon2IdentityPasswordHasher>();
 
         // TRD 5 — activation request lifecycle. The identifier generator and the outbox are
         // both persistence-backed (no adapter, no HttpClient): the former calls a stored
