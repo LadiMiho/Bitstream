@@ -351,6 +351,14 @@ public interface IAdministrationService
     Task<Isp?> GetIspAsync(long ispId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Administrator/Auditor (<c>isp.read.all</c>) searches every ISP; anyone else's search is
+    /// silently narrowed to their own ISP, the same ownership rule <see cref="GetIspAsync"/>
+    /// enforces — there being nothing to browse is not distinguished from lacking the
+    /// permission (TR-SEC-19's reasoning applies here too).
+    /// </summary>
+    Task<PagedResult<Isp>> SearchIspsAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Locking cascades to every currently-active user of the ISP and revokes their sessions
     /// immediately (TR-SEC-13, TR-SEC-07). Unlocking the ISP does not reciprocally unlock its
     /// users — each stays exactly as an administrator last set it, so unlocking never silently
@@ -363,9 +371,16 @@ public interface IAdministrationService
     /// <summary>Null when the user does not exist, or when the caller is not entitled to see it. Self and Administrator/Auditor only.</summary>
     Task<User?> GetUserAsync(long userId, CancellationToken cancellationToken = default);
 
+    /// <summary>Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs.</summary>
+    Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+
     /// <summary>Locking revokes the user's sessions immediately (TR-SEC-12, TR-SEC-07).</summary>
     Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default);
 }
+
+/// <param name="Items">At most <c>take</c> rows, most recently created first.</param>
+/// <param name="TotalCount">Total rows matching the search, ignoring paging — for the caller to compute page count.</param>
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount);
 
 /// <param name="Name">ISP name.</param>
 /// <param name="Nipt">Albanian tax identification number.</param>

@@ -50,3 +50,15 @@ public sealed record UserResponse(
 
 /// <summary>Body of a 400/422 validation failure (TR-NFR-12: specific, field-level, actionable).</summary>
 public sealed record ValidationProblemBody([property: JsonPropertyName("violations")] IReadOnlyList<string> Violations);
+
+/// <param name="Items">At most <c>take</c> rows.</param>
+/// <param name="TotalCount">Every matching row, ignoring paging.</param>
+public sealed record IspListResponse(
+    [property: JsonPropertyName("items")] IReadOnlyList<IspResponse> Items,
+    [property: JsonPropertyName("totalCount")] int TotalCount);
+
+/// <param name="Items">At most <c>take</c> rows.</param>
+/// <param name="TotalCount">Every matching row, ignoring paging.</param>
+public sealed record UserListResponse(
+    [property: JsonPropertyName("items")] IReadOnlyList<UserResponse> Items,
+    [property: JsonPropertyName("totalCount")] int TotalCount);

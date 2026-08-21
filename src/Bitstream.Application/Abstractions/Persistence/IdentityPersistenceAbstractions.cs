@@ -3,29 +3,29 @@ using Bitstream.Domain.Entities;
 namespace Bitstream.Application.Abstractions.Persistence;
 
 /// <summary>
-/// Identity and access data access, TRD 4. Declared here so that
-/// <see cref="Services.Identity.IdentityService"/> and
-/// <see cref="Services.Identity.AdministrationService"/> never take a dependency on EF Core
-/// (TRD 2.1 layer separation).
-/// <para>
-/// Entities returned by these methods are tracked by the caller's <see cref="IUnitOfWork"/>
-/// scope: a service mutates the returned instance and calls
-/// <see cref="IUnitOfWork.SaveChangesAsync"/> once, rather than each method taking an "update"
-/// counterpart. Bulk operations that would be wasteful expressed that way — revoking every
-/// session an ISP's users hold when the ISP is locked — get their own method instead.
-/// </para>
-/// </summary>
-/// <summary>
 /// Everything about a user that <c>UserManager&lt;User&gt;</c> does not cover, because it isn't
-/// part of Identity's contract: cascading a lock across an ISP's users (TR-SEC-13), and the
-/// password-reuse history (TR-SEC-03). Core CRUD/lookup — find by email or ID, create, check a
-/// password — goes through <c>UserManager&lt;User&gt;</c> now (see
-/// <c>Bitstream.Infrastructure.Persistence.Identity.BitstreamUserStore</c>).
+/// part of Identity's contract: browsing/searching (TRD 4.2), cascading a lock across an ISP's
+/// users (TR-SEC-13), and the password-reuse history (TR-SEC-03). Core CRUD/lookup-by-ID —
+/// find by email, create, check a password — goes through <c>UserManager&lt;User&gt;</c> now
+/// (see <c>Bitstream.Infrastructure.Persistence.Identity.BitstreamUserStore</c>).
+/// <para>
+/// Entities returned here are tracked by the caller's <see cref="IUnitOfWork"/> scope, same as
+/// every other repository in this file.
+/// </para>
 /// </summary>
 public interface IUserRepository
 {
     /// <summary>Every active user of an ISP, tracked — for cascading a lock across all of them (TR-SEC-13).</summary>
     Task<IReadOnlyList<User>> GetByIspIdAsync(long ispId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Case-insensitive substring match against full name and email, most recently created
+    /// first. <paramref name="ispId"/> restricts to one ISP's users — the ownership scoping
+    /// <c>AdministrationService.SearchUsersAsync</c> applies before calling this, not a filter
+    /// the caller opts into.
+    /// </summary>
+    Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
+        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default);
 
     /// <summary>Most recent password hashes first, for the no-reuse rule (TR-SEC-03).</summary>
     Task<IReadOnlyList<string>> GetRecentPasswordHashesAsync(long userId, int count, CancellationToken cancellationToken = default);
@@ -44,6 +44,10 @@ public interface IIspRepository
 
     /// <summary>Resolves the ISP a BI or CRM record belongs to (TR-PAS-04); null when the BP is not a known ISP.</summary>
     Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default);
+
+    /// <summary>Case-insensitive substring match against name and NIPT, most recently created first.</summary>
+    Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
+        string? search, int skip, int take, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Session store, TR-SEC-07.</summary>

@@ -10,15 +10,6 @@
         <h1 class="mt-2 text-xl font-semibold">ISP Administration</h1>
     </div>
 
-    <section class="card border-l-4 border-state-pending" aria-labelledby="isp-gap-heading">
-        <h2 id="isp-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">No list endpoint yet</h2>
-        <p class="mt-2 max-w-2xl text-sm text-ink-muted">
-            The backend does not currently expose a way to browse or search ISPs — only
-            <code class="rounded bg-surface-muted px-1">GET /api/v1/isps/{ispId}</code> by a
-            known ID. Look up an ISP by its ID below, or use the ID an ISP was created with.
-        </p>
-    </section>
-
     @if (Model.CanCreate)
     {
         <section class="card" aria-labelledby="isp-create-heading">
@@ -63,18 +54,38 @@
         </section>
     }
 
-    <section class="card" aria-labelledby="isp-lookup-heading">
-        <h2 id="isp-lookup-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Look up an ISP</h2>
-        <form id="isp-lookup-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
+    <section class="card" aria-labelledby="isp-search-heading">
+        <h2 id="isp-search-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">ISPs</h2>
+        <form id="isp-search-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
             <div class="flex-1">
-                <label class="field-label" for="isp-lookup-id">ISP ID</label>
-                <input class="field-input" id="isp-lookup-id" name="ispId" type="number" min="1" required />
+                <label class="field-label" for="isp-search-query">Search by name or NIPT</label>
+                <input class="field-input" id="isp-search-query" name="search" type="search" placeholder="Leave blank to list everyone you can see" />
             </div>
-            <button type="submit" class="btn-secondary">Look up</button>
+            <button type="submit" class="btn-secondary">Search</button>
         </form>
-        <p id="isp-lookup-error" class="field-error mt-2" role="alert" hidden></p>
+        <p id="isp-search-error" class="field-error mt-2" role="alert" hidden></p>
 
-        <div id="isp-detail" class="mt-6" hidden>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Name</th>
+                        <th class="table-head">NIPT</th>
+                        <th class="table-head">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="isp-search-results"></tbody>
+            </table>
+            <p id="isp-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No ISPs match.</p>
+        </div>
+
+        <div class="mt-4 flex items-center gap-3 text-sm text-ink-muted">
+            <button type="button" id="isp-search-prev" class="btn-secondary" disabled>Previous</button>
+            <span id="isp-search-summary"></span>
+            <button type="button" id="isp-search-next" class="btn-secondary" disabled>Next</button>
+        </div>
+
+        <div id="isp-detail" class="mt-6 border-t border-line pt-6" hidden>
             <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP ID</dt><dd id="isp-detail-id" class="mt-1 text-sm"></dd></div>
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd id="isp-detail-status" class="mt-1 text-sm"></dd></div>

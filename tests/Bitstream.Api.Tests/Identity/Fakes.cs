@@ -102,6 +102,19 @@ public sealed class FakeIspRepository : IIspRepository
         Isps[isp.IspId] = isp;
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
+        string? search, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var matches = Isps.Values
+            .Where(isp => string.IsNullOrWhiteSpace(search)
+                || isp.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || isp.Nipt.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(isp => isp.CreatedAt)
+            .ToList();
+
+        return Task.FromResult<(IReadOnlyList<Isp>, int)>(([.. matches.Skip(skip).Take(take)], matches.Count));
+    }
 }
 
 /// <summary>
@@ -119,6 +132,20 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
 
     public Task<IReadOnlyList<User>> GetByIspIdAsync(long ispId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<User>>([.. Users.Values.Where(user => user.IspId == ispId)]);
+
+    public Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
+        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var matches = Users.Values
+            .Where(user => ispId is null || user.IspId == ispId)
+            .Where(user => string.IsNullOrWhiteSpace(search)
+                || user.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || user.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(user => user.CreatedAt)
+            .ToList();
+
+        return Task.FromResult<(IReadOnlyList<User>, int)>(([.. matches.Skip(skip).Take(take)], matches.Count));
+    }
 
     public Task<IReadOnlyList<string>> GetRecentPasswordHashesAsync(long userId, int count, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<string>>([]);

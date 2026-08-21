@@ -10,15 +10,6 @@
         <h1 class="mt-2 text-xl font-semibold">User Administration</h1>
     </div>
 
-    <section class="card border-l-4 border-state-pending" aria-labelledby="user-gap-heading">
-        <h2 id="user-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">No list endpoint yet</h2>
-        <p class="mt-2 max-w-2xl text-sm text-ink-muted">
-            The backend does not currently expose a way to browse or search users — only
-            <code class="rounded bg-surface-muted px-1">GET /api/v1/users/{userId}</code> by a
-            known ID. Look up a user by their ID below, or use the ID a user was created with.
-        </p>
-    </section>
-
     @if (Model.CanCreate)
     {
         <section class="card" aria-labelledby="user-create-heading">
@@ -70,18 +61,39 @@
         </section>
     }
 
-    <section class="card" aria-labelledby="user-lookup-heading">
-        <h2 id="user-lookup-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Look up a user</h2>
-        <form id="user-lookup-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
+    <section class="card" aria-labelledby="user-search-heading">
+        <h2 id="user-search-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Users</h2>
+        <form id="user-search-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
             <div class="flex-1">
-                <label class="field-label" for="user-lookup-id">User ID</label>
-                <input class="field-input" id="user-lookup-id" name="userId" type="number" min="1" required />
+                <label class="field-label" for="user-search-query">Search by name or email</label>
+                <input class="field-input" id="user-search-query" name="search" type="search" placeholder="Leave blank to list everyone you can see" />
             </div>
-            <button type="submit" class="btn-secondary">Look up</button>
+            <button type="submit" class="btn-secondary">Search</button>
         </form>
-        <p id="user-lookup-error" class="field-error mt-2" role="alert" hidden></p>
+        <p id="user-search-error" class="field-error mt-2" role="alert" hidden></p>
 
-        <div id="user-detail" class="mt-6" hidden>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Full name</th>
+                        <th class="table-head">Email</th>
+                        <th class="table-head">Role</th>
+                        <th class="table-head">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="user-search-results"></tbody>
+            </table>
+            <p id="user-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No users match.</p>
+        </div>
+
+        <div class="mt-4 flex items-center gap-3 text-sm text-ink-muted">
+            <button type="button" id="user-search-prev" class="btn-secondary" disabled>Previous</button>
+            <span id="user-search-summary"></span>
+            <button type="button" id="user-search-next" class="btn-secondary" disabled>Next</button>
+        </div>
+
+        <div id="user-detail" class="mt-6 border-t border-line pt-6" hidden>
             <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">User ID</dt><dd id="user-detail-id" class="mt-1 text-sm"></dd></div>
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd id="user-detail-status" class="mt-1 text-sm"></dd></div>

@@ -1,10 +1,13 @@
 /**
- * ISP administration behaviour: create, look up by ID, lock/unlock — each a direct call to the
+ * ISP administration behaviour: create, search/browse, lock/unlock — each a direct call to the
  * existing /api/v1/isps endpoints (Bitstream.Web/Endpoints/AdministrationEndpoints.cs). No
  * backend logic is duplicated here; every validation message shown comes from the API's own
- * response.
+ * response, and the search results are exactly what GET /api/v1/isps returns — this script only
+ * renders them and tracks paging offsets.
  */
 import { api, ApiError } from '../api-client.js';
+
+const PAGE_SIZE = 20;
 
 function el(selector) {
   return document.querySelector(selector);
@@ -50,8 +53,63 @@ async function setStatus(ispId, status) {
     await api.patch(`/api/v1/isps/${ispId}/status`, { status });
     const isp = await api.get(`/api/v1/isps/${ispId}`);
     renderIsp(isp);
+    await search(currentSkip, currentSearch);
   } catch (error) {
     showError(statusError, describeError(error));
+  }
+}
+
+let currentSkip = 0;
+let currentSearch = '';
+let currentTotalCount = 0;
+
+function renderResults(items) {
+  const body = el('#isp-search-results');
+  body.replaceChildren();
+
+  for (const isp of items) {
+    const row = document.createElement('tr');
+    row.className = 'cursor-pointer hover:bg-surface-muted';
+    row.dataset.ispId = isp.ispId;
+
+    for (const value of [isp.name, isp.nipt, isp.status]) {
+      const cell = document.createElement('td');
+      cell.className = 'table-cell';
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+
+    row.addEventListener('click', () => renderIsp(isp));
+    body.appendChild(row);
+  }
+}
+
+async function search(skip, searchTerm) {
+  const searchError = el('#isp-search-error');
+  showError(searchError, '');
+
+  try {
+    const params = new URLSearchParams({ skip: String(skip), take: String(PAGE_SIZE) });
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    }
+
+    const result = await api.get(`/api/v1/isps?${params}`);
+    currentSkip = skip;
+    currentSearch = searchTerm;
+    currentTotalCount = result.totalCount;
+
+    renderResults(result.items);
+    el('#isp-search-empty').hidden = result.items.length > 0;
+
+    const shown = result.items.length === 0 ? 0 : skip + 1;
+    const shownTo = skip + result.items.length;
+    el('#isp-search-summary').textContent =
+      result.totalCount === 0 ? 'No results' : `${shown}–${shownTo} of ${result.totalCount}`;
+    el('#isp-search-prev').disabled = skip === 0;
+    el('#isp-search-next').disabled = skip + PAGE_SIZE >= result.totalCount;
+  } catch (error) {
+    showError(searchError, describeError(error));
   }
 }
 
@@ -79,29 +137,22 @@ function init() {
     try {
       const isp = await api.post('/api/v1/isps', body);
       createForm.reset();
-      el('#isp-lookup-id').value = isp.ispId;
       renderIsp(isp);
+      await search(0, currentSearch);
     } catch (error) {
       showError(createError, describeError(error));
     }
   });
 
-  const lookupForm = el('#isp-lookup-form');
-  lookupForm.addEventListener('submit', async (event) => {
+  el('#isp-search-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    const lookupError = el('#isp-lookup-error');
-    showError(lookupError, '');
-    el('#isp-detail').hidden = true;
+    search(0, el('#isp-search-query').value.trim());
+  });
 
-    const ispId = el('#isp-lookup-id').value;
-
-    try {
-      const isp = await api.get(`/api/v1/isps/${ispId}`);
-      renderIsp(isp);
-    } catch (error) {
-      showError(lookupError, error instanceof ApiError && error.status === 404
-        ? 'No ISP with that ID, or it is not one you can see.'
-        : describeError(error));
+  el('#isp-search-prev').addEventListener('click', () => search(Math.max(0, currentSkip - PAGE_SIZE), currentSearch));
+  el('#isp-search-next').addEventListener('click', () => {
+    if (currentSkip + PAGE_SIZE < currentTotalCount) {
+      search(currentSkip + PAGE_SIZE, currentSearch);
     }
   });
 
@@ -114,6 +165,8 @@ function init() {
     const ispId = el('#isp-detail').dataset.ispId;
     setStatus(ispId, 'Active');
   });
+
+  search(0, '');
 }
 
 if (document.readyState === 'loading') {

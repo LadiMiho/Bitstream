@@ -36,6 +36,17 @@ public static class AdministrationEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .RequirePermission(PermissionCodes.IspCreate);
 
+        isps.MapGet("/", SearchIspsAsync)
+            .WithName("SearchIsps")
+            .WithSummary("Browse or search ISPs")
+            .WithDescription(
+                "TR-SEC-18/19: an Administrator/Auditor (isp.read.all) searches every ISP; " +
+                "anyone else's search is narrowed to their own ISP, the same ownership rule " +
+                "GetIsp enforces.")
+            .Produces<IspListResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .RequireAuthorization();
+
         isps.MapGet("/{ispId:long}", GetIspAsync)
             .WithName("GetIsp")
             .WithSummary("Read an ISP")
@@ -77,6 +88,17 @@ public static class AdministrationEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .RequirePermission(PermissionCodes.UserCreate);
+
+        users.MapGet("/", SearchUsersAsync)
+            .WithName("SearchUsers")
+            .WithSummary("Browse or search users")
+            .WithDescription(
+                "An Administrator/Auditor (isp.read.all) searches every user; anyone else's " +
+                "search can only ever find themselves — this module has no directory of " +
+                "teammates, the same rule GetUser enforces.")
+            .Produces<UserListResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .RequireAuthorization();
 
         users.MapGet("/{userId:long}", GetUserAsync)
             .WithName("GetUser")
@@ -121,6 +143,19 @@ public static class AdministrationEndpoints
         {
             return ValidationProblem(exception);
         }
+    }
+
+    private static async Task<IResult> SearchIspsAsync(
+        [FromQuery] string? search,
+        [FromQuery] int? skip,
+        [FromQuery] int? take,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        var result = await administrationService.SearchIspsAsync(
+            search, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new IspListResponse([.. result.Items.Select(ToResponse)], result.TotalCount));
     }
 
     private static async Task<IResult> GetIspAsync(
@@ -182,6 +217,19 @@ public static class AdministrationEndpoints
         {
             return ValidationProblem(exception);
         }
+    }
+
+    private static async Task<IResult> SearchUsersAsync(
+        [FromQuery] string? search,
+        [FromQuery] int? skip,
+        [FromQuery] int? take,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        var result = await administrationService.SearchUsersAsync(
+            search, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new UserListResponse([.. result.Items.Select(ToResponse)], result.TotalCount));
     }
 
     private static async Task<IResult> GetUserAsync(

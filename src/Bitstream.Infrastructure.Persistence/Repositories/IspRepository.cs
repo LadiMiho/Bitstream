@@ -26,4 +26,27 @@ public sealed class IspRepository : IIspRepository
 
         await _dbContext.Isps.AddAsync(isp, cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
+        string? search, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Isps.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = search.ToUpper();
+            query = query.Where(isp => isp.Name.ToUpper().Contains(pattern) || isp.Nipt.ToUpper().Contains(pattern));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var items = await query
+            .OrderByDescending(isp => isp.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (items, totalCount);
+    }
 }

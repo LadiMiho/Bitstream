@@ -152,6 +152,27 @@ public sealed partial class AdministrationService : IAdministrationService
         return await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<PagedResult<Isp>> SearchIspsAsync(string? search, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.HasPermission(PermissionCodes.IspReadAll))
+        {
+            var (items, totalCount) = await _ispRepository.SearchAsync(search, skip, take, cancellationToken).ConfigureAwait(false);
+            return new PagedResult<Isp>(items, totalCount);
+        }
+
+        // Not entitled to browse: the caller's own ISP is the entire result set, exactly what
+        // GetIspAsync would return for the same ID — never an error, just a narrower list.
+        if (_currentUser.IspId is not { } ownIspId)
+        {
+            return new PagedResult<Isp>([], 0);
+        }
+
+        var isp = await _ispRepository.FindByIdAsync(ownIspId, cancellationToken).ConfigureAwait(false);
+        var matches = isp is not null && MatchesSearch(search, isp.Name, isp.Nipt);
+
+        return matches ? new PagedResult<Isp>([isp!], 1) : new PagedResult<Isp>([], 0);
+    }
+
     public async Task SetIspStatusAsync(long ispId, IspStatus status, CancellationToken cancellationToken = default)
     {
         var isp = await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false) ??
@@ -321,6 +342,27 @@ public sealed partial class AdministrationService : IAdministrationService
         return await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
     }
 
+    public async Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.HasPermission(PermissionCodes.IspReadAll))
+        {
+            var (items, totalCount) = await _userRepository.SearchAsync(search, ispId: null, skip, take, cancellationToken).ConfigureAwait(false);
+            return new PagedResult<User>(items, totalCount);
+        }
+
+        // Same "no directory of teammates" rule as GetUserAsync: a non-privileged caller's
+        // search can only ever find themselves, never another user at the same ISP.
+        if (_currentUser.UserId is not { } ownUserId)
+        {
+            return new PagedResult<User>([], 0);
+        }
+
+        var user = await _userManager.FindByIdAsync(ownUserId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+        var matches = user is not null && MatchesSearch(search, user.FullName, user.Email);
+
+        return matches ? new PagedResult<User>([user!], 1) : new PagedResult<User>([], 0);
+    }
+
     public async Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
@@ -355,6 +397,25 @@ public sealed partial class AdministrationService : IAdministrationService
     /// </summary>
     private bool CanAccessIsp(long ispId) =>
         _currentUser.HasPermission(PermissionCodes.IspReadAll) || _currentUser.IspId == ispId;
+
+    /// <summary>Same case-insensitive substring rule the repositories' own SearchAsync methods apply, for the single-record fallback a non-privileged caller's search reduces to.</summary>
+    private static bool MatchesSearch(string? search, params string[] fields)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            return true;
+        }
+
+        foreach (var field in fields)
+        {
+            if (field.Contains(search, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private async Task LogCrossIspAttemptAsync(string entityType, long entityId, CancellationToken cancellationToken)
     {

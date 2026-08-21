@@ -10,11 +10,10 @@ namespace Bitstream.Web.Pages.AccessManagement;
 /// and looks up the caller's permissions once, server-side, purely to decide what to show
 /// (TR-SEC-17): the API re-checks every one of them on every call regardless.
 /// <para>
-/// There is no create/edit distinction here beyond status: <c>GET /api/v1/isps/{id}</c> and
+/// There is still no create/edit distinction beyond status: <c>GET /api/v1/isps/{id}</c> and
 /// <c>POST /api/v1/isps</c> are the only read/write operations the backend exposes for an ISP's
-/// own fields. There is also no list or search endpoint — an ISP is looked up by ID, which is
-/// why this screen has a "look up by ID" form rather than a browsable table. Both gaps are
-/// reported back rather than compensated for here.
+/// own fields. <c>GET /api/v1/isps</c> (search/browse) applies the same ownership narrowing as
+/// the by-ID lookup — an Administrator/Auditor sees every ISP, anyone else sees only their own.
 /// </para>
 /// </summary>
 public sealed class IspsModel : SecurePageModel

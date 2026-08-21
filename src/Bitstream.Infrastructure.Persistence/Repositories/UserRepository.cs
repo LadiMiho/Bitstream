@@ -17,6 +17,34 @@ public sealed class UserRepository : IUserRepository
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    public async Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
+        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Users.Include(user => user.Role).AsQueryable();
+
+        if (ispId is { } id)
+        {
+            query = query.Where(user => user.IspId == id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = search.ToUpper();
+            query = query.Where(user => user.FullName.ToUpper().Contains(pattern) || user.Email.ToUpper().Contains(pattern));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var items = await query
+            .OrderByDescending(user => user.CreatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (items, totalCount);
+    }
+
     public async Task<IReadOnlyList<string>> GetRecentPasswordHashesAsync(long userId, int count, CancellationToken cancellationToken = default) =>
         await _dbContext.UserPasswordHistory
             .Where(history => history.UserId == userId)

@@ -10,10 +10,11 @@ namespace Bitstream.Web.Pages.AccessManagement;
 /// caller's permissions once, server-side, purely to decide what to show (TR-SEC-17): the API
 /// re-checks every one of them on every call regardless.
 /// <para>
-/// As with ISPs, there is no create/edit distinction beyond status — only
-/// <c>GET /api/v1/users/{id}</c> and <c>POST /api/v1/users</c> exist for a user's own fields —
-/// and no list or search endpoint, so this is a "look up by ID" screen rather than a browsable
-/// table. Both gaps are reported back rather than compensated for here.
+/// As with ISPs, there is still no create/edit distinction beyond status — only
+/// <c>GET /api/v1/users/{id}</c> and <c>POST /api/v1/users</c> exist for a user's own fields.
+/// <c>GET /api/v1/users</c> (search/browse) narrows to the caller's own record for anyone
+/// without <c>isp.read.all</c> — this module has no directory of teammates, matching
+/// <c>GetUserAsync</c>'s existing rule.
 /// </para>
 /// </summary>
 public sealed class UsersModel : SecurePageModel
