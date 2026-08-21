@@ -21,5 +21,8 @@ public sealed class TwoFactorChallengeStore : ITwoFactorChallengeStore
     public Task<TwoFactorChallenge?> FindByTokenAsync(string challengeToken, CancellationToken cancellationToken = default) =>
         _dbContext.TwoFactorChallenges
             .Include(challenge => challenge.User)
+                .ThenInclude(user => user.Role)
+                    .ThenInclude(role => role.RolePermissions)
+                        .ThenInclude(rolePermission => rolePermission.Permission)
             .FirstOrDefaultAsync(challenge => challenge.ChallengeToken == challengeToken, cancellationToken);
 }
