@@ -366,7 +366,7 @@ public static class TestIdentityFactory
             [],
             new UpperInvariantLookupNormalizer(),
             new IdentityErrorDescriber(),
-            null,
+            null!,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<UserManager<User>>.Instance);
 
     public static RoleManager<Role> CreateRoleManager(FakeRoleStore store) =>
