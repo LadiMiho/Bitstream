@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web;
@@ -48,9 +49,10 @@ public sealed class TwoFactorEnrollmentTests
         using var loginResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
-        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loginBody = await loginResponse.Content.ReadAsStringAsync();
+        Assert.True(loginResponse.StatusCode == HttpStatusCode.OK, $"Expected OK, got {loginResponse.StatusCode}: {loginBody}");
 
-        var challenge = await loginResponse.Content.ReadFromJsonAsync<LoginChallengeResponse>();
+        var challenge = JsonSerializer.Deserialize<LoginChallengeResponse>(loginBody, JsonSerializerOptions.Web);
         Assert.NotNull(challenge);
         Assert.StartsWith("data:image/png;base64,", challenge!.QrCodeDataUri, StringComparison.Ordinal);
 
@@ -92,9 +94,10 @@ public sealed class TwoFactorEnrollmentTests
         using var loginResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
-        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        var loginBody = await loginResponse.Content.ReadAsStringAsync();
+        Assert.True(loginResponse.StatusCode == HttpStatusCode.OK, $"Expected OK, got {loginResponse.StatusCode}: {loginBody}");
 
-        var challenge = await loginResponse.Content.ReadFromJsonAsync<LoginChallengeResponse>();
+        var challenge = JsonSerializer.Deserialize<LoginChallengeResponse>(loginBody, JsonSerializerOptions.Web);
         Assert.Null(challenge!.QrCodeDataUri);
     }
 }
