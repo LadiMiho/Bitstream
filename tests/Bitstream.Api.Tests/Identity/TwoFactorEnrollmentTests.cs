@@ -38,8 +38,8 @@ public sealed class TwoFactorEnrollmentTests
 
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000020");
-            var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email, totpConfirmed: false);
-            user.TotpSecret = await totpProtector.ProtectAsync(rawSecret);
+            var seededUser = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email, totpConfirmed: false);
+            seededUser.TotpSecret = await totpProtector.ProtectAsync(rawSecret);
             await db.SaveChangesAsync();
         }
 
