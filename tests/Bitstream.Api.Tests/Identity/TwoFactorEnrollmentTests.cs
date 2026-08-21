@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Bitstream.Api.Tests.Identity;
@@ -50,7 +51,9 @@ public sealed class TwoFactorEnrollmentTests
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
         var loginBody = await loginResponse.Content.ReadAsStringAsync();
-        Assert.True(loginResponse.StatusCode == HttpStatusCode.OK, $"Expected OK, got {loginResponse.StatusCode}: {loginBody}");
+        Assert.True(
+            loginResponse.StatusCode == HttpStatusCode.OK,
+            $"Expected OK, got {loginResponse.StatusCode}: {loginBody}\nServer errors: {string.Join(" | ", factory.CapturedErrors)}");
 
         var challenge = JsonSerializer.Deserialize<LoginChallengeResponse>(loginBody, JsonSerializerOptions.Web);
         Assert.NotNull(challenge);
@@ -67,7 +70,10 @@ public sealed class TwoFactorEnrollmentTests
         using var verifyResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login/verify", UriKind.Relative),
             new TwoFactorVerifyRequest(challenge.ChallengeToken, code));
-        Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+        var verifyBody = await verifyResponse.Content.ReadAsStringAsync();
+        Assert.True(
+            verifyResponse.StatusCode == HttpStatusCode.OK,
+            $"Expected OK, got {verifyResponse.StatusCode}: {verifyBody}\nServer errors: {string.Join(" | ", factory.CapturedErrors)}");
 
         await using var assertScope = factory.CreateAsyncScope();
         var assertDb = assertScope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
@@ -95,7 +101,9 @@ public sealed class TwoFactorEnrollmentTests
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
         var loginBody = await loginResponse.Content.ReadAsStringAsync();
-        Assert.True(loginResponse.StatusCode == HttpStatusCode.OK, $"Expected OK, got {loginResponse.StatusCode}: {loginBody}");
+        Assert.True(
+            loginResponse.StatusCode == HttpStatusCode.OK,
+            $"Expected OK, got {loginResponse.StatusCode}: {loginBody}\nServer errors: {string.Join(" | ", factory.CapturedErrors)}");
 
         var challenge = JsonSerializer.Deserialize<LoginChallengeResponse>(loginBody, JsonSerializerOptions.Web);
         Assert.Null(challenge!.QrCodeDataUri);
@@ -113,6 +121,13 @@ internal sealed class TwoFactorEnrollmentApiFactory : WebApplicationFactory<WebH
     private static readonly string ValidTotpEncryptionKey = Convert.ToBase64String(Convert.FromHexString(new string('b', 64)));
 
     private readonly string _databaseName = $"bitstream-2fa-enrollment-tests-{Guid.NewGuid()}";
+
+    /// <summary>
+    /// Diagnostic only: ASP.NET Core's exception-handler middleware logs an unhandled exception
+    /// at Error level but never returns it to the client, so a failing test here has nothing to
+    /// show for it without this. Not meant to survive past finding this bug.
+    /// </summary>
+    public List<string> CapturedErrors { get; } = [];
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -136,7 +151,39 @@ internal sealed class TwoFactorEnrollmentApiFactory : WebApplicationFactory<WebH
             services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
         });
+
+        builder.ConfigureLogging(logging => logging.AddProvider(new CapturingLoggerProvider(CapturedErrors)));
     }
 
     public AsyncServiceScope CreateAsyncScope() => Services.CreateAsyncScope();
+}
+
+/// <summary>See <see cref="TwoFactorEnrollmentApiFactory.CapturedErrors"/>.</summary>
+internal sealed class CapturingLoggerProvider(List<string> errors) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, errors);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class CapturingLogger(string categoryName, List<string> errors) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel))
+            {
+                return;
+            }
+
+            lock (errors)
+            {
+                errors.Add($"[{categoryName}] {formatter(state, exception)} {exception}");
+            }
+        }
+    }
 }
