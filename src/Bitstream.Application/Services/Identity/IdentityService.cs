@@ -116,7 +116,7 @@ public sealed class IdentityService : IIdentityService
             user.FailedLoginCount = 0;
         }
 
-        var (challengeToken, channel, expiresAt) = await IssueChallengeAsync(user, cancellationToken).ConfigureAwait(false);
+        var (challengeToken, channel, expiresAt, provisioningUri) = await IssueChallengeAsync(user, cancellationToken).ConfigureAwait(false);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -124,7 +124,7 @@ public sealed class IdentityService : IIdentityService
             "Security.Login.PasswordVerified", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
             null, null, cancellationToken).ConfigureAwait(false);
 
-        return LoginResult.ChallengeIssued(challengeToken, channel, expiresAt);
+        return LoginResult.ChallengeIssued(challengeToken, channel, expiresAt, provisioningUri);
     }
 
     public async Task<TwoFactorResult> CompleteSecondFactorAsync(
@@ -183,6 +183,17 @@ public sealed class IdentityService : IIdentityService
                 null, $"{{\"attempt\":{challenge.AttemptCount}}}", cancellationToken).ConfigureAwait(false);
 
             return challenge.AttemptCount >= maxAttempts ? TwoFactorResult.TooManyAttempts() : TwoFactorResult.InvalidCode();
+        }
+
+        if (challenge.Channel == TwoFactorChannel.Totp && user.TotpConfirmedAt is null)
+        {
+            // The very code that just verified proves the secret reached an authenticator app;
+            // this is what turns the QR-code enrollment screen off for every login after this one.
+            user.TotpConfirmedAt = now;
+
+            await _auditWriter.WriteAsync(
+                "Security.TwoFactor.Enrolled", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+                null, null, cancellationToken).ConfigureAwait(false);
         }
 
         challenge.ConsumedAt = now;
@@ -325,7 +336,7 @@ public sealed class IdentityService : IIdentityService
         return lockedThisAttempt ? LoginResult.AccountLocked() : LoginResult.InvalidCredentials();
     }
 
-    private async Task<(string Token, TwoFactorChannel Channel, DateTimeOffset ExpiresAt)> IssueChallengeAsync(
+    private async Task<(string Token, TwoFactorChannel Channel, DateTimeOffset ExpiresAt, string? ProvisioningUri)> IssueChallengeAsync(
         User user,
         CancellationToken cancellationToken)
     {
@@ -333,6 +344,7 @@ public sealed class IdentityService : IIdentityService
         var now = _clock.UtcNow;
         var token = TokenHashing.GenerateOpaqueToken();
         string? codeHash = null;
+        string? provisioningUri = null;
 
         switch (options.Channel)
         {
@@ -345,6 +357,15 @@ public sealed class IdentityService : IIdentityService
                         $"User {user.UserId} has no TOTP secret provisioned, but the configured " +
                         "second-factor channel is Totp. Re-create the user, or reconfigure " +
                         "Security:TwoFactor:Channel.");
+                }
+
+                if (user.TotpConfirmedAt is null)
+                {
+                    // Never confirmed a code: the secret exists, but nothing has scanned it yet.
+                    // Decrypting it here (rather than only at verify time) is what lets the
+                    // presentation layer show a QR code alongside the code prompt.
+                    var secret = await _totpSecretProtector.UnprotectAsync(user.TotpSecret, cancellationToken).ConfigureAwait(false);
+                    provisioningUri = _totpService.BuildProvisioningUri(secret, user.Email, "Bitstream Portal");
                 }
 
                 break;
@@ -381,7 +402,7 @@ public sealed class IdentityService : IIdentityService
 
         await _challengeStore.AddAsync(challenge, cancellationToken).ConfigureAwait(false);
 
-        return (token, options.Channel, expiresAt);
+        return (token, options.Channel, expiresAt, provisioningUri);
     }
 
     private async Task<bool> VerifyCodeAsync(TwoFactorChallenge challenge, User user, string code, CancellationToken cancellationToken)

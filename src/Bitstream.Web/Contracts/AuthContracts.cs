@@ -11,10 +11,16 @@ public sealed record LoginRequest(
 /// <param name="ChallengeToken">Submit with the code to <c>POST /api/v1/auth/login/verify</c>.</param>
 /// <param name="Channel">Where the second factor is coming from — <c>Totp</c>, <c>EmailOtp</c> or <c>SmsOtp</c> (TR-SEC-05).</param>
 /// <param name="ExpiresAt">At most 5 minutes from now (TR-SEC-04).</param>
+/// <param name="QrCodeDataUri">
+/// A <c>data:image/png;base64,...</c> image, present only on this user's first login with the
+/// <c>Totp</c> channel — nothing has confirmed the secret yet, so the login page shows this
+/// instead of a bare code prompt. Absent on every login after the first successful code.
+/// </param>
 public sealed record LoginChallengeResponse(
     [property: JsonPropertyName("challengeToken")] string ChallengeToken,
     [property: JsonPropertyName("channel")] string Channel,
-    [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt);
+    [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt,
+    [property: JsonPropertyName("qrCodeDataUri")] string? QrCodeDataUri);
 
 public sealed record TwoFactorVerifyRequest(
     [property: JsonPropertyName("challengeToken")] string ChallengeToken,

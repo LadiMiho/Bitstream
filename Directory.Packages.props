@@ -17,6 +17,11 @@
          through 2.7.4). NU1903 (Warning As Error) fails restore on the vulnerable range. -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
 
+    <!-- Renders the TOTP enrollment QR code server-side (Bitstream.Web only). Pure managed,
+         PNG-byte output with no System.Drawing dependency — matters on a Windows Server target
+         with no build step, same reasoning as the Argon2 package above. -->
+    <PackageVersion Include="QRCoder" Version="1.6.0" />
+
     <!-- Security -->
     <!-- Argon2id (TR-SEC-02). Pure managed implementation, no native dependency — matters on a
          Windows Server / IIS target with no build step at the destination. -->

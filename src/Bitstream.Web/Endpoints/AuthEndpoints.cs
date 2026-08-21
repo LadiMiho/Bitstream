@@ -6,6 +6,7 @@ using Bitstream.Hosting.Security;
 using Bitstream.Web.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using QRCoder;
 // Sdk.Web's implicit global usings bring in Microsoft.AspNetCore.Builder, which also declares a
 // SessionOptions (the session-state-middleware one) — disambiguate in favour of ours.
 using SessionOptions = Bitstream.Application.Configuration.SessionOptions;
@@ -114,7 +115,10 @@ public static class AuthEndpoints
         return result.Outcome switch
         {
             LoginOutcome.ChallengeIssued => Results.Ok(new LoginChallengeResponse(
-                result.ChallengeToken!, result.Channel!.Value.ToString(), result.ExpiresAt!.Value)),
+                result.ChallengeToken!,
+                result.Channel!.Value.ToString(),
+                result.ExpiresAt!.Value,
+                BuildQrCodeDataUri(result.ProvisioningUri))),
 
             LoginOutcome.AccountLocked => Results.Problem(
                 title: "Account locked",
@@ -212,5 +216,26 @@ public static class AuthEndpoints
             user.FindFirstValue(ClaimTypes.Role) ?? string.Empty,
             ispIdClaim is null ? null : long.Parse(ispIdClaim, System.Globalization.CultureInfo.InvariantCulture),
             permissions));
+    }
+
+    /// <summary>
+    /// Rendering an <c>otpauth://</c> URI as an image is a presentation concern, not a business
+    /// decision — that decision (whether this login needs enrollment at all) is
+    /// <see cref="LoginResult.ProvisioningUri"/>, decided in the application layer. Null in,
+    /// null out: most logins have nothing to render.
+    /// </summary>
+    private static string? BuildQrCodeDataUri(string? provisioningUri)
+    {
+        if (provisioningUri is null)
+        {
+            return null;
+        }
+
+        var qrGenerator = new QRCodeGenerator();
+        var qrData = qrGenerator.CreateQrCode(provisioningUri, QRCodeGenerator.ECCLevel.M);
+        var pngQrCode = new PngByteQRCode(qrData);
+        var pngBytes = pngQrCode.GetGraphic(8);
+
+        return $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
     }
 }

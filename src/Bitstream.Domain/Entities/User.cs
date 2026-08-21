@@ -48,6 +48,15 @@ public sealed class User
     /// <summary>Encrypted TOTP seed, when the configured 2FA channel is TOTP (TR-SEC-04, open item 13).</summary>
     public byte[]? TotpSecret { get; set; }
 
+    /// <summary>
+    /// Set the moment this user first completes a TOTP code, distinguishing a secret that has
+    /// merely been generated (at account creation) from one actually in an authenticator app.
+    /// Null gates the enrollment screen: the very next login shows the QR code instead of a
+    /// bare code prompt, and submitting the first valid code both confirms enrollment and signs
+    /// the user in.
+    /// </summary>
+    public DateTimeOffset? TotpConfirmedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public long? CreatedBy { get; set; }

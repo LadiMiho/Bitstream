@@ -36,6 +36,8 @@ function init() {
   const codeForm = el('#login-code-form');
   const codeError = el('#login-code-error');
   const codeChannel = el('#login-code-channel');
+  const totpEnrollment = el('#login-totp-enrollment');
+  const totpQrImage = el('#login-totp-qr');
 
   /** Held only in memory for this page load — never written to storage or the DOM. */
   let challengeToken = null;
@@ -52,7 +54,16 @@ function init() {
     try {
       const challenge = await api.post('/api/v1/auth/login', { email, password });
       challengeToken = challenge.challengeToken;
-      codeChannel.textContent = describeChannel(challenge.channel);
+      codeChannel.textContent = describeChannel(challenge.channel, Boolean(challenge.qrCodeDataUri));
+
+      if (challenge.qrCodeDataUri) {
+        totpQrImage.src = challenge.qrCodeDataUri;
+        totpEnrollment.hidden = false;
+      } else {
+        totpQrImage.removeAttribute('src');
+        totpEnrollment.hidden = true;
+      }
+
       credentialsForm.hidden = true;
       codeForm.hidden = false;
       el('#login-code').focus();
@@ -81,10 +92,12 @@ function init() {
   });
 }
 
-function describeChannel(channel) {
+function describeChannel(channel, needsEnrollment) {
   switch (channel) {
     case 'Totp':
-      return 'Enter the code from your authenticator app.';
+      return needsEnrollment
+        ? 'Scan this QR code with your authenticator app, then enter the code it shows.'
+        : 'Enter the code from your authenticator app.';
     case 'EmailOtp':
       return 'A code was sent to your email address.';
     case 'SmsOtp':

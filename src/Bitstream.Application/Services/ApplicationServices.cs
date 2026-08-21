@@ -263,18 +263,25 @@ public enum LoginOutcome
 /// <param name="ChallengeToken">Opaque token to submit with the code. Present only when <see cref="Outcome"/> is <see cref="LoginOutcome.ChallengeIssued"/>.</param>
 /// <param name="Channel">Second-factor channel the challenge was issued on.</param>
 /// <param name="ExpiresAt">At most 5 minutes from issuance (TR-SEC-04).</param>
+/// <param name="ProvisioningUri">
+/// <c>otpauth://</c> URI for an authenticator app, present only when <see cref="Channel"/> is
+/// <see cref="TwoFactorChannel.Totp"/> and this user has never confirmed a code before — i.e.
+/// the secret exists but nothing has scanned it yet. The presentation layer renders this as a
+/// QR code; submitting the resulting first code both confirms enrollment and signs the user in.
+/// </param>
 public sealed record LoginResult(
     LoginOutcome Outcome,
     string? ChallengeToken,
     TwoFactorChannel? Channel,
-    DateTimeOffset? ExpiresAt)
+    DateTimeOffset? ExpiresAt,
+    string? ProvisioningUri)
 {
-    public static LoginResult ChallengeIssued(string challengeToken, TwoFactorChannel channel, DateTimeOffset expiresAt) =>
-        new(LoginOutcome.ChallengeIssued, challengeToken, channel, expiresAt);
+    public static LoginResult ChallengeIssued(string challengeToken, TwoFactorChannel channel, DateTimeOffset expiresAt, string? provisioningUri) =>
+        new(LoginOutcome.ChallengeIssued, challengeToken, channel, expiresAt, provisioningUri);
 
-    public static LoginResult InvalidCredentials() => new(LoginOutcome.InvalidCredentials, null, null, null);
+    public static LoginResult InvalidCredentials() => new(LoginOutcome.InvalidCredentials, null, null, null, null);
 
-    public static LoginResult AccountLocked() => new(LoginOutcome.AccountLocked, null, null, null);
+    public static LoginResult AccountLocked() => new(LoginOutcome.AccountLocked, null, null, null, null);
 }
 
 /// <summary>Outcome of the second factor.</summary>

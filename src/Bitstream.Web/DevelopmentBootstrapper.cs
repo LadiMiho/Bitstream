@@ -252,10 +252,13 @@ public static class DevelopmentBootstrapper
 
         await dbContext.SaveChangesAsync().ConfigureAwait(false);
 
-        // Logged at warning so it is visible without turning debug logging on: signing in needs
-        // the second factor, and the developer has no other way to learn this secret.
+        // TotpConfirmedAt is deliberately left null: signing in for the first time is what shows
+        // the QR code on /Login. Logged too, at warning so it is visible without debug logging
+        // on, purely as a fallback for a browser that cannot render it.
         logger.LogWarning(
-            "Development bootstrap: seeded administrator {Email}. Add this to an authenticator app for the second factor: {Uri}",
+            "Development bootstrap: seeded administrator {Email}. The Login page will show a QR " +
+            "code for the second factor on first sign-in; if you need it without a browser, here " +
+            "it is as a URI: {Uri}",
             email,
             totpService.BuildProvisioningUri(DevelopmentTotpSecret, email, "Bitstream Portal"));
     }

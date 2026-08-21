@@ -120,8 +120,10 @@ than the configured one, which needs a channel to be configured first.
 
 **What exists:** `Totp` (RFC 6238, `TotpService`) is fully implemented and is the scaffold
 default, precisely because it needs no delivery channel and so is not itself blocked by this
-item. `EmailOtp` is fully implemented and switches on with one configuration value, but is only
-actually usable once `SmtpEmailGateway` is built (open item 1's sibling gap — SMTP has no
+item — including first-login enrollment: a user with no confirmed code yet is shown a QR code
+on `/Login` instead of a bare prompt, and their first valid code confirms it. `EmailOtp`
+switches on with one configuration value but is not actually usable yet: `SmtpEmailGateway.SendAsync`
+throws `NotImplementedException` unconditionally (open item 1's sibling gap — SMTP has no
 adapter contract of its own to be blocked on, it is simply not written yet). `SmsOtp` throws
 `NotSupportedException`: no SMS provider is named anywhere in the TRD, so there is nothing to
 implement against yet, consistent with how CRM and SAP are left unimplemented pending their own

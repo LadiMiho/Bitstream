@@ -55,6 +55,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
         builder.Property(x => x.PasswordHashAlgorithm).HasMaxLength(50).IsRequired();
         builder.Property(x => x.TotpSecret).HasColumnType("varbinary(256)");
+        builder.Property(x => x.TotpConfirmedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastLoginAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.PasswordUpdatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");

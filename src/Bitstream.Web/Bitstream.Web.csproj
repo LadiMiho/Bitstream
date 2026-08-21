@@ -19,6 +19,13 @@
     <ProjectReference Include="..\Bitstream.Infrastructure.Integration\Bitstream.Infrastructure.Integration.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Renders the TOTP enrollment QR code (Endpoints/AuthEndpoints.cs). Presentation-only:
+         the decision that a login needs one at all is IIdentityService.AuthenticateAsync's,
+         not this project's. -->
+    <PackageReference Include="QRCoder" />
+  </ItemGroup>
+
   <!--
     Tailwind. The stylesheet source is ClientAssets/app.css; the compiled output is
     wwwroot/css/app.css, referenced by Pages/Shared/_Layout.cshtml. No Node.js, npm or

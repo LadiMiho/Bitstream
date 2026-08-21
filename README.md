@@ -110,8 +110,11 @@ no configuration value can make it run outside Development. On UAT and productio
 `db/Deploy-Database.ps1` remains the only supported path (TR-ARC-08).
 
 The seeded administrator has two-factor authentication enabled, so the sign-in screen will ask
-for a code. The host logs the `otpauth://` provisioning URI at start-up (warning level, so it is
-visible without turning logging up) — scan it into an authenticator app on first run.
+for a code. Because nothing has confirmed the secret yet, the first sign-in shows a QR code
+right on `/Login` — scan it with an authenticator app and enter the code it shows, which both
+confirms enrollment and signs you in; every sign-in after that just asks for the code. The host
+also logs the `otpauth://` provisioning URI at start-up (warning level) as a fallback for a
+browser that cannot render the QR image.
 
 The database itself must exist first — the scripts create schemas and tables, not the database:
 

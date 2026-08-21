@@ -59,7 +59,8 @@ internal static class IdentitySeeder
         long? ispId,
         string email,
         UserStatus status = UserStatus.Active,
-        int failedLoginCount = 0)
+        int failedLoginCount = 0,
+        bool totpConfirmed = true)
     {
         var user = new User
         {
@@ -76,11 +77,13 @@ internal static class IdentitySeeder
             PasswordHash = TestPassword.Hash,
             PasswordHashAlgorithm = "Argon2id",
             // The configured second-factor channel defaults to Totp (appsettings.json), and
-            // IssueChallengeAsync only checks that a secret is present — it is not decrypted
-            // until a code is actually verified, which none of these HTTP-level tests do. A
-            // placeholder here is enough to let a login reach "challenge issued" without wiring
-            // ITotpSecretProtector's real key resolution into the test host.
+            // IssueChallengeAsync only decrypts this when TotpConfirmedAt is null (to build the
+            // enrollment QR — see TwoFactorEnrollmentTests, which seeds that case for real via
+            // ITotpSecretProtector). Every other test wants an already-enrolled user, for whom a
+            // placeholder is enough to reach "challenge issued" without wiring the protector's
+            // real key resolution into every test host.
             TotpSecret = [1, 2, 3, 4, 5, 6, 7, 8],
+            TotpConfirmedAt = totpConfirmed ? DateTimeOffset.UtcNow : null,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
