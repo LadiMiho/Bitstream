@@ -5,7 +5,6 @@ using Bitstream.Application.Services.Identity;
 using Bitstream.Infrastructure.Persistence.HealthChecks;
 using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Infrastructure.Persistence.Repositories;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
