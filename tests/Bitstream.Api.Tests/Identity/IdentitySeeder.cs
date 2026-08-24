@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Bitstream.Application.Identity.Entities;
+using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;
@@ -60,6 +61,11 @@ internal static class IdentitySeeder
         return isp;
     }
 
+    /// <param name="db">The context to seed into.</param>
+    /// <param name="role">The seeded role to assign.</param>
+    /// <param name="ispId">The owning ISP, or null for a staff/admin account.</param>
+    /// <param name="email">Also used as the username.</param>
+    /// <param name="status">Active by default.</param>
     /// <param name="lockoutEnd">Null (default) for an active user; a future timestamp to seed an already-locked one (TR-SEC-12).</param>
     public static async Task<User> AddUserAsync(
         BitstreamDbContext db,

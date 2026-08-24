@@ -4,7 +4,6 @@ using Bitstream.Application.Identity.Entities;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web.Contracts;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

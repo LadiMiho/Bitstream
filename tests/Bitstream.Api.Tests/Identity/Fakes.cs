@@ -1,6 +1,5 @@
 using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Persistence;
-using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
