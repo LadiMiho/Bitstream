@@ -99,9 +99,11 @@ public sealed class IdentityService : IIdentityService
         }
 
         // TR-SEC-02: Argon2IdentityPasswordHasher also handles the opportunistic rehash under
-        // the currently configured cost parameters. CheckPasswordAsync persists it itself, via
-        // Identity's own EF store (BitstreamIdentityDbContext, AutoSaveChanges) — a separate,
-        // earlier commit from the _unitOfWork.SaveChangesAsync() below, which is BitstreamDbContext.
+        // the currently configured cost parameters. CheckPasswordAsync persists that itself via
+        // Identity's own EF store (BitstreamIdentityDbContext, AutoSaveChanges) — an earlier,
+        // separate save from the _unitOfWork.SaveChangesAsync() below, which additionally covers
+        // BitstreamIdentityDbContext (see EfUnitOfWork), so the FailedLoginCount reset just below
+        // does not need a save of its own.
         if (!await _userManager.CheckPasswordAsync(user, password).ConfigureAwait(false))
         {
             return await HandleFailedPasswordAsync(user, cancellationToken).ConfigureAwait(false);
@@ -110,11 +112,6 @@ public sealed class IdentityService : IIdentityService
         if (user.FailedLoginCount != 0)
         {
             user.FailedLoginCount = 0;
-
-            // user is tracked by BitstreamIdentityDbContext (loaded via UserManager), not
-            // BitstreamDbContext — the _unitOfWork.SaveChangesAsync() below only covers the
-            // latter, so this mutation needs UserManager's own store save to reach the database.
-            await _userManager.UpdateAsync(user).ConfigureAwait(false);
         }
 
         var (challengeToken, channel, expiresAt, provisioningUri) = await IssueChallengeAsync(user, cancellationToken).ConfigureAwait(false);
@@ -320,10 +317,7 @@ public sealed class IdentityService : IIdentityService
                 user.Id, user.FailedLoginCount);
         }
 
-        // user is tracked by BitstreamIdentityDbContext (loaded via UserManager in
-        // AuthenticateAsync), not BitstreamDbContext — persist through UserManager's own store
-        // rather than _unitOfWork.SaveChangesAsync(), which only covers the latter.
-        await _userManager.UpdateAsync(user).ConfigureAwait(false);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
             "Security.Login.Failed", "User", userIdText, null,

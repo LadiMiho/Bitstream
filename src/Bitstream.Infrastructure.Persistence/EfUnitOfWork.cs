@@ -1,21 +1,37 @@
 using Bitstream.Application.Abstractions.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Bitstream.Infrastructure.Persistence;
 
 /// <summary>
-/// <see cref="IUnitOfWork"/> over <see cref="BitstreamDbContext"/>. Repositories track changes
-/// on the context; this is the one place that calls <c>SaveChangesAsync</c>, so an application
-/// service controls exactly when a set of mutations becomes durable.
+/// <see cref="IUnitOfWork"/> over <see cref="BitstreamDbContext"/> and
+/// <see cref="BitstreamIdentityDbContext"/>. Repositories track changes on whichever context owns
+/// the entity they touch — most on <see cref="BitstreamDbContext"/>, but anything loaded via
+/// <c>UserManager&lt;User&gt;</c>/<c>RoleManager&lt;Role&gt;</c> (e.g. <c>IdentityService</c>
+/// mutating <c>User.FailedLoginCount</c>/<c>Status</c> after <c>UserManager.FindByEmailAsync</c>)
+/// is tracked by <see cref="BitstreamIdentityDbContext"/> instead. This is the one place that
+/// calls <c>SaveChangesAsync</c>, so an application service controls exactly when a set of
+/// mutations across either context becomes durable, without needing to know which one it is.
 /// </summary>
 public sealed class EfUnitOfWork : IUnitOfWork
 {
     private readonly BitstreamDbContext _dbContext;
+    private readonly BitstreamIdentityDbContext _identityDbContext;
 
-    public EfUnitOfWork(BitstreamDbContext dbContext) => _dbContext = dbContext;
+    public EfUnitOfWork(BitstreamDbContext dbContext, BitstreamIdentityDbContext identityDbContext)
+    {
+        _dbContext = dbContext;
+        _identityDbContext = identityDbContext;
+    }
 
-    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
-        _dbContext.SaveChangesAsync(cancellationToken);
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var identityChanges = await _identityDbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var changes = await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return identityChanges + changes;
+    }
 
     public async Task<IAsyncDisposable> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
