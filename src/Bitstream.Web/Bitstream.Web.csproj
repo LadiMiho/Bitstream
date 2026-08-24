@@ -26,6 +26,17 @@
     <PackageReference Include="QRCoder" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- `dotnet ef` design-time tooling resolves against the *startup* project, not the one
+         holding the DbContext — Bitstream.Infrastructure.Persistence.csproj already references
+         this, but `dotnet ef database update --startup-project src/Bitstream.Web ...` still
+         needs it here too. Not referenced by any shipped runtime path. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <!--
     Tailwind. The stylesheet source is ClientAssets/app.css; the compiled output is
     wwwroot/css/app.css, referenced by Pages/Shared/_Layout.cshtml. No Node.js, npm or
