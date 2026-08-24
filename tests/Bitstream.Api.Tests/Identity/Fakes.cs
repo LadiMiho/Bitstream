@@ -271,13 +271,13 @@ public sealed class FakeRoleStore : IRoleStore<Role>
 
     public Task<IdentityResult> CreateAsync(Role role, CancellationToken cancellationToken)
     {
-        Roles[role.Name] = role;
+        Roles[role.Name!] = role;
         return Task.FromResult(IdentityResult.Success);
     }
 
     public Task<IdentityResult> UpdateAsync(Role role, CancellationToken cancellationToken)
     {
-        Roles[role.Name] = role;
+        Roles[role.Name!] = role;
         return Task.FromResult(IdentityResult.Success);
     }
 
