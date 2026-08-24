@@ -21,24 +21,25 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!--
+    Not explicit PackageReferences: with FrameworkReference above in place, the .NET SDK's package
+    pruning treats Microsoft.AspNetCore.DataProtection, Microsoft.AspNetCore.DataProtection.Extensions
+    (the concrete DataProtectionProvider BitstreamIdentityDbContextFactory below constructs directly,
+    with no DI container to resolve IDataProtectionProvider from), Microsoft.Extensions.Options.
+    ConfigurationExtensions, Microsoft.Extensions.Diagnostics.HealthChecks, and
+    Microsoft.Extensions.Hosting.Abstractions (IHostedService, for the start-up schema version guard)
+    as already part of the shared framework and fails the build (NU1510, Warning As Error) if they're
+    referenced explicitly too.
+  -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
-    <!-- The concrete, directly-constructible DataProtectionProvider (BitstreamIdentityDbContextFactory
-         below has no DI container to resolve IDataProtectionProvider from) lives here, not in the
-         core package above. -->
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
-    <!-- IHostedService, for the start-up schema version guard. -->
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
 
   <!--

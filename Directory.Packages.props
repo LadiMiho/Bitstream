@@ -39,13 +39,13 @@
          cookies and Default token provider. 10.0.7, not 10.0.0: fixes GHSA-9mv3-2cwr-p262 (CVE-2026-40372,
          critical — a validation bypass letting an attacker forge authentication cookies and decrypt
          protected payloads), exactly the surface this package is used for here. -->
+    <!-- Not an explicit PackageReference anywhere (see Bitstream.Infrastructure.Persistence.csproj's
+         FrameworkReference to Microsoft.AspNetCore.App — the SDK's package pruning rejects an
+         explicit reference to a package already part of the shared framework), but Directory.Build.
+         props' CentralPackageTransitivePinningEnabled still needs a version pinned for it here,
+         since Identity.EntityFrameworkCore pulls it in transitively and the version it would
+         otherwise resolve to has GHSA-9mv3-2cwr-p262 (CVE-2026-40372, critical). -->
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
-
-    <!-- Microsoft.AspNetCore.DataProtection only ships IDataProtectionProvider (DI-based). The
-         concrete, directly-constructible DataProtectionProvider type used by the design-time
-         factory (BitstreamIdentityDbContextFactory, which has no DI container to resolve from)
-         lives in this separate package. -->
-    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.7" />
 
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
