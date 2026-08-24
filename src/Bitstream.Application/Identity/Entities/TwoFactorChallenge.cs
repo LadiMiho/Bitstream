@@ -1,6 +1,6 @@
 using Bitstream.Domain.Enums;
 
-namespace Bitstream.Domain.Entities;
+namespace Bitstream.Application.Identity.Entities;
 
 /// <summary>
 /// A pending second-factor verification, TR-SEC-04.
@@ -19,6 +19,10 @@ namespace Bitstream.Domain.Entities;
 /// <see cref="TwoFactorChannel.EmailOtp"/> and <see cref="TwoFactorChannel.SmsOtp"/> the portal
 /// generates the code itself, so only its hash is stored — the same reasoning as a password
 /// hash: a copy of this table must not hand out a usable code.
+/// </para>
+/// <para>
+/// Moved out of <c>Bitstream.Domain</c> alongside <see cref="User"/> purely because it navigates
+/// to it — the table itself (<c>sec.TwoFactorChallenge</c>) stays hand-written, unmigrated.
 /// </para>
 /// </summary>
 public sealed class TwoFactorChallenge

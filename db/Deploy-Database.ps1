@@ -11,6 +11,20 @@
     Requires the SqlServer PowerShell module (Install-Module SqlServer) on the deployment
     host. Runs on Windows Server against MSSQL; no container tooling is involved.
 
+    IDENTITY SCHEMA PREREQUISITE (docs/adr/0002-physical-data-model.md, "Amendment"): before
+    running this script, apply the EF Core migration that creates dbo.AspNetUsers/AspNetRoles/
+    etc. — db/mssql/0014_drop_legacy_identity_tables.sql re-points several tables' foreign keys
+    at those tables and fails if they do not exist yet:
+
+        dotnet ef database update `
+            --project src/Bitstream.Infrastructure.Persistence `
+            --startup-project src/Bitstream.Web `
+            --context BitstreamIdentityDbContext `
+            --connection "<the same connection string this deployment targets>"
+
+    This is deliberately not invoked by this script — each tool applies its own part of the
+    schema, and this one stays sqlcmd/Invoke-Sqlcmd only.
+
 .PARAMETER ServerInstance
     SQL Server instance, e.g. SQLPROD01\BITSTREAM.
 

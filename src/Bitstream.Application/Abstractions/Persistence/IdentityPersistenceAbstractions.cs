@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 
 namespace Bitstream.Application.Abstractions.Persistence;
@@ -6,8 +7,9 @@ namespace Bitstream.Application.Abstractions.Persistence;
 /// Everything about a user that <c>UserManager&lt;User&gt;</c> does not cover, because it isn't
 /// part of Identity's contract: browsing/searching (TRD 4.2), cascading a lock across an ISP's
 /// users (TR-SEC-13), and the password-reuse history (TR-SEC-03). Core CRUD/lookup-by-ID —
-/// find by email, create, check a password — goes through <c>UserManager&lt;User&gt;</c> now
-/// (see <c>Bitstream.Infrastructure.Persistence.Identity.BitstreamUserStore</c>).
+/// find by email, create, check a password — goes through <c>UserManager&lt;User&gt;</c> now,
+/// backed by ASP.NET Core Identity's own EF store
+/// (<c>Bitstream.Infrastructure.Persistence.Identity.BitstreamIdentityDbContext</c>).
 /// <para>
 /// Entities returned here are tracked by the caller's <see cref="IUnitOfWork"/> scope, same as
 /// every other repository in this file.

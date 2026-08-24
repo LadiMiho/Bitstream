@@ -47,8 +47,8 @@ public sealed class CrmClosureEndToEndTests
             var ispUser = await IdentitySeeder.AddUserAsync(db, ispRole, isp.IspId, "closure-isp-user@example.com");
             var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, "closure-admin@example.com");
 
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, ispUser.UserId);
-            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            ispUserToken = await IdentitySeeder.AddSessionAsync(db, ispUser.Id);
+            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.Id);
             ispId = isp.IspId;
         }
 
@@ -178,7 +178,7 @@ public sealed class CrmClosureEndToEndTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Out Of Sequence ISP", "L00000901");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "out-of-sequence@example.com");
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
             ispId = isp.IspId;
         }
 
@@ -213,7 +213,7 @@ public sealed class CrmClosureEndToEndTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Rejected ISP", "L00000902");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "rejected@example.com");
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
             ispId = isp.IspId;
         }
 

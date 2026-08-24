@@ -1,4 +1,4 @@
-namespace Bitstream.Domain.Entities;
+namespace Bitstream.Application.Identity.Entities;
 
 /// <summary>
 /// A signed-in session, TR-SEC-07.
@@ -15,6 +15,12 @@ namespace Bitstream.Domain.Entities;
 /// <see cref="TokenHash"/> holds a SHA-256 hash of the opaque token issued to the browser as an
 /// HttpOnly cookie, never the token itself: a copy of this table does not hand out usable
 /// sessions, the same discipline TR-SEC-02 applies to passwords.
+/// </para>
+/// <para>
+/// Moved out of <c>Bitstream.Domain</c> alongside <see cref="User"/> purely because it navigates
+/// to it — this remains the lightweight custom session table kept specifically instead of
+/// ASP.NET Core Identity's own cookie auth, so revocation/listing keep working exactly as before;
+/// the table itself (<c>sec.UserSession</c>) stays hand-written, unmigrated.
 /// </para>
 /// </summary>
 public sealed class UserSession

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Web;
 using Bitstream.Web.Contracts;
 using Microsoft.AspNetCore.Hosting;
@@ -132,6 +133,8 @@ internal sealed class TwoFactorEnrollmentApiFactory : WebApplicationFactory<WebH
         {
             services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+            // Same name as BitstreamDbContext, deliberately — see IdentityApiFactory's comment.
+            services.AddDbContext<BitstreamIdentityDbContext>(options => options.UseInMemoryDatabase(_databaseName));
         });
     }
 

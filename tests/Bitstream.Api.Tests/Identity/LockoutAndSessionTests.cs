@@ -114,7 +114,7 @@ public sealed class LockoutAndSessionTests
 
             var now = DateTimeOffset.UtcNow;
             token = await IdentitySeeder.AddSessionAsync(
-                db, user.UserId,
+                db, user.Id,
                 issuedAt: now.AddHours(-1),
                 expiresAt: now.AddHours(11),
                 lastActivityAt: now.AddHours(-1));
@@ -145,7 +145,7 @@ public sealed class LockoutAndSessionTests
 
             var now = DateTimeOffset.UtcNow;
             token = await IdentitySeeder.AddSessionAsync(
-                db, user.UserId,
+                db, user.Id,
                 issuedAt: now.AddHours(-13),
                 expiresAt: now.AddMinutes(-60),
                 lastActivityAt: now.AddMinutes(-1));
@@ -171,7 +171,7 @@ public sealed class LockoutAndSessionTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000014");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "fresh-session@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
         }
 
         using var client = factory.CreateClient();
@@ -198,7 +198,7 @@ public sealed class LockoutAndSessionTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000015");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "logout-target@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
         }
 
         using var client = factory.CreateClient();

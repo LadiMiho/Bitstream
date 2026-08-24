@@ -1,5 +1,5 @@
 using Bitstream.Application.Abstractions.Persistence;
-using Bitstream.Domain.Entities;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,7 +33,7 @@ public sealed class UserRepository : IUserRepository
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = search.ToUpper();
-            query = query.Where(user => user.FullName.ToUpper().Contains(pattern) || user.Email.ToUpper().Contains(pattern));
+            query = query.Where(user => user.FullName.ToUpper().Contains(pattern) || user.Email!.ToUpper().Contains(pattern));
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);

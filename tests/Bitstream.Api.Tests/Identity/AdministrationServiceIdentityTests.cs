@@ -30,7 +30,7 @@ public sealed class AdministrationServiceIdentityTests
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "user.create");
             var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, adminEmail);
-            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.Id);
 
             // The new user's own role also needs to exist — CreateUserAsync validates it.
             await IdentitySeeder.AddRoleAsync(db, "IspUser");

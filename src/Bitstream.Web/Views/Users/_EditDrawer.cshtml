@@ -1,8 +1,8 @@
-@model Bitstream.Domain.Entities.User
+@model Bitstream.Application.Identity.Entities.User
 @{
     var roles = (IReadOnlyList<string>)(ViewBag.Roles ?? Array.Empty<string>());
 }
-<form id="user-edit-form" class="grid gap-4" novalidate data-action="update" data-user-id="@Model.UserId">
+<form id="user-edit-form" class="grid gap-4" novalidate data-action="update" data-user-id="@Model.Id">
     <p class="field-error" role="alert" hidden></p>
     <div>
         <label class="field-label" for="user-edit-full-name">Full name</label>

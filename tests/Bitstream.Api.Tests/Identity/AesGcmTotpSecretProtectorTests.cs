@@ -4,7 +4,7 @@ using Xunit;
 namespace Bitstream.Api.Tests.Identity;
 
 /// <summary>
-/// The "encrypted" half of <see cref="Bitstream.Domain.Entities.User.TotpSecret"/> (TR-SEC-04).
+/// The "encrypted" half of <see cref="Bitstream.Application.Identity.Entities.User.TotpSecret"/> (TR-SEC-04).
 /// Keyed through <see cref="Bitstream.Application.Abstractions.Configuration.ISecretResolver"/>
 /// (TR-SEC-28) rather than a value handed to the constructor directly, so these tests exercise
 /// exactly the same resolution path production does, just against a fake store.

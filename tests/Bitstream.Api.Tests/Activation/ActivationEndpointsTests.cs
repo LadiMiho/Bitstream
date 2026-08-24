@@ -30,7 +30,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "ServiceDesk", "ticket.read.all");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000101");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "servicedesk@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
             ispId = isp.IspId;
         }
 
@@ -58,7 +58,7 @@ public sealed class ActivationEndpointsTests
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000102");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Other ISP", "L00000103");
             var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-user@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
 
             var otherRequest = await ActivationSeeder.AddRequestAsync(db, otherIsp.IspId, "ISP_1001");
             otherRequestPublicId = otherRequest.PublicId;
@@ -86,7 +86,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.read.own");
             var isp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000104");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "own-user-2@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
 
             var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1002");
             publicId = request.PublicId;
@@ -115,7 +115,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000105");
             var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "isp-user@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
 
             var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1003", ActivationRequestStatus.AwaitingGisVerification);
             requestId = request.RequestId;
@@ -144,7 +144,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.gis.record");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000106");
             var admin = await IdentitySeeder.AddUserAsync(db, role, ispId: null, "admin-2@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, admin.Id);
 
             var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1004", ActivationRequestStatus.AwaitingGisVerification);
             requestId = request.RequestId;
@@ -173,7 +173,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.gis.record");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000107");
             var admin = await IdentitySeeder.AddUserAsync(db, role, ispId: null, "admin-3@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, admin.Id);
 
             var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1005", ActivationRequestStatus.AwaitingGisVerification);
             requestId = request.RequestId;
@@ -209,7 +209,7 @@ public sealed class ActivationEndpointsTests
             var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.gis.record");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000108");
             var admin = await IdentitySeeder.AddUserAsync(db, role, ispId: null, "admin-4@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, admin.Id);
 
             // Still Submitted — GIS verification has not been reached yet.
             var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1006", ActivationRequestStatus.Submitted);

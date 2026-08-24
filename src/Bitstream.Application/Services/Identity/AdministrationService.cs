@@ -6,6 +6,7 @@ using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Configuration;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
@@ -202,7 +203,7 @@ public sealed partial class AdministrationService : IAdministrationService
             foreach (var user in users.Where(u => u.Status == UserStatus.Active))
             {
                 user.Status = UserStatus.Locked;
-                lockedUserIds.Add(user.UserId);
+                lockedUserIds.Add(user.Id);
             }
         }
 
@@ -284,8 +285,11 @@ public sealed partial class AdministrationService : IAdministrationService
             IspId = request.IspId,
             FullName = request.FullName,
             Email = request.Email,
+            // This app has no separate username concept — UserName always equals Email, purely
+            // because Identity's own UserValidator requires it to be non-empty.
+            UserName = request.Email,
             Mobile = request.Mobile,
-            RoleId = role.RoleId,
+            RoleId = role.Id,
             // Set explicitly rather than left to EF's change-tracker fixup: this is the entity
             // CreateUserAsync hands back to the caller, and ToResponse (AdministrationEndpoints)
             // reads user.Role.Name from it before anything would trigger a reload.
@@ -320,12 +324,12 @@ public sealed partial class AdministrationService : IAdministrationService
 
         // user.PasswordHash is now the real Argon2id hash — UserManager.CreateAsync set it via
         // Argon2IdentityPasswordHasher before the save above.
-        await _userRepository.AddPasswordHistoryAsync(user.UserId, user.PasswordHash, _passwordHasher.AlgorithmTag, cancellationToken)
+        await _userRepository.AddPasswordHistoryAsync(user.Id, user.PasswordHash!, _passwordHasher.AlgorithmTag, cancellationToken)
             .ConfigureAwait(false);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
-            "User.Created", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+            "User.Created", "User", user.Id.ToString(CultureInfo.InvariantCulture),
             null, $"{{\"email\":{JsonSerializer.Serialize(user.Email)},\"role\":{JsonSerializer.Serialize(request.RoleName)},\"ispId\":{(request.IspId is { } id ? id.ToString(CultureInfo.InvariantCulture) : "null")}}}",
             cancellationToken).ConfigureAwait(false);
 
@@ -361,7 +365,7 @@ public sealed partial class AdministrationService : IAdministrationService
         }
 
         var user = await _userManager.FindByIdAsync(ownUserId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
-        var matches = user is not null && MatchesSearch(search, user.FullName, user.Email);
+        var matches = user is not null && MatchesSearch(search, user.FullName, user.Email!);
 
         return matches ? new PagedResult<User>([user!], 1) : new PagedResult<User>([], 0);
     }
@@ -423,7 +427,7 @@ public sealed partial class AdministrationService : IAdministrationService
         {
             var existing = await _userManager.FindByEmailAsync(request.Email).ConfigureAwait(false);
 
-            if (existing is not null && existing.UserId != userId)
+            if (existing is not null && existing.Id != userId)
             {
                 // TR-SEC-01: unique across the platform.
                 violations.Add($"A user with email '{request.Email}' already exists.");
@@ -446,9 +450,10 @@ public sealed partial class AdministrationService : IAdministrationService
 
         user.FullName = request.FullName;
         user.Email = request.Email;
+        user.UserName = request.Email;
         user.Mobile = request.Mobile;
         user.IspId = request.IspId;
-        user.RoleId = role.RoleId;
+        user.RoleId = role.Id;
         user.Role = role;
 
         var updateResult = await _userManager.UpdateAsync(user).ConfigureAwait(false);
@@ -502,7 +507,7 @@ public sealed partial class AdministrationService : IAdministrationService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        await _userRepository.AddPasswordHistoryAsync(userId, user.PasswordHash, _passwordHasher.AlgorithmTag, cancellationToken)
+        await _userRepository.AddPasswordHistoryAsync(userId, user.PasswordHash!, _passwordHasher.AlgorithmTag, cancellationToken)
             .ConfigureAwait(false);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

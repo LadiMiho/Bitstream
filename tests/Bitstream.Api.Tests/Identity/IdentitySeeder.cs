@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
@@ -26,7 +27,7 @@ internal static class IdentitySeeder
             db.Permissions.Add(permission);
             await db.SaveChangesAsync();
 
-            db.RolePermissions.Add(new RolePermission { RoleId = role.RoleId, PermissionId = permission.PermissionId, GrantedAt = DateTimeOffset.UtcNow });
+            db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = permission.PermissionId, GrantedAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
         }
 
@@ -62,13 +63,23 @@ internal static class IdentitySeeder
         int failedLoginCount = 0,
         bool totpConfirmed = true)
     {
+        var normalizedEmail = email.ToUpperInvariant();
+
         var user = new User
         {
             IspId = ispId,
             FullName = "Test User",
             Email = email,
+            // UserName/NormalizedUserName/NormalizedEmail would ordinarily be set by
+            // UserManager.CreateAsync; this seeder bypasses UserManager entirely (writes
+            // directly to BitstreamDbContext), so they are set by hand — otherwise
+            // UserManager.FindByEmailAsync (which every login test exercises) would never find
+            // the seeded user.
+            UserName = email,
+            NormalizedEmail = normalizedEmail,
+            NormalizedUserName = normalizedEmail,
             Mobile = "+355691234567",
-            RoleId = role.RoleId,
+            RoleId = role.Id,
             Status = status,
             FailedLoginCount = failedLoginCount,
             // Argon2PasswordHasher.Hash("Correct-Horse-Battery-Staple-9") computed once and

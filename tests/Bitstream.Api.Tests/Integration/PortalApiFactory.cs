@@ -2,6 +2,7 @@ using Bitstream.Api.Tests.Activation;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -59,6 +60,8 @@ public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
         {
             services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+            // Same name as BitstreamDbContext, deliberately — see IdentityApiFactory's comment.
+            services.AddDbContext<BitstreamIdentityDbContext>(options => options.UseInMemoryDatabase(_databaseName));
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(_crmGateway);

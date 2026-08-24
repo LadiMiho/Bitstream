@@ -1,4 +1,5 @@
 using Bitstream.Application.Configuration;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
@@ -27,8 +28,8 @@ public sealed class AdministrationServiceTests
 
     private AdministrationService CreateService()
     {
-        _roleStore.Roles["IspUser"] = new Role { RoleId = 10, Name = "IspUser", IsSystemRole = true };
-        _roleStore.Roles["Administrator"] = new Role { RoleId = 20, Name = "Administrator", IsSystemRole = true };
+        _roleStore.Roles["IspUser"] = new Role { Id = 10, Name = "IspUser", IsSystemRole = true };
+        _roleStore.Roles["Administrator"] = new Role { Id = 20, Name = "Administrator", IsSystemRole = true };
 
         var passwordPolicyOptions = new TestOptionsMonitor<PasswordPolicyOptions>(new PasswordPolicyOptions());
         var passwordHasher = new Argon2PasswordHasher(passwordPolicyOptions);
@@ -242,7 +243,7 @@ public sealed class AdministrationServiceTests
 
     private static User MakeUser(long userId, long ispId, UserStatus status) => new()
     {
-        UserId = userId,
+        Id = userId,
         IspId = ispId,
         FullName = "Test User",
         Email = $"user{userId}@example.com",

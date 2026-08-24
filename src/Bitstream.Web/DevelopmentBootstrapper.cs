@@ -2,9 +2,10 @@ using System.Data;
 using System.Data.Common;
 using System.Text.RegularExpressions;
 using Bitstream.Application.Abstractions.Security;
-using Bitstream.Domain.Entities;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Web;
@@ -69,6 +70,13 @@ public static class DevelopmentBootstrapper
         try
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var identityDbContext = scope.ServiceProvider.GetRequiredService<BitstreamIdentityDbContext>();
+
+            // Must run first: db/mssql/0014 (dropped below, as part of the schema-script pass)
+            // re-points several hand-written tables' foreign keys at dbo.AspNetUsers/AspNetRoles,
+            // which only exist once this migration has created them.
+            await identityDbContext.Database.MigrateAsync().ConfigureAwait(false);
+            logger.LogInformation("Development bootstrap: identity schema migrated.");
 
             await ApplySchemaScriptsAsync(dbContext, app.Environment.ContentRootPath, app.Configuration[AppUserKey], logger).ConfigureAwait(false);
             await SeedAdministratorAsync(dbContext, scope.ServiceProvider, app.Configuration, logger).ConfigureAwait(false);
@@ -235,13 +243,22 @@ public static class DevelopmentBootstrapper
         var totpProtector = services.GetRequiredService<ITotpSecretProtector>();
         var totpService = services.GetRequiredService<ITotpService>();
 
+        // UserName/NormalizedUserName/NormalizedEmail are ordinarily set by UserManager.CreateAsync
+        // (via the registered ILookupNormalizer); this insert bypasses UserManager entirely, so
+        // they are set by hand here — otherwise UserManager.FindByEmailAsync (which queries by
+        // NormalizedEmail) would never find this seeded account, and login would fail.
+        var normalizedEmail = email.ToUpperInvariant();
+
         dbContext.Users.Add(new User
         {
             IspId = null,
             FullName = "Development Administrator",
             Email = email,
+            UserName = email,
+            NormalizedEmail = normalizedEmail,
+            NormalizedUserName = normalizedEmail,
             Mobile = "+355690000000",
-            RoleId = role.RoleId,
+            RoleId = role.Id,
             Status = UserStatus.Active,
             PasswordHash = passwordHasher.Hash(password),
             PasswordHashAlgorithm = "argon2id",

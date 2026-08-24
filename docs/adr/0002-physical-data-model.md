@@ -1,7 +1,40 @@
 # ADR-0002 — Hand-written T-SQL rather than EF Core migrations
 
-**Status:** Accepted · **Date:** August 2026 · **Affects:** TR-DAT-02b, TR-DAT-03, TR-DAT-07,
-TR-DAT-09, TR-SEC-24, TR-ARC-08, TR-NFR-19
+**Status:** Amended (see below) · **Date:** August 2026 · **Affects:** TR-DAT-02b, TR-DAT-03,
+TR-DAT-07, TR-DAT-09, TR-SEC-24, TR-ARC-08, TR-NFR-19
+
+## Amendment: EF Core migrations for the identity subsystem only
+
+The user asked, having adopted `UserManager<User>`/`RoleManager<Role>` earlier, why the
+database had none of the standard ASP.NET Core Identity tables (`AspNetUsers`, `AspNetRoles`,
+...) — because the original adoption deliberately used `Microsoft.Extensions.Identity.Core`
+with a hand-written bridge store (`BitstreamUserStore`/`BitstreamRoleStore`), specifically to
+honour this ADR. They then asked to swap to `Microsoft.AspNetCore.Identity.EntityFrameworkCore`
+with a real `IdentityDbContext`, explicitly overriding "no migrations, ever" — but only for
+identity, not the rest of the schema.
+
+**What changed:** `sec.[User]`/`sec.Role` (dropped by `db/mssql/0014_drop_legacy_identity_tables.sql`)
+are replaced by the standard `dbo.AspNetUsers`/`AspNetRoles`/`AspNetUserRoles`/`AspNetUserClaims`/
+`AspNetUserLogins`/`AspNetRoleClaims`/`AspNetUserTokens` tables, with their default names and
+schema so they are immediately recognisable, owned by a real EF Core migration
+(`Bitstream.Infrastructure.Persistence/Identity/BitstreamIdentityDbContext.cs` and its
+`Identity/Migrations/` folder). `BitstreamUserStore`/`BitstreamRoleStore` are deleted —
+`AddEntityFrameworkStores<BitstreamIdentityDbContext>()` replaces them.
+
+**What did not change:** every other table — activation requests, tickets, sessions, TOTP
+challenges, audit log, outbox, `RolePermission`/`Permission` — stays exactly on the hand-written
+scripts below, unmigrated. The reasons in this ADR (append-only audit via triggers, no physical
+delete, gap-free identifiers, DBA-reviewable DDL) apply to all of those precisely as before; none
+of them apply to Identity's own schema, which has no comparable requirement. `BitstreamDbContext`
+also still maps `User`/`Role` (read/join only, no migrations of its own) purely so the
+hand-written tables that navigate to them (`UserSession`, `TwoFactorChallenge`,
+`RolePermission`) keep working in one query — see that context's own doc comment.
+
+This is a narrow, deliberate exception, not a reversal of the ADR's reasoning — it is scoped to
+exactly the one part of the schema where "look exactly like a standard ASP.NET Core Identity
+database" was itself the actual requirement.
+
+## Original decision
 
 ## Decision
 

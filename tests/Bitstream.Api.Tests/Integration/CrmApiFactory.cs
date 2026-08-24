@@ -2,6 +2,7 @@ using Bitstream.Api.Tests.Activation;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,8 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
         {
             services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(DatabaseName));
+            // Same name as BitstreamDbContext, deliberately — see IdentityApiFactory's comment.
+            services.AddDbContext<BitstreamIdentityDbContext>(options => options.UseInMemoryDatabase(DatabaseName));
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(CrmGateway);

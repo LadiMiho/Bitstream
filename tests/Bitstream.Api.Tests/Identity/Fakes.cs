@@ -2,6 +2,7 @@ using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Abstractions.Time;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
@@ -142,7 +143,7 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
             .Where(user => ispId is null || user.IspId == ispId)
             .Where(user => string.IsNullOrWhiteSpace(search)
                 || user.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)
-                || user.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
+                || user.Email!.Contains(search, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(user => user.CreatedAt)
             .ToList();
 
@@ -156,7 +157,7 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
         Task.CompletedTask;
 
     public Task<string> GetUserIdAsync(User user, CancellationToken cancellationToken) =>
-        Task.FromResult(user.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Task.FromResult(user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public Task<string?> GetUserNameAsync(User user, CancellationToken cancellationToken) => Task.FromResult<string?>(user.Email);
 
@@ -171,24 +172,24 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
     }
 
     public Task<string?> GetNormalizedUserNameAsync(User user, CancellationToken cancellationToken) =>
-        Task.FromResult<string?>(user.Email.ToUpperInvariant());
+        Task.FromResult<string?>(user.Email!.ToUpperInvariant());
 
     public Task SetNormalizedUserNameAsync(User user, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<IdentityResult> CreateAsync(User user, CancellationToken cancellationToken)
     {
-        if (user.UserId == 0)
+        if (user.Id == 0)
         {
-            user.UserId = _nextUserId++;
+            user.Id = _nextUserId++;
         }
 
-        Users[user.UserId] = user;
+        Users[user.Id] = user;
         return Task.FromResult(IdentityResult.Success);
     }
 
     public Task<IdentityResult> UpdateAsync(User user, CancellationToken cancellationToken)
     {
-        Users[user.UserId] = user;
+        Users[user.Id] = user;
         return Task.FromResult(IdentityResult.Success);
     }
 
@@ -199,7 +200,7 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
         Task.FromResult(long.TryParse(userId, out var id) ? Users.GetValueOrDefault(id) : null);
 
     public Task<User?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) =>
-        Task.FromResult(Users.Values.FirstOrDefault(user => user.Email.ToUpperInvariant() == normalizedUserName));
+        Task.FromResult(Users.Values.FirstOrDefault(user => user.Email!.ToUpperInvariant() == normalizedUserName));
 
     public Task<string?> GetPasswordHashAsync(User user, CancellationToken cancellationToken) => Task.FromResult<string?>(user.PasswordHash);
 
@@ -232,10 +233,10 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
     public Task SetEmailConfirmedAsync(User user, bool confirmed, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<User?> FindByEmailAsync(string normalizedEmail, CancellationToken cancellationToken) =>
-        Task.FromResult(Users.Values.FirstOrDefault(user => user.Email.ToUpperInvariant() == normalizedEmail));
+        Task.FromResult(Users.Values.FirstOrDefault(user => user.Email!.ToUpperInvariant() == normalizedEmail));
 
     public Task<string?> GetNormalizedEmailAsync(User user, CancellationToken cancellationToken) =>
-        Task.FromResult<string?>(user.Email.ToUpperInvariant());
+        Task.FromResult<string?>(user.Email!.ToUpperInvariant());
 
     public Task SetNormalizedEmailAsync(User user, string? normalizedEmail, CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -249,7 +250,7 @@ public sealed class FakeRoleStore : IRoleStore<Role>
     public Dictionary<string, Role> Roles { get; } = [];
 
     public Task<string> GetRoleIdAsync(Role role, CancellationToken cancellationToken) =>
-        Task.FromResult(role.RoleId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Task.FromResult(role.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public Task<string?> GetRoleNameAsync(Role role, CancellationToken cancellationToken) => Task.FromResult<string?>(role.Name);
 
@@ -264,7 +265,7 @@ public sealed class FakeRoleStore : IRoleStore<Role>
     }
 
     public Task<string?> GetNormalizedRoleNameAsync(Role role, CancellationToken cancellationToken) =>
-        Task.FromResult<string?>(role.Name.ToUpperInvariant());
+        Task.FromResult<string?>(role.Name!.ToUpperInvariant());
 
     public Task SetNormalizedRoleNameAsync(Role role, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -284,10 +285,10 @@ public sealed class FakeRoleStore : IRoleStore<Role>
         throw new NotSupportedException("Seeded roles are never deleted.");
 
     public Task<Role?> FindByIdAsync(string roleId, CancellationToken cancellationToken) =>
-        Task.FromResult(long.TryParse(roleId, out var id) ? Roles.Values.FirstOrDefault(role => role.RoleId == id) : null);
+        Task.FromResult(long.TryParse(roleId, out var id) ? Roles.Values.FirstOrDefault(role => role.Id == id) : null);
 
     public Task<Role?> FindByNameAsync(string normalizedRoleName, CancellationToken cancellationToken) =>
-        Task.FromResult(Roles.Values.FirstOrDefault(role => role.Name.ToUpperInvariant() == normalizedRoleName));
+        Task.FromResult(Roles.Values.FirstOrDefault(role => role.Name!.ToUpperInvariant() == normalizedRoleName));
 
     public void Dispose()
     {

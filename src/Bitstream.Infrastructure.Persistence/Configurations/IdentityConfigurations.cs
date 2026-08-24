@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -40,19 +41,23 @@ internal sealed class IspConfiguration : IEntityTypeConfiguration<Isp>
     }
 }
 
+/// <summary>
+/// <see cref="User"/>'s table (<c>dbo.AspNetUsers</c>) is migration-owned by
+/// <c>Identity.BitstreamIdentityDbContext</c>, which configures the same custom columns
+/// independently — this configuration exists only so <see cref="BitstreamDbContext"/> can
+/// <c>.Include()</c> across to <see cref="User"/> from the hand-written tables that still
+/// navigate to it (<c>UserSession</c>, <c>TwoFactorChallenge</c>, <c>RolePermission</c> via
+/// <c>Role</c>, <c>UserPasswordHistory</c>). No <c>ToTable</c> call: EF infers the default
+/// Identity table name (<c>AspNetUsers</c>, <c>dbo</c> schema) from <see cref="User"/>'s base
+/// type, matching what the migration actually creates.
+/// </summary>
 internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("User", Schemas.Security);
-        builder.HasKey(x => x.UserId);
-
-        builder.Property(x => x.UserId).UseIdentityColumn();
         builder.Property(x => x.FullName).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.Email).HasMaxLength(256).IsRequired();
         builder.Property(x => x.Mobile).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
-        builder.Property(x => x.PasswordHash).HasMaxLength(512).IsRequired();
         builder.Property(x => x.PasswordHashAlgorithm).HasMaxLength(50).IsRequired();
         builder.Property(x => x.TotpSecret).HasColumnType("varbinary(256)");
         builder.Property(x => x.TotpConfirmedAt).HasColumnType("datetimeoffset(7)");
@@ -60,17 +65,15 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(x => x.PasswordUpdatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
 
-        // TR-SEC-01 / TR-SEC-14: email unique across the entire platform, internal users included.
-        builder.HasIndex(x => x.Email).IsUnique().HasDatabaseName("UX_User_Email");
         builder.HasIndex(x => x.IspId).HasFilter("[IspId] IS NOT NULL").HasDatabaseName("IX_User_IspId");
 
         builder.HasOne(x => x.Isp)
-            .WithMany(x => x.Users)
+            .WithMany()
             .HasForeignKey(x => x.IspId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Role)
-            .WithMany(x => x.Users)
+            .WithMany()
             .HasForeignKey(x => x.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
     }
@@ -97,18 +100,16 @@ internal sealed class UserPasswordHistoryConfiguration : IEntityTypeConfiguratio
     }
 }
 
+/// <summary>
+/// <see cref="Role"/>'s table (<c>dbo.AspNetRoles</c>) is migration-owned by
+/// <c>Identity.BitstreamIdentityDbContext</c> — see <see cref="UserConfiguration"/> for why this
+/// mapping still exists on <see cref="BitstreamDbContext"/> regardless.
+/// </summary>
 internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> builder)
     {
-        builder.ToTable("Role", Schemas.Security);
-        builder.HasKey(x => x.RoleId);
-
-        builder.Property(x => x.RoleId).UseIdentityColumn();
-        builder.Property(x => x.Name).HasMaxLength(50).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(500);
-
-        builder.HasIndex(x => x.Name).IsUnique().HasDatabaseName("UX_Role_Name");
     }
 }
 

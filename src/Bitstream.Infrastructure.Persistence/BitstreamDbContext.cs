@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,14 @@ namespace Bitstream.Infrastructure.Persistence;
 /// the deployed schema version against <see cref="ExpectedSchemaVersion"/> at start-up so
 /// that drift fails fast instead of silently.
 /// </para>
+/// <para>
+/// <see cref="Users"/>/<see cref="Roles"/> are the one deliberate exception to "never creates
+/// it": their physical table (<c>dbo.AspNetUsers</c>/<c>AspNetRoles</c>) is migration-owned by
+/// <see cref="Identity.BitstreamIdentityDbContext"/>, not this context. They are mapped here,
+/// read/write, purely so <c>UserSession</c>/<c>TwoFactorChallenge</c>/<c>RolePermission</c>/
+/// <c>UserPasswordHistory</c> — all still hand-written, unmigrated tables — can
+/// <c>.Include()</c> across to them in one query, exactly as before this migration existed.
+/// </para>
 /// </summary>
 public sealed class BitstreamDbContext : DbContext
 {
@@ -21,10 +30,11 @@ public sealed class BitstreamDbContext : DbContext
     /// from 2 to 3 when db/mssql/0010_activation_event_ordering.sql (TRD 7.3.2) was added, from
     /// 3 to 4 when db/mssql/0011_post_activation_support.sql (TRD 6) was added, from 4 to 5
     /// when db/mssql/0012_totp_enrollment.sql (TR-SEC-04, first-login QR enrollment) was added,
-    /// and from 5 to 6 when db/mssql/0013_user_deleted_status.sql (soft-delete for User
-    /// Administration) was added.
+    /// from 5 to 6 when db/mssql/0013_user_deleted_status.sql (soft-delete for User
+    /// Administration) was added, and from 6 to 7 when db/mssql/0014_drop_legacy_identity_tables.sql
+    /// (sec.[User]/sec.Role dropped in favour of the EF-migrated AspNetUsers/AspNetRoles) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 6;
+    public const int ExpectedSchemaVersion = 7;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

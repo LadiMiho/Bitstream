@@ -13,7 +13,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
-    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <!-- IHostedService, for the start-up schema version guard. -->
@@ -21,9 +25,11 @@
   </ItemGroup>
 
   <!--
-    The physical schema is owned by the numbered T-SQL scripts in /db/mssql
-    (see docs/adr/0002-physical-data-model.md). EF Core is mapped to that schema
-    and does not generate it; there are no migrations in this project by design.
+    BitstreamDbContext's physical schema is owned by the numbered T-SQL scripts in /db/mssql
+    (see docs/adr/0002-physical-data-model.md) — EF Core is mapped to it and does not generate it,
+    no migrations. BitstreamIdentityDbContext (Identity/) is the one deliberate exception: its
+    schema (the standard AspNetUsers/AspNetRoles/... tables) is EF-migration-owned, under
+    Identity/Migrations/.
   -->
 
 </Project>

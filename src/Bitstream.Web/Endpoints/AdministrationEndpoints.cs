@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
@@ -245,7 +246,7 @@ public static class AdministrationEndpoints
 
             var response = ToResponse(user);
 
-            return Results.CreatedAtRoute("GetUser", new { userId = user.UserId }, response);
+            return Results.CreatedAtRoute("GetUser", new { userId = user.Id }, response);
         }
         catch (AdministrationValidationException exception)
         {
@@ -386,6 +387,6 @@ public static class AdministrationEndpoints
             isp.CrmBpReference, isp.Status.ToString(), isp.CreatedAt);
 
     private static UserResponse ToResponse(User user) =>
-        new(user.UserId, user.IspId, user.FullName, user.Email, user.Mobile, user.Role.Name,
+        new(user.Id, user.IspId, user.FullName, user.Email!, user.Mobile, user.Role.Name!,
             user.Status.ToString(), user.LastLoginAt);
 }

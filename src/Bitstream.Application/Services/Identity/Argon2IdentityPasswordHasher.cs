@@ -1,5 +1,5 @@
 using Bitstream.Application.Abstractions.Security;
-using Bitstream.Domain.Entities;
+using Bitstream.Application.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 
 namespace Bitstream.Application.Services.Identity;

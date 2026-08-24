@@ -29,7 +29,7 @@ public sealed class CrossIspAccessTests
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000001");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000002");
             var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user@example.com");
-            ownIspUserToken = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            ownIspUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
             otherIspId = otherIsp.IspId;
         }
 
@@ -59,7 +59,7 @@ public sealed class CrossIspAccessTests
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000003");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000004");
             var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user-2@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
             otherIspId = otherIsp.IspId;
         }
 
@@ -95,7 +95,7 @@ public sealed class CrossIspAccessTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000005");
             var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user-3@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
             ownIspId = ownIsp.IspId;
         }
 
@@ -125,7 +125,7 @@ public sealed class CrossIspAccessTests
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "isp.read.all");
             var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, "admin@example.com");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Some ISP", "L00000006");
-            token = await IdentitySeeder.AddSessionAsync(db, admin.UserId);
+            token = await IdentitySeeder.AddSessionAsync(db, admin.Id);
             otherIspId = otherIsp.IspId;
         }
 

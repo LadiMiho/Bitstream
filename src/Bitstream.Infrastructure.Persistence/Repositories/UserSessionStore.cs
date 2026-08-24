@@ -1,5 +1,5 @@
 using Bitstream.Application.Abstractions.Persistence;
-using Bitstream.Domain.Entities;
+using Bitstream.Application.Identity.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence.Repositories;

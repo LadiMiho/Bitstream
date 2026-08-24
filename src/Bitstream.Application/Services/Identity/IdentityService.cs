@@ -5,7 +5,7 @@ using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Configuration;
-using Bitstream.Domain.Entities;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
@@ -92,16 +92,16 @@ public sealed class IdentityService : IIdentityService
         {
             // TR-SEC-12: denied without checking the password at all.
             await _auditWriter.WriteAsync(
-                "Security.Login.DeniedLocked", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+                "Security.Login.DeniedLocked", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, null, cancellationToken).ConfigureAwait(false);
 
             return LoginResult.AccountLocked();
         }
 
         // TR-SEC-02: Argon2IdentityPasswordHasher also handles the opportunistic rehash under
-        // the currently configured cost parameters — UserManager persists it on the tracked
-        // entity (via BitstreamUserStore.UpdateAsync, which does not itself save), so it commits
-        // in the same SaveChangesAsync as everything else below.
+        // the currently configured cost parameters. CheckPasswordAsync persists it itself, via
+        // Identity's own EF store (BitstreamIdentityDbContext, AutoSaveChanges) — a separate,
+        // earlier commit from the _unitOfWork.SaveChangesAsync() below, which is BitstreamDbContext.
         if (!await _userManager.CheckPasswordAsync(user, password).ConfigureAwait(false))
         {
             return await HandleFailedPasswordAsync(user, cancellationToken).ConfigureAwait(false);
@@ -117,7 +117,7 @@ public sealed class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
-            "Security.Login.PasswordVerified", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+            "Security.Login.PasswordVerified", "User", user.Id.ToString(CultureInfo.InvariantCulture),
             null, null, cancellationToken).ConfigureAwait(false);
 
         return LoginResult.ChallengeIssued(challengeToken, channel, expiresAt, provisioningUri);
@@ -175,7 +175,7 @@ public sealed class IdentityService : IIdentityService
             await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             await _auditWriter.WriteAsync(
-                "Security.TwoFactor.Failed", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+                "Security.TwoFactor.Failed", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, $"{{\"attempt\":{challenge.AttemptCount}}}", cancellationToken).ConfigureAwait(false);
 
             return challenge.AttemptCount >= maxAttempts ? TwoFactorResult.TooManyAttempts() : TwoFactorResult.InvalidCode();
@@ -188,7 +188,7 @@ public sealed class IdentityService : IIdentityService
             user.TotpConfirmedAt = now;
 
             await _auditWriter.WriteAsync(
-                "Security.TwoFactor.Enrolled", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+                "Security.TwoFactor.Enrolled", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, null, cancellationToken).ConfigureAwait(false);
         }
 
@@ -201,7 +201,7 @@ public sealed class IdentityService : IIdentityService
 
         var session = new UserSession
         {
-            UserId = user.UserId,
+            UserId = user.Id,
             TokenHash = TokenHashing.Sha256Hex(rawToken),
             IssuedAt = now,
             ExpiresAt = expiresAt,
@@ -213,7 +213,7 @@ public sealed class IdentityService : IIdentityService
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
-            "Security.Login.Succeeded", "User", user.UserId.ToString(CultureInfo.InvariantCulture),
+            "Security.Login.Succeeded", "User", user.Id.ToString(CultureInfo.InvariantCulture),
             null, null, cancellationToken).ConfigureAwait(false);
 
         return TwoFactorResult.Succeeded(rawToken, expiresAt, BuildAuthenticatedUser(user));
@@ -300,7 +300,7 @@ public sealed class IdentityService : IIdentityService
 
         var maxAttempts = _lockoutOptions.CurrentValue.MaxFailedAttempts;
         var lockedThisAttempt = user.FailedLoginCount >= maxAttempts;
-        var userIdText = user.UserId.ToString(CultureInfo.InvariantCulture);
+        var userIdText = user.Id.ToString(CultureInfo.InvariantCulture);
 
         if (lockedThisAttempt)
         {
@@ -312,7 +312,7 @@ public sealed class IdentityService : IIdentityService
             // up in the meantime. Swap this for INotificationService once TRD 8 exists.
             _logger.LogWarning(
                 "Account {UserId} locked after {FailedCount} consecutive failed login attempts.",
-                user.UserId, user.FailedLoginCount);
+                user.Id, user.FailedLoginCount);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -350,7 +350,7 @@ public sealed class IdentityService : IIdentityService
                     // TR-SEC-05 forbids falling back to a weaker channel, so a missing secret is
                     // a provisioning defect to fix, not a login failure to paper over.
                     throw new InvalidOperationException(
-                        $"User {user.UserId} has no TOTP secret provisioned, but the configured " +
+                        $"User {user.Id} has no TOTP secret provisioned, but the configured " +
                         "second-factor channel is Totp. Re-create the user, or reconfigure " +
                         "Security:TwoFactor:Channel.");
                 }
@@ -361,7 +361,7 @@ public sealed class IdentityService : IIdentityService
                     // Decrypting it here (rather than only at verify time) is what lets the
                     // presentation layer show a QR code alongside the code prompt.
                     var secret = await _totpSecretProtector.UnprotectAsync(user.TotpSecret, cancellationToken).ConfigureAwait(false);
-                    provisioningUri = _totpService.BuildProvisioningUri(secret, user.Email, "Bitstream Portal");
+                    provisioningUri = _totpService.BuildProvisioningUri(secret, user.Email!, "Bitstream Portal");
                 }
 
                 break;
@@ -389,7 +389,7 @@ public sealed class IdentityService : IIdentityService
         var challenge = new TwoFactorChallenge
         {
             ChallengeToken = token,
-            UserId = user.UserId,
+            UserId = user.Id,
             Channel = options.Channel,
             CodeHash = codeHash,
             CreatedAt = now,
@@ -434,12 +434,12 @@ public sealed class IdentityService : IIdentityService
         var envelope = new IntegrationEnvelope(
             MessageId: Guid.NewGuid(),
             CorrelationId: _correlationContext.CorrelationId,
-            IdempotencyKey: $"2fa-{user.UserId}-{_clock.UtcNow.Ticks}",
+            IdempotencyKey: $"2fa-{user.Id}-{_clock.UtcNow.Ticks}",
             OccurredAt: _clock.UtcNow);
 
         var message = new EmailMessage(
             envelope,
-            To: [user.Email],
+            To: [user.Email!],
             Cc: [],
             Subject: "Bitstream Portal — your verification code",
             HtmlBody: $"<p>Your Bitstream Portal verification code is <strong>{code}</strong>. It expires in {_twoFactorOptions.CurrentValue.CodeValidity.TotalMinutes:F0} minutes and can only be used once.</p>",
@@ -450,16 +450,16 @@ public sealed class IdentityService : IIdentityService
         if (!result.IsSuccess)
         {
             throw new TwoFactorDeliveryException(
-                $"Could not send the verification code to user {user.UserId}: {result.ErrorMessage}");
+                $"Could not send the verification code to user {user.Id}: {result.ErrorMessage}");
         }
     }
 
     private static AuthenticatedUser BuildAuthenticatedUser(User user) =>
         new(
-            user.UserId,
+            user.Id,
             user.FullName,
-            user.Email,
-            user.Role.Name,
+            user.Email!,
+            user.Role.Name!,
             user.IspId,
             [.. user.Role.RolePermissions.Select(rolePermission => rolePermission.Permission.Code)]);
 

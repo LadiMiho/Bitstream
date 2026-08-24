@@ -1,4 +1,5 @@
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -52,6 +53,13 @@ public sealed class IdentityApiFactory : WebApplicationFactory<WebHostEntryPoint
         {
             services.RemoveEntityFrameworkCoreServices();
             services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
+
+            // Same database name, deliberately: BitstreamDbContext and BitstreamIdentityDbContext
+            // both map User/Role (BitstreamDbContext's own doc comment explains why) — EF Core's
+            // InMemory provider shares its store by name regardless of DbContext type, so a user
+            // IdentitySeeder writes through BitstreamDbContext is exactly the row UserManager
+            // (wired to BitstreamIdentityDbContext) reads back.
+            services.AddDbContext<BitstreamIdentityDbContext>(options => options.UseInMemoryDatabase(_databaseName));
         });
     }
 

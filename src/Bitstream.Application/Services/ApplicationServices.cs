@@ -1,3 +1,4 @@
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 

@@ -22,6 +22,11 @@
          layer the same way the BCL cryptography types used by TotpService do. -->
     <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <!-- IdentityUser<TKey>/IdentityRole<TKey> (Identity/User.cs, Role.cs) — the "Stores" package,
+         not "...EntityFrameworkCore": no EF Core, no database driver, so this still fits the
+         TR-ARC-02 boundary below. The EF store itself lives only in
+         Bitstream.Infrastructure.Persistence. -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" />
   </ItemGroup>
 
   <!--

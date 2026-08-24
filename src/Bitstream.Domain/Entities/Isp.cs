@@ -32,8 +32,6 @@ public sealed class Isp
     /// <summary>Administrator who created the record; null only for seed data.</summary>
     public long? CreatedBy { get; set; }
 
-    public ICollection<User> Users { get; set; } = [];
-
     public ICollection<ActivationRequest> ActivationRequests { get; set; } = [];
 
     public ICollection<ActiveLine> ActiveLines { get; set; } = [];
