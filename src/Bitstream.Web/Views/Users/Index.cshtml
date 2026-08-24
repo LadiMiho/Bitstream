@@ -1,0 +1,90 @@
+@{
+    ViewData["Title"] = "User Administration";
+    var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    var canEdit = (bool)(ViewBag.CanEdit ?? false);
+    var canLock = (bool)(ViewBag.CanLock ?? false);
+}
+
+<div class="grid gap-6"
+     data-role="user-admin-page"
+     data-can-create="@canCreate.ToString().ToLowerInvariant()"
+     data-can-edit="@canEdit.ToString().ToLowerInvariant()"
+     data-can-lock="@canLock.ToString().ToLowerInvariant()">
+    <div class="flex items-center justify-between">
+        <div>
+            <a href="/AccessManagement" class="text-sm text-brand-600 underline">&larr; Access Management</a>
+            <h1 class="mt-2 text-xl font-semibold">User Administration</h1>
+        </div>
+
+        @if (canCreate)
+        {
+            <button type="button" id="user-add-button" class="btn-primary">Add user</button>
+        }
+    </div>
+
+    <section class="card" aria-labelledby="user-search-heading">
+        <h2 id="user-search-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Users</h2>
+        <form id="user-search-form" class="mt-4 flex max-w-md items-end gap-3" novalidate>
+            <div class="flex-1">
+                <label class="field-label" for="user-search-query">Search by name or email</label>
+                <input class="field-input" id="user-search-query" name="search" type="search" placeholder="Leave blank to list everyone you can see" />
+            </div>
+            <button type="submit" class="btn-secondary">Search</button>
+        </form>
+        <p id="user-search-error" class="field-error mt-2" role="alert" hidden></p>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Full name</th>
+                        <th class="table-head">Email</th>
+                        <th class="table-head">Role</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-search-results"></tbody>
+            </table>
+            <p id="user-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No users match.</p>
+        </div>
+
+        <div class="mt-4 flex items-center gap-3 text-sm text-ink-muted">
+            <button type="button" id="user-search-prev" class="btn-secondary" disabled>Previous</button>
+            <span id="user-search-summary"></span>
+            <button type="button" id="user-search-next" class="btn-secondary" disabled>Next</button>
+        </div>
+    </section>
+</div>
+
+<!--
+    Drawer: add/edit/view/change-password all render into this one slide-out panel, from
+    server-rendered partials fetched on demand (Controllers/UsersController.cs). Submitting a
+    drawer's form still calls the existing /api/v1/users JSON endpoints (user-admin.js) — the
+    drawer only ever hosts the form, it never validates or authorises a write itself.
+-->
+<div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-hidden="true" aria-labelledby="drawer-title">
+    <div class="drawer-header">
+        <h2 id="drawer-title" class="text-base font-semibold"></h2>
+        <button type="button" id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+</aside>
+
+<!--
+    Confirmation popup for delete / lock / unlock — the three actions that are a single click
+    rather than a form, so they get a standard confirm dialog instead of a drawer.
+-->
+<div id="confirm-backdrop" class="drawer-backdrop" hidden></div>
+<div id="confirm-modal" class="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-message">
+    <p id="confirm-message" class="text-sm text-ink"></p>
+    <div class="mt-4 flex justify-end gap-2">
+        <button type="button" id="confirm-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="confirm-ok" class="btn-primary">Confirm</button>
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/user-admin.js"></script>
+}

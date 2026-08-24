@@ -121,6 +121,40 @@ public static class AdministrationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .RequirePermission(PermissionCodes.UserLock);
 
+        users.MapPut("/{userId:long}", UpdateUserAsync)
+            .WithName("UpdateUser")
+            .WithSummary("Edit a user's profile")
+            .WithDescription("Full name, email, mobile, role and ISP — the same fields and validation as create, minus the password.")
+            .Accepts<UpdateUserHttpRequest>("application/json")
+            .Produces<UserResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequirePermission(PermissionCodes.UserUpdate);
+
+        users.MapPost("/{userId:long}/password", ChangeUserPasswordAsync)
+            .WithName("ChangeUserPassword")
+            .WithSummary("Reset a user's password")
+            .WithDescription("TR-SEC-03: validated against the configured policy and password history. Revokes the user's sessions immediately (TR-SEC-07).")
+            .Accepts<ChangePasswordHttpRequest>("application/json")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequirePermission(PermissionCodes.UserUpdate);
+
+        users.MapDelete("/{userId:long}", DeleteUserAsync)
+            .WithName("DeleteUser")
+            .WithSummary("Delete a user")
+            .WithDescription("TR-DAT-07: soft delete only. The user cannot authenticate afterwards and is hidden from search/browse; every audit, session and password-history row is left intact.")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .RequirePermission(PermissionCodes.UserLock);
+
         return app;
     }
 
@@ -266,6 +300,76 @@ public static class AdministrationEndpoints
             return Results.NotFound();
         }
     }
+
+    private static async Task<IResult> UpdateUserAsync(
+        [FromRoute] long userId,
+        [FromBody] UpdateUserHttpRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var user = await administrationService.UpdateUserAsync(
+                userId, new UpdateUserRequest(request.IspId, request.FullName, request.Email, request.Mobile, request.RoleName),
+                cancellationToken).ConfigureAwait(false);
+
+            return Results.Ok(ToResponse(user));
+        }
+        catch (AdministrationValidationException exception) when (IsUserNotFound(exception, userId))
+        {
+            return Results.NotFound();
+        }
+        catch (AdministrationValidationException exception)
+        {
+            return ValidationProblem(exception);
+        }
+    }
+
+    private static async Task<IResult> ChangeUserPasswordAsync(
+        [FromRoute] long userId,
+        [FromBody] ChangePasswordHttpRequest request,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await administrationService.ChangeUserPasswordAsync(userId, request.NewPassword, cancellationToken).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (AdministrationValidationException exception) when (IsUserNotFound(exception, userId))
+        {
+            return Results.NotFound();
+        }
+        catch (AdministrationValidationException exception)
+        {
+            return ValidationProblem(exception);
+        }
+    }
+
+    private static async Task<IResult> DeleteUserAsync(
+        [FromRoute] long userId,
+        IAdministrationService administrationService,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await administrationService.DeleteUserAsync(userId, cancellationToken).ConfigureAwait(false);
+            return Results.NoContent();
+        }
+        catch (AdministrationValidationException)
+        {
+            return Results.NotFound();
+        }
+    }
+
+    /// <summary>
+    /// Distinguishes "no such user" (404) from every other <see cref="AdministrationValidationException"/>
+    /// the same call can throw (a bad field, an unknown ISP) — both of which also happen to say
+    /// "does not exist", so this matches the exact message <c>AdministrationService</c> throws for
+    /// the missing-user case specifically, not a substring.
+    /// </summary>
+    private static bool IsUserNotFound(AdministrationValidationException exception, long userId) =>
+        exception.Message == $"User {userId} does not exist.";
 
     private static IResult ValidationProblem(AdministrationValidationException exception) =>
         Results.ValidationProblem(

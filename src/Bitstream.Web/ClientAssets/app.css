@@ -17,6 +17,7 @@
   .cshtml file.
 */
 @source "../Pages/**/*.cshtml";
+@source "../Views/**/*.cshtml";
 @source "../wwwroot/**/*.js";
 
 /*
@@ -113,5 +114,39 @@
 
   .nav-link-active {
     @apply bg-brand-50 text-brand-700;
+  }
+
+  /*
+    Drawer (slide-out panel) and its backdrop. Shared by every add/edit/view/change-password
+    action across the admin screens — one component, filled with a different server-rendered
+    partial each time, rather than a bespoke panel per screen.
+  */
+  .drawer-backdrop {
+    @apply fixed inset-0 z-40 bg-ink/40;
+  }
+
+  .drawer {
+    @apply fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col overflow-y-auto
+           bg-surface p-6 shadow-xl;
+  }
+
+  .drawer-header {
+    @apply mb-4 flex items-center justify-between border-b border-line pb-4;
+  }
+
+  .drawer-close {
+    @apply rounded-md p-1 text-xl leading-none text-ink-muted transition-colors
+           hover:bg-surface-muted hover:text-ink focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+  }
+
+  .drawer-body {
+    @apply flex-1;
+  }
+
+  /* Standard confirmation popup for delete / lock / unlock — a single click, not a form. */
+  .confirm-modal {
+    @apply fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2
+           rounded-lg border border-line bg-surface p-6 shadow-xl;
   }
 }

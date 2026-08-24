@@ -7,11 +7,14 @@ public enum IspStatus
     Locked
 }
 
-/// <summary>Lifecycle status of a <see cref="Entities.User"/>. TR-SEC-11, TR-SEC-12.</summary>
+/// <summary>Lifecycle status of a <see cref="Entities.User"/>. TR-SEC-11, TR-SEC-12, TR-DAT-07 (no physical delete).</summary>
 public enum UserStatus
 {
     Active,
-    Locked
+    Locked,
+
+    /// <summary>Soft-deleted: cannot authenticate, hidden from search/browse by default, row and every audit/session/history reference stays intact.</summary>
+    Deleted
 }
 
 /// <summary>

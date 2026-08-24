@@ -1,0 +1,11 @@
+@model Bitstream.Domain.Entities.User
+<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">User ID</dt><dd class="mt-1 text-sm">@Model.UserId</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@Model.Status</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Full name</dt><dd class="mt-1 text-sm">@Model.FullName</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Email</dt><dd class="mt-1 text-sm">@Model.Email</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Mobile</dt><dd class="mt-1 text-sm">@Model.Mobile</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Role</dt><dd class="mt-1 text-sm">@Model.Role.Name</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP ID</dt><dd class="mt-1 text-sm">@(Model.IspId?.ToString() ?? "(internal user)")</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Last login</dt><dd class="mt-1 text-sm">@(Model.LastLoginAt?.ToString("g") ?? "Never")</dd></div>
+</dl>

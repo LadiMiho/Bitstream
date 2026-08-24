@@ -54,7 +54,8 @@ public sealed class AdministrationServiceTests
             _auditWriter,
             _clock,
             _currentUser,
-            twoFactorOptions);
+            twoFactorOptions,
+            passwordPolicyOptions);
     }
 
     [Fact]

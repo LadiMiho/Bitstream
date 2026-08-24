@@ -3,6 +3,7 @@ using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Security;
 using Bitstream.Application.Abstractions.Time;
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
@@ -137,6 +138,7 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
         string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
     {
         var matches = Users.Values
+            .Where(user => user.Status != UserStatus.Deleted)
             .Where(user => ispId is null || user.IspId == ispId)
             .Where(user => string.IsNullOrWhiteSpace(search)
                 || user.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)

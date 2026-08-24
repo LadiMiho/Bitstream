@@ -371,11 +371,30 @@ public interface IAdministrationService
     /// <summary>Null when the user does not exist, or when the caller is not entitled to see it. Self and Administrator/Auditor only.</summary>
     Task<User?> GetUserAsync(long userId, CancellationToken cancellationToken = default);
 
-    /// <summary>Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs.</summary>
+    /// <summary>Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs. Excludes soft-deleted users.</summary>
     Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>Edits a user's profile fields (not the password or the status). Same validation as <see cref="CreateUserAsync"/>.</summary>
+    Task<User> UpdateUserAsync(long userId, UpdateUserRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrator-set password reset: validated against the same policy as
+    /// <see cref="CreateUserAsync"/> (TR-SEC-03), recorded to password history, and followed by an
+    /// immediate revocation of the user's sessions (TR-SEC-07) so a session opened under the old
+    /// password cannot outlive the change.
+    /// </summary>
+    Task ChangeUserPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default);
 
     /// <summary>Locking revokes the user's sessions immediately (TR-SEC-12, TR-SEC-07).</summary>
     Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Soft delete (TR-DAT-07: no physical delete). Sets <see cref="UserStatus.Deleted"/>, revokes
+    /// every session immediately, and hides the user from <see cref="SearchUsersAsync"/> by
+    /// default — the row, and every audit log, session and password-history entry that references
+    /// it, are left exactly as they are. Idempotent: deleting an already-deleted user is a no-op.
+    /// </summary>
+    Task DeleteUserAsync(long userId, CancellationToken cancellationToken = default);
 }
 
 /// <param name="Items">At most <c>take</c> rows, most recently created first.</param>
@@ -409,3 +428,15 @@ public sealed record CreateUserRequest(
     string Mobile,
     string RoleName,
     string InitialPassword);
+
+/// <param name="IspId">Owning ISP, or null for an internal user (TR-SEC-14).</param>
+/// <param name="FullName">User's full name.</param>
+/// <param name="Email">RFC-compliant, unique across the portal (excluding the user being edited).</param>
+/// <param name="Mobile">E.164 format.</param>
+/// <param name="RoleName">One of the seeded roles: Administrator, IspUser, ServiceDesk, Auditor.</param>
+public sealed record UpdateUserRequest(
+    long? IspId,
+    string FullName,
+    string Email,
+    string Mobile,
+    string RoleName);

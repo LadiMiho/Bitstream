@@ -1,7 +1,10 @@
 @using System.Security.Claims
 @inject IWebHostEnvironment Env
 @{
-    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+    // Request.Path rather than the "page" route value: it identifies the current screen the
+    // same way whether it was served by a Razor Page or an MVC controller (e.g. User
+    // Administration, Controllers/UsersController.cs), so this one check works for both.
+    var currentPage = ViewContext.HttpContext.Request.Path.Value ?? string.Empty;
 
     bool IsActive(string prefix) => currentPage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 

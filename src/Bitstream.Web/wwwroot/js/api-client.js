@@ -68,5 +68,9 @@ export const api = {
   /** @param {string} path @param {unknown} body */
   post: (path, body) => apiRequest(path, { method: 'POST', body }),
   /** @param {string} path @param {unknown} body */
-  patch: (path, body) => apiRequest(path, { method: 'PATCH', body })
+  put: (path, body) => apiRequest(path, { method: 'PUT', body }),
+  /** @param {string} path @param {unknown} body */
+  patch: (path, body) => apiRequest(path, { method: 'PATCH', body }),
+  /** @param {string} path */
+  delete: (path) => apiRequest(path, { method: 'DELETE' })
 };

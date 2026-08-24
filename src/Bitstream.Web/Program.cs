@@ -79,6 +79,15 @@ builder.Services.AddProblemDetails();
 // (TR-SEC-20). Vanilla JavaScript is for client-side behaviour only and never owns navigation.
 builder.Services.AddRazorPages();
 
+// MVC controllers + views under /Controllers and /Views, alongside Razor Pages above — the two
+// coexist in the same host with no routing conflict, since nothing maps the same path twice.
+// User Administration (Controllers/UsersController.cs) is the first screen built this way: a
+// grid plus drawer forms (add/edit/view/change password) rendered as server-side partial views,
+// exactly the same auth-guard discipline as SecurePageModel (RequireSessionAttribute /
+// RequirePermissionAttribute, Security/MvcAuthorization.cs) and the same rule as every other
+// screen that a write only ever happens through the JSON API, never through model binding here.
+builder.Services.AddControllersWithViews();
+
 var rateLimits = builder.Configuration
     .GetSection(RateLimitOptions.SectionName)
     .Get<RateLimitOptions>() ?? new RateLimitOptions();
@@ -154,5 +163,6 @@ app.MapPostActivationEndpoints();
 app.MapOperationsEndpoints();
 
 app.MapRazorPages();
+app.MapControllers();
 
 await app.RunAsync().ConfigureAwait(false);

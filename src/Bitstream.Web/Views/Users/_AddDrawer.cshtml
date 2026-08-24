@@ -1,0 +1,41 @@
+@{
+    var roles = (IReadOnlyList<string>)(ViewBag.Roles ?? Array.Empty<string>());
+}
+<form id="user-add-form" class="grid gap-4" novalidate data-action="create">
+    <p class="field-error" role="alert" hidden></p>
+    <div>
+        <label class="field-label" for="user-add-full-name">Full name</label>
+        <input class="field-input" id="user-add-full-name" name="fullName" type="text" required />
+    </div>
+    <div>
+        <label class="field-label" for="user-add-email">Email</label>
+        <input class="field-input" id="user-add-email" name="email" type="email" required />
+    </div>
+    <div>
+        <label class="field-label" for="user-add-mobile">Mobile</label>
+        <input class="field-input" id="user-add-mobile" name="mobile" type="tel" placeholder="+355..." required />
+    </div>
+    <div>
+        <label class="field-label" for="user-add-role">Role</label>
+        <select class="field-input" id="user-add-role" name="roleName" required>
+            @foreach (var role in roles)
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="field-label" for="user-add-isp-id">ISP ID</label>
+        <input class="field-input" id="user-add-isp-id" name="ispId" type="number" min="1" />
+        <span class="mt-1 block text-xs text-ink-muted">Leave blank for an internal user (Administrator, Service Desk, Auditor).</span>
+    </div>
+    <div>
+        <label class="field-label" for="user-add-password">Initial password</label>
+        <input class="field-input" id="user-add-password" name="initialPassword" type="password" required />
+        <span class="mt-1 block text-xs text-ink-muted">Must satisfy the configured password policy — the API reports specifics if it does not.</span>
+    </div>
+    <div class="flex justify-end gap-2">
+        <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+        <button type="submit" class="btn-primary">Create user</button>
+    </div>
+</form>

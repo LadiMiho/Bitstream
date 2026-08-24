@@ -52,6 +52,7 @@ public sealed partial class AdministrationService : IAdministrationService
     private readonly IClock _clock;
     private readonly ICurrentUserContext _currentUser;
     private readonly IOptionsMonitor<TwoFactorOptions> _twoFactorOptions;
+    private readonly IOptionsMonitor<PasswordPolicyOptions> _passwordPolicyOptions;
 
     public AdministrationService(
         IIspRepository ispRepository,
@@ -67,7 +68,8 @@ public sealed partial class AdministrationService : IAdministrationService
         IAuditWriter auditWriter,
         IClock clock,
         ICurrentUserContext currentUser,
-        IOptionsMonitor<TwoFactorOptions> twoFactorOptions)
+        IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
+        IOptionsMonitor<PasswordPolicyOptions> passwordPolicyOptions)
     {
         _ispRepository = ispRepository;
         _userRepository = userRepository;
@@ -83,6 +85,7 @@ public sealed partial class AdministrationService : IAdministrationService
         _clock = clock;
         _currentUser = currentUser;
         _twoFactorOptions = twoFactorOptions;
+        _passwordPolicyOptions = passwordPolicyOptions;
     }
 
     public async Task<Isp> CreateIspAsync(CreateIspRequest request, CancellationToken cancellationToken = default)
@@ -365,6 +368,14 @@ public sealed partial class AdministrationService : IAdministrationService
 
     public async Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default)
     {
+        if (status == UserStatus.Deleted)
+        {
+            // Deletion is its own action (DeleteUserAsync), with its own audit event and its own
+            // idempotency rule — not a status this endpoint accepts, so a lock/unlock caller can
+            // never reach it by accident and skip that path's guarantees.
+            throw new AdministrationValidationException("Use the delete action to remove a user, not the status endpoint.");
+        }
+
         var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
             throw new AdministrationValidationException($"User {userId} does not exist.");
 
@@ -387,6 +398,142 @@ public sealed partial class AdministrationService : IAdministrationService
         await _auditWriter.WriteAsync(
             "User.StatusChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
             $"{{\"status\":\"{previousStatus}\"}}", $"{{\"status\":\"{status}\"}}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<User> UpdateUserAsync(long userId, UpdateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+            throw new AdministrationValidationException($"User {userId} does not exist.");
+
+        var violations = new List<string>();
+
+        RequireNonEmpty(request.FullName, "Full name", violations);
+        RequireValidEmail(request.Email, "Email", violations);
+        RequireValidE164(request.Mobile, "Mobile", violations);
+
+        if (!SeededRoleNames.Contains(request.RoleName, StringComparer.Ordinal))
+        {
+            violations.Add($"Role '{request.RoleName}' is not a recognised role.");
+        }
+
+        if (violations.Count == 0)
+        {
+            var existing = await _userManager.FindByEmailAsync(request.Email).ConfigureAwait(false);
+
+            if (existing is not null && existing.UserId != userId)
+            {
+                // TR-SEC-01: unique across the platform.
+                violations.Add($"A user with email '{request.Email}' already exists.");
+            }
+        }
+
+        if (request.IspId is { } ispId && await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false) is null)
+        {
+            violations.Add($"ISP {ispId} does not exist.");
+        }
+
+        if (violations.Count > 0)
+        {
+            throw new AdministrationValidationException(violations);
+        }
+
+        var role = await ResolveRoleAsync(request.RoleName, cancellationToken).ConfigureAwait(false);
+
+        var previous = $"{{\"fullName\":{JsonSerializer.Serialize(user.FullName)},\"email\":{JsonSerializer.Serialize(user.Email)},\"role\":{JsonSerializer.Serialize(user.Role.Name)}}}";
+
+        user.FullName = request.FullName;
+        user.Email = request.Email;
+        user.Mobile = request.Mobile;
+        user.IspId = request.IspId;
+        user.RoleId = role.RoleId;
+        user.Role = role;
+
+        var updateResult = await _userManager.UpdateAsync(user).ConfigureAwait(false);
+
+        if (!updateResult.Succeeded)
+        {
+            throw new AdministrationValidationException([.. updateResult.Errors.Select(error => error.Description)]);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "User.Updated", "User", userId.ToString(CultureInfo.InvariantCulture),
+            previous, $"{{\"fullName\":{JsonSerializer.Serialize(user.FullName)},\"email\":{JsonSerializer.Serialize(user.Email)},\"role\":{JsonSerializer.Serialize(request.RoleName)}}}",
+            cancellationToken).ConfigureAwait(false);
+
+        return user;
+    }
+
+    public async Task ChangeUserPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(newPassword);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+            throw new AdministrationValidationException($"User {userId} does not exist.");
+
+        var recentHashes = await _userRepository.GetRecentPasswordHashesAsync(
+            userId, _passwordPolicyOptions.CurrentValue.PasswordHistoryCount, cancellationToken).ConfigureAwait(false);
+
+        var passwordCheck = _passwordPolicyValidator.Validate(newPassword, recentHashes);
+
+        if (!passwordCheck.IsValid)
+        {
+            throw new AdministrationValidationException(passwordCheck.Violations);
+        }
+
+        // Set directly via the app's own Argon2id hasher (TR-SEC-02) rather than Identity's
+        // token-based reset flow — this codebase does not implement IUserSecurityStampStore, and
+        // an administrator resetting a password does not need the current one, so there is no
+        // token to verify in the first place.
+        user.PasswordHash = _passwordHasher.Hash(newPassword);
+        user.PasswordHashAlgorithm = _passwordHasher.AlgorithmTag;
+        user.PasswordUpdatedAt = _clock.UtcNow;
+
+        var updateResult = await _userManager.UpdateAsync(user).ConfigureAwait(false);
+
+        if (!updateResult.Succeeded)
+        {
+            throw new AdministrationValidationException([.. updateResult.Errors.Select(error => error.Description)]);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _userRepository.AddPasswordHistoryAsync(userId, user.PasswordHash, _passwordHasher.AlgorithmTag, cancellationToken)
+            .ConfigureAwait(false);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // TR-SEC-07: a session opened under the old password must not outlive the change.
+        await _sessionStore.RevokeAllForUserAsync(userId, "PasswordChanged", _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "User.PasswordChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
+            null, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteUserAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+            throw new AdministrationValidationException($"User {userId} does not exist.");
+
+        if (user.Status == UserStatus.Deleted)
+        {
+            return;
+        }
+
+        var previousStatus = user.Status;
+        user.Status = UserStatus.Deleted;
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // TR-SEC-07: a deleted user's sessions must not outlive the deletion.
+        await _sessionStore.RevokeAllForUserAsync(userId, "UserDeleted", _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "User.Deleted", "User", userId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}", "{\"status\":\"Deleted\"}",
             cancellationToken).ConfigureAwait(false);
     }
 
