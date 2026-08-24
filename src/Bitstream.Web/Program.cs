@@ -2,7 +2,6 @@ using Bitstream.Application;
 using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Time;
-using Bitstream.Application.Configuration;
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Endpoints;
