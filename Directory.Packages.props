@@ -18,6 +18,10 @@
          other table stays on the hand-written T-SQL under db/mssql/, unmigrated. -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
 
+    <!-- UserManager<User>/RoleManager<Role> themselves (Bitstream.Application's own reference) —
+         the managers/interfaces, no EF Core, no database driver. -->
+    <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
+
     <!-- IdentityUser<TKey>/IdentityRole<TKey> (Bitstream.Application/Identity/User.cs, Role.cs).
          Deliberately the "Stores" package, not "...EntityFrameworkCore" — Application must not
          reference an EF-Core-flavored Identity package; the EF store itself lives only in
