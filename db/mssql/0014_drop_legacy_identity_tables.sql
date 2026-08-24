@@ -8,7 +8,12 @@
 
     This script must run AFTER the EF migration has created dbo.AspNetUsers/AspNetRoles
     (DevelopmentBootstrapper.cs runs BitstreamIdentityDbContext.Database.MigrateAsync() before
-    applying db/mssql; the equivalent manual step is documented for a real deployment).
+    applying db/mssql; the equivalent manual step is documented for a real deployment) AND after
+    every script that still creates/alters sec.[User] or sec.Role (0002, 0003, 0006, 0009, 0012,
+    0013) — hence staying last in the numbering rather than moving earlier. Role/RolePermission
+    seeding against the new dbo.AspNetRoles table is correspondingly in
+    0015_seed_role_baseline.sql, which runs after this one, not in 0007 (which seeds only
+    sec.Permission — the table this script does not touch).
 
     Dev-only reset: sec.[User]/sec.Role are dropped, not migrated — there is no production data
     to preserve. Every FK that pointed at them is re-pointed at the new tables; nothing else about

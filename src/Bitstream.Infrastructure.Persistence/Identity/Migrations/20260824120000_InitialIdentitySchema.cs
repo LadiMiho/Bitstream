@@ -244,10 +244,19 @@ public partial class InitialIdentitySchema : Migration
             name: "IX_AspNetUserRoles_RoleId",
             table: "AspNetUserRoles",
             column: "RoleId");
+
+        // TR-DAT-07 (no physical delete): mirrors the CK_User_Status check constraint that used
+        // to live on sec.[User] (db/mssql/0013_user_deleted_status.sql, superseded by this
+        // migration — see db/mssql/0014_drop_legacy_identity_tables.sql).
+        migrationBuilder.AddCheckConstraint(
+            name: "CK_AspNetUsers_Status",
+            table: "AspNetUsers",
+            sql: "Status IN ('Active', 'Locked', 'Deleted')");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropCheckConstraint(name: "CK_AspNetUsers_Status", table: "AspNetUsers");
         migrationBuilder.DropTable(name: "AspNetRoleClaims");
         migrationBuilder.DropTable(name: "AspNetUserClaims");
         migrationBuilder.DropTable(name: "AspNetUserLogins");

@@ -72,9 +72,10 @@ public static class DevelopmentBootstrapper
             var dbContext = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var identityDbContext = scope.ServiceProvider.GetRequiredService<BitstreamIdentityDbContext>();
 
-            // Must run first: db/mssql/0014 (dropped below, as part of the schema-script pass)
+            // Must run first: db/mssql/0014 (applied below, as part of the schema-script pass)
             // re-points several hand-written tables' foreign keys at dbo.AspNetUsers/AspNetRoles,
-            // which only exist once this migration has created them.
+            // and 0015 seeds roles into dbo.AspNetRoles — both need this migration's tables to
+            // already exist.
             await identityDbContext.Database.MigrateAsync().ConfigureAwait(false);
             logger.LogInformation("Development bootstrap: identity schema migrated.");
 

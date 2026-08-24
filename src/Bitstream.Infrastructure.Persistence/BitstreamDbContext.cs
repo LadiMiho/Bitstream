@@ -31,10 +31,13 @@ public sealed class BitstreamDbContext : DbContext
     /// 3 to 4 when db/mssql/0011_post_activation_support.sql (TRD 6) was added, from 4 to 5
     /// when db/mssql/0012_totp_enrollment.sql (TR-SEC-04, first-login QR enrollment) was added,
     /// from 5 to 6 when db/mssql/0013_user_deleted_status.sql (soft-delete for User
-    /// Administration) was added, and from 6 to 7 when db/mssql/0014_drop_legacy_identity_tables.sql
-    /// (sec.[User]/sec.Role dropped in favour of the EF-migrated AspNetUsers/AspNetRoles) was added.
+    /// Administration) was added, from 6 to 7 when db/mssql/0014_drop_legacy_identity_tables.sql
+    /// (sec.[User]/sec.Role dropped in favour of the EF-migrated AspNetUsers/AspNetRoles) was
+    /// added, and from 7 to 8 when db/mssql/0015_seed_role_baseline.sql (role seeding, split out
+    /// of 0007 so it can run after 0014 has re-pointed sec.RolePermission at dbo.AspNetRoles) was
+    /// added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 7;
+    public const int ExpectedSchemaVersion = 8;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

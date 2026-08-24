@@ -110,6 +110,11 @@ public sealed class IdentityService : IIdentityService
         if (user.FailedLoginCount != 0)
         {
             user.FailedLoginCount = 0;
+
+            // user is tracked by BitstreamIdentityDbContext (loaded via UserManager), not
+            // BitstreamDbContext — the _unitOfWork.SaveChangesAsync() below only covers the
+            // latter, so this mutation needs UserManager's own store save to reach the database.
+            await _userManager.UpdateAsync(user).ConfigureAwait(false);
         }
 
         var (challengeToken, channel, expiresAt, provisioningUri) = await IssueChallengeAsync(user, cancellationToken).ConfigureAwait(false);
@@ -315,7 +320,10 @@ public sealed class IdentityService : IIdentityService
                 user.Id, user.FailedLoginCount);
         }
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        // user is tracked by BitstreamIdentityDbContext (loaded via UserManager in
+        // AuthenticateAsync), not BitstreamDbContext — persist through UserManager's own store
+        // rather than _unitOfWork.SaveChangesAsync(), which only covers the latter.
+        await _userManager.UpdateAsync(user).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
             "Security.Login.Failed", "User", userIdText, null,

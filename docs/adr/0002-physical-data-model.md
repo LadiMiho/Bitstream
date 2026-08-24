@@ -13,7 +13,9 @@ honour this ADR. They then asked to swap to `Microsoft.AspNetCore.Identity.Entit
 with a real `IdentityDbContext`, explicitly overriding "no migrations, ever" — but only for
 identity, not the rest of the schema.
 
-**What changed:** `sec.[User]`/`sec.Role` (dropped by `db/mssql/0014_drop_legacy_identity_tables.sql`)
+**What changed:** `sec.[User]`/`sec.Role` (dropped by `db/mssql/0014_drop_legacy_identity_tables.sql`,
+after every script that still creates/alters them; role seeding itself moved out of
+`0007_seed_roles_permissions.sql` into `0015_seed_role_baseline.sql`, which runs after 0014)
 are replaced by the standard `dbo.AspNetUsers`/`AspNetRoles`/`AspNetUserRoles`/`AspNetUserClaims`/
 `AspNetUserLogins`/`AspNetRoleClaims`/`AspNetUserTokens` tables, with their default names and
 schema so they are immediately recognisable, owned by a real EF Core migration

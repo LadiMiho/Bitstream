@@ -17,7 +17,11 @@ internal static class IdentitySeeder
 {
     public static async Task<Role> AddRoleAsync(BitstreamDbContext db, string name, params string[] permissionCodes)
     {
-        var role = new Role { Name = name, IsSystemRole = true };
+        // NormalizedName would ordinarily be set by RoleManager.CreateAsync; this seeder bypasses
+        // RoleManager entirely (writes directly to BitstreamDbContext), so it is set by hand —
+        // otherwise RoleManager.FindByNameAsync (which AdministrationService.ResolveRoleAsync
+        // uses) would never find the seeded role.
+        var role = new Role { Name = name, NormalizedName = name.ToUpperInvariant(), IsSystemRole = true };
         db.Roles.Add(role);
         await db.SaveChangesAsync();
 
