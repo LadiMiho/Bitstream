@@ -41,6 +41,12 @@
          protected payloads), exactly the surface this package is used for here. -->
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
 
+    <!-- Microsoft.AspNetCore.DataProtection only ships IDataProtectionProvider (DI-based). The
+         concrete, directly-constructible DataProtectionProvider type used by the design-time
+         factory (BitstreamIdentityDbContextFactory, which has no DI container to resolve from)
+         lives in this separate package. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.7" />
+
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
          otherwise resolve to, 9.0.0, has several known high-severity advisories (NU1903, Warning

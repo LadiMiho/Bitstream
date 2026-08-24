@@ -9,12 +9,28 @@
     <ProjectReference Include="..\Bitstream.Domain\Bitstream.Domain.csproj" />
   </ItemGroup>
 
+  <!--
+    This is a plain class library (Microsoft.NET.Sdk, not Sdk.Web), so it has no implicit
+    reference to the ASP.NET Core shared framework. AddIdentity<TUser, TRole>() (as opposed to
+    AddIdentityCore<TUser>(), which is a real standalone package and was enough before this
+    project also needed the SignInManager/cookie-auth wiring AddIdentity itself adds) is declared
+    in Microsoft.AspNetCore.Identity.dll, which ships only as part of Microsoft.AspNetCore.App —
+    there is no NuGet package for it outside a Web SDK project.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <!-- The concrete, directly-constructible DataProtectionProvider (BitstreamIdentityDbContextFactory
+         below has no DI container to resolve IDataProtectionProvider from) lives here, not in the
+         core package above. -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
