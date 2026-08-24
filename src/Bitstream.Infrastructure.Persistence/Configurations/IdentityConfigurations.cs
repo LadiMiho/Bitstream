@@ -47,14 +47,18 @@ internal sealed class IspConfiguration : IEntityTypeConfiguration<Isp>
 /// independently — this configuration exists only so <see cref="BitstreamDbContext"/> can
 /// <c>.Include()</c> across to <see cref="User"/> from the hand-written tables that still
 /// navigate to it (<c>UserSession</c>, <c>TwoFactorChallenge</c>, <c>RolePermission</c> via
-/// <c>Role</c>, <c>UserPasswordHistory</c>). No <c>ToTable</c> call: EF infers the default
-/// Identity table name (<c>AspNetUsers</c>, <c>dbo</c> schema) from <see cref="User"/>'s base
-/// type, matching what the migration actually creates.
+/// <c>Role</c>, <c>UserPasswordHistory</c>). The explicit <c>ToTable</c> call below is required:
+/// unlike <c>IdentityDbContext&lt;TUser,...&gt;</c>, this is a plain <see cref="DbContext"/>, so
+/// there is no base <c>OnModelCreating</c> inferring <c>AspNetUsers</c> from <see cref="User"/>'s
+/// base type — without it, EF falls back to its normal convention (<c>Users</c>, the DbSet name),
+/// a table that does not exist.
 /// </summary>
 internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
+        builder.ToTable("AspNetUsers");
+
         builder.Property(x => x.FullName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Mobile).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
@@ -103,12 +107,14 @@ internal sealed class UserPasswordHistoryConfiguration : IEntityTypeConfiguratio
 /// <summary>
 /// <see cref="Role"/>'s table (<c>dbo.AspNetRoles</c>) is migration-owned by
 /// <c>Identity.BitstreamIdentityDbContext</c> — see <see cref="UserConfiguration"/> for why this
-/// mapping still exists on <see cref="BitstreamDbContext"/> regardless.
+/// mapping, including the explicit <c>ToTable</c> call, still exists on
+/// <see cref="BitstreamDbContext"/> regardless.
 /// </summary>
 internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> builder)
     {
+        builder.ToTable("AspNetRoles");
         builder.Property(x => x.Description).HasMaxLength(500);
     }
 }
