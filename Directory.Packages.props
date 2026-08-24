@@ -36,8 +36,10 @@
     <!-- ASP.NET Core's own encryption-at-rest primitive (not a bespoke cipher), used to protect
          the TOTP authenticator key and other rows in the UserTokens table
          (BitstreamIdentityDbContext) — the same building block Identity itself uses for its own
-         cookies and Default token provider. -->
-    <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.0" />
+         cookies and Default token provider. 10.0.7, not 10.0.0: fixes GHSA-9mv3-2cwr-p262 (CVE-2026-40372,
+         critical — a validation bypass letting an attacker forge authentication cookies and decrypt
+         protected payloads), exactly the surface this package is used for here. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
 
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
