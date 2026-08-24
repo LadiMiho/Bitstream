@@ -25,6 +25,27 @@
   </ItemGroup>
 
   <!--
+    System.Security.Cryptography.Xml is a transitive dependency of
+    Microsoft.AspNetCore.Identity.EntityFrameworkCore. Every currently published version,
+    including the one pinned in Directory.Packages.props, carries these NuGet audit advisories
+    (NU1903, Warning As Error) with no patched release available yet. Suppressed by advisory
+    rather than disabling NU1903 wholesale: this app never calls into XML digital signature APIs
+    (SignedXml and friends) — nothing in the identity or persistence code paths reaches the
+    vulnerable surface — so the risk is theoretical for this project specifically. Revisit by
+    removing these once a fixed version ships.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-23rf-6693-g89p" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-37gx-xxp4-5rgx" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-6588-8gv4-xfgh" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-8q5v-6pqq-x66h" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-cvvh-rhrc-wg4q" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-g8r8-53c2-pm3f" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-mmjf-rqrv-855v" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-w3x6-4m5h-cxqf" />
+  </ItemGroup>
+
+  <!--
     BitstreamDbContext's physical schema is owned by the numbered T-SQL scripts in /db/mssql
     (see docs/adr/0002-physical-data-model.md) — EF Core is mapped to it and does not generate it,
     no migrations. BitstreamIdentityDbContext (Identity/) is the one deliberate exception: its
