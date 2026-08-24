@@ -44,8 +44,10 @@
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
          otherwise resolve to, 9.0.0, has several known high-severity advisories (NU1903, Warning
-         As Error) — GHSA-23rf-6693-g89p and others. -->
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.0" />
+         As Error) — GHSA-23rf-6693-g89p and others. 10.0.7, not 10.0.0: Microsoft.AspNetCore.DataProtection
+         10.0.7 above requires >= 10.0.7 of this package transitively; NU1109 (package downgrade,
+         Warning As Error) fails restore otherwise. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.7" />
 
     <!-- Presentation -->
     <!-- 10.0.11, not 10.0.0: pulls Microsoft.OpenApi >= 2.7.5, patching GHSA-v5pm-xwqc-g5wc
@@ -64,11 +66,14 @@
     <PackageVersion Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
 
     <!-- Cross-cutting -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <!-- 10.0.7, not 10.0.0, on this and Hosting.Abstractions below: Microsoft.AspNetCore.DataProtection
+         10.0.7 above requires >= 10.0.7 of both transitively; NU1109 (package downgrade, Warning As
+         Error) fails restore otherwise. -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.7" />
 
     <!-- Tests -->
     <!-- InMemory stands in for SQL Server only in tests that need a real query pipeline behind
