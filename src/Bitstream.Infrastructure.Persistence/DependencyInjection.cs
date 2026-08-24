@@ -5,6 +5,9 @@ using Bitstream.Application.Services.Identity;
 using Bitstream.Infrastructure.Persistence.HealthChecks;
 using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Infrastructure.Persistence.Repositories;
+#pragma warning disable IDE0005 // dotnet-format's analyzer misreports this as unused (see AddIdentity<User, Role>() below) — CI has proven the build fails without it.
+using Microsoft.AspNetCore.Identity;
+#pragma warning restore IDE0005
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

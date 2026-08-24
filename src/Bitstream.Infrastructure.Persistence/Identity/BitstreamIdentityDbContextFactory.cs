@@ -1,3 +1,6 @@
+#pragma warning disable IDE0005 // dotnet-format's analyzer misreports this as unused (see BitstreamIdentityDbContextFactory.CreateDbContext, which calls DataProtectionProvider.Create) — CI has proven the build fails without it.
+using Microsoft.AspNetCore.DataProtection;
+#pragma warning restore IDE0005
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 

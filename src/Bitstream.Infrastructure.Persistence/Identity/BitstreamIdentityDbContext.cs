@@ -1,4 +1,8 @@
 using Bitstream.Application.Identity.Entities;
+#pragma warning disable IDE0005 // dotnet-format's analyzer misreports these as unused (see IDataProtectionProvider/IdentityUserClaim<long> etc. below) — CI has proven the build fails without them.
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+#pragma warning restore IDE0005
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;

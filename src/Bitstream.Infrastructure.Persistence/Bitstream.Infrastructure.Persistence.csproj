@@ -9,21 +9,6 @@
     <ProjectReference Include="..\Bitstream.Domain\Bitstream.Domain.csproj" />
   </ItemGroup>
 
-  <!--
-    Project-wide implicit usings, not per-file `using` directives: `dotnet format`'s IDE0005
-    analyzer inexplicably flags `using Microsoft.AspNetCore.DataProtection;`/
-    `using Microsoft.AspNetCore.Identity;` as unused in DependencyInjection.cs and
-    Identity/BitstreamIdentityDbContextFactory.cs even though DataProtectionProvider.Create and
-    AddIdentity<User, Role>() are used there and the build fails with CS0103/CS1061 without them
-    (reproduced across multiple CI runs) — likely an analyzer/workspace resolution quirk specific
-    to this project's mixed EF-Design/AspNetCore-Identity package set. Declaring them here instead
-    keeps both dotnet format's verify-no-changes check and the actual build satisfied.
-  -->
-  <ItemGroup>
-    <Using Include="Microsoft.AspNetCore.DataProtection" />
-    <Using Include="Microsoft.AspNetCore.Identity" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
