@@ -17,7 +17,7 @@
     AddIdentity<User, Role>() are used there and the build fails with CS0103/CS1061 without them
     (reproduced across multiple CI runs) — likely an analyzer/workspace resolution quirk specific
     to this project's mixed EF-Design/AspNetCore-Identity package set. Declaring them here instead
-    keeps both `dotnet format --verify-no-changes` and the actual build satisfied.
+    keeps both dotnet format's verify-no-changes check and the actual build satisfied.
   -->
   <ItemGroup>
     <Using Include="Microsoft.AspNetCore.DataProtection" />
