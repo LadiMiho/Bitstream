@@ -92,7 +92,7 @@ public static class AuthEndpoints
         ICorrelationContext correlationContext,
         IClock clock,
         IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
-        IOptionsMonitor<SessionOptions> sessionOptions,
+        IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
         ILogger<Program> logger,
         CancellationToken cancellationToken)
     {
@@ -247,7 +247,7 @@ public static class AuthEndpoints
         IAuditWriter auditWriter,
         IClock clock,
         IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
-        IOptionsMonitor<SessionOptions> sessionOptions,
+        IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Code))
