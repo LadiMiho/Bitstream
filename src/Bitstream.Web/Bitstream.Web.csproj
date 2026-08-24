@@ -29,8 +29,8 @@
   <ItemGroup>
     <!-- `dotnet ef` design-time tooling resolves against the *startup* project, not the one
          holding the DbContext — Bitstream.Infrastructure.Persistence.csproj already references
-         this, but `dotnet ef database update --startup-project src/Bitstream.Web ...` still
-         needs it here too. Not referenced by any shipped runtime path. -->
+         this, but `dotnet ef database update` run with Bitstream.Web as the startup project
+         still needs it here too. Not referenced by any shipped runtime path. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
