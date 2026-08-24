@@ -7,7 +7,7 @@ public enum IspStatus
     Locked
 }
 
-/// <summary>Lifecycle status of a <see cref="Entities.User"/>. TR-SEC-11, TR-SEC-12, TR-DAT-07 (no physical delete).</summary>
+/// <summary>Lifecycle status of a portal user (<c>Bitstream.Application.Identity.Entities.User</c>). TR-SEC-11, TR-SEC-12, TR-DAT-07 (no physical delete).</summary>
 public enum UserStatus
 {
     Active,
