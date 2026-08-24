@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -29,6 +30,10 @@ public sealed class BitstreamIdentityDbContextFactory : IDesignTimeDbContextFact
         var optionsBuilder = new DbContextOptionsBuilder<BitstreamIdentityDbContext>();
         optionsBuilder.UseSqlServer(connectionString);
 
-        return new BitstreamIdentityDbContext(optionsBuilder.Options);
+        // Design-time-only, ephemeral key ring: `dotnet ef migrations`/`database update` never
+        // reads or writes an actual UserTokens.Value, so what backs this protector doesn't matter.
+        var dataProtectionProvider = DataProtectionProvider.Create("Bitstream.DesignTime");
+
+        return new BitstreamIdentityDbContext(optionsBuilder.Options, dataProtectionProvider);
     }
 }

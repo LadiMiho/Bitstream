@@ -1,17 +1,19 @@
+using System.Net.Http.Json;
 using Bitstream.Application.Identity.Entities;
-using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;
+using Bitstream.Web.Contracts;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitstream.Api.Tests.Identity;
 
 /// <summary>
 /// Seeds <see cref="BitstreamDbContext"/> directly for the HTTP-level tests, bypassing
-/// <c>IAdministrationService</c>/<c>IIdentityService</c> entirely (those are exercised by
-/// <c>AdministrationServiceTests</c> and by the login/2FA path itself). This isolates what each
-/// test is actually about: given a session that already exists, does the authorisation pipeline
-/// behave correctly.
+/// <c>IAdministrationService</c> entirely (exercised by <c>AdministrationServiceTests</c>
+/// instead). This isolates what each test is actually about: given a session that already
+/// exists, does the authorisation pipeline behave correctly.
 /// </summary>
 internal static class IdentitySeeder
 {
@@ -58,14 +60,14 @@ internal static class IdentitySeeder
         return isp;
     }
 
+    /// <param name="lockoutEnd">Null (default) for an active user; a future timestamp to seed an already-locked one (TR-SEC-12).</param>
     public static async Task<User> AddUserAsync(
         BitstreamDbContext db,
         Role role,
         long? ispId,
         string email,
         UserStatus status = UserStatus.Active,
-        int failedLoginCount = 0,
-        bool totpConfirmed = true)
+        DateTimeOffset? lockoutEnd = null)
     {
         var normalizedEmail = email.ToUpperInvariant();
 
@@ -85,20 +87,14 @@ internal static class IdentitySeeder
             Mobile = "+355691234567",
             RoleId = role.Id,
             Status = status,
-            FailedLoginCount = failedLoginCount,
             // Argon2PasswordHasher.Hash("Correct-Horse-Battery-Staple-9") computed once and
             // pasted here as a literal would be simplest, but hashing it fresh at seed time
             // keeps this file honest about what the password actually is.
             PasswordHash = TestPassword.Hash,
             PasswordHashAlgorithm = "Argon2id",
-            // The configured second-factor channel defaults to Totp (appsettings.json), and
-            // IssueChallengeAsync only decrypts this when TotpConfirmedAt is null (to build the
-            // enrollment QR — see TwoFactorEnrollmentTests, which seeds that case for real via
-            // ITotpSecretProtector). Every other test wants an already-enrolled user, for whom a
-            // placeholder is enough to reach "challenge issued" without wiring the protector's
-            // real key resolution into every test host.
-            TotpSecret = [1, 2, 3, 4, 5, 6, 7, 8],
-            TotpConfirmedAt = totpConfirmed ? DateTimeOffset.UtcNow : null,
+            TwoFactorEnabled = true,
+            LockoutEnabled = true,
+            LockoutEnd = lockoutEnd,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -108,29 +104,43 @@ internal static class IdentitySeeder
         return user;
     }
 
-    /// <summary>Adds an already-issued, valid session and returns the raw token to set as the cookie.</summary>
-    public static async Task<string> AddSessionAsync(
-        BitstreamDbContext db,
-        long userId,
-        DateTimeOffset? issuedAt = null,
-        DateTimeOffset? expiresAt = null,
-        DateTimeOffset? lastActivityAt = null)
+    /// <summary>
+    /// Drives the real two-step login (<c>POST /api/v1/auth/login</c>, <c>POST /api/v1/auth/login/verify</c>)
+    /// so <paramref name="client"/> ends up carrying a genuine ASP.NET Core Identity authentication
+    /// cookie — <c>WebApplicationFactory</c>'s client handles cookies across requests automatically
+    /// (<c>WebApplicationFactoryClientOptions.HandleCookies</c> defaults to true), so nothing here
+    /// sets a cookie header by hand, unlike the old opaque-session-token design.
+    /// <para>
+    /// Generates the user's authenticator key (as if already enrolled from a previous login, the
+    /// same default the deleted <c>totpConfirmed: true</c> parameter used to provide) via
+    /// <c>UserManager.ResetAuthenticatorKeyAsync</c> — a real login, at that point, needs no QR
+    /// code — then computes the current valid TOTP code the same way an authenticator app would,
+    /// via <c>UserManager.GenerateTwoFactorTokenAsync</c>. Assumes the configured 2FA channel is
+    /// Totp (the test hosts' default) and the password is <see cref="TestPassword.PlainText"/>.
+    /// </para>
+    /// </summary>
+    public static async Task AuthenticateAsync(HttpClient client, IServiceProvider services, string email)
     {
-        var now = DateTimeOffset.UtcNow;
-        var rawToken = TokenHashing.GenerateOpaqueToken();
+        await using var scope = services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = await userManager.FindByEmailAsync(email).ConfigureAwait(false) ??
+            throw new InvalidOperationException($"No seeded user with email '{email}' — call AddUserAsync first.");
 
-        db.UserSessions.Add(new UserSession
-        {
-            UserId = userId,
-            TokenHash = TokenHashing.Sha256Hex(rawToken),
-            IssuedAt = issuedAt ?? now,
-            ExpiresAt = expiresAt ?? now.AddHours(12),
-            LastActivityAt = lastActivityAt ?? now
-        });
+        await userManager.ResetAuthenticatorKeyAsync(user).ConfigureAwait(false);
 
-        await db.SaveChangesAsync();
+        using var loginResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new LoginRequest(email, TestPassword.PlainText)).ConfigureAwait(false);
 
-        return rawToken;
+        loginResponse.EnsureSuccessStatusCode();
+
+        var code = await userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider).ConfigureAwait(false);
+
+        using var verifyResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/auth/login/verify", UriKind.Relative),
+            new TwoFactorVerifyRequest(code)).ConfigureAwait(false);
+
+        verifyResponse.EnsureSuccessStatusCode();
     }
 }
 

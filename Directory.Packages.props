@@ -33,6 +33,12 @@
          path. -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
 
+    <!-- ASP.NET Core's own encryption-at-rest primitive (not a bespoke cipher), used to protect
+         the TOTP authenticator key and other rows in the UserTokens table
+         (BitstreamIdentityDbContext) — the same building block Identity itself uses for its own
+         cookies and Default token provider. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.0" />
+
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
          otherwise resolve to, 9.0.0, has several known high-severity advisories (NU1903, Warning

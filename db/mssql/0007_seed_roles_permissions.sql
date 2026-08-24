@@ -8,7 +8,7 @@
 
     Role seeding itself, and the baseline role/permission assignment, live in
     0015_seed_role_baseline.sql — after 0014_drop_legacy_identity_tables.sql has re-pointed
-    sec.RolePermission at dbo.AspNetRoles, not here, even though this script otherwise keeps the
+    sec.RolePermission at dbo.Roles, not here, even though this script otherwise keeps the
     original "roles and permissions" name. sec.Permission has no such dependency, so it stays
     seeded at this point in the sequence.
 

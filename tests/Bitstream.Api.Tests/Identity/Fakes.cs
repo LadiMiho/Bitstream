@@ -13,12 +13,6 @@ namespace Bitstream.Api.Tests.Identity;
 /*
  * Hand-written test doubles for the application-layer ports, matching the style already used
  * by TestLogger in this project rather than adding a mocking framework.
- *
- * These exist specifically for AdministrationService.SetIspStatusAsync /
- * SetUserStatusAsync: EF Core's InMemory provider (used by IdentityApiFactory for the HTTP-level
- * tests) does not support ExecuteUpdateAsync, which UserSessionStore's bulk revoke methods rely
- * on — so the lock cascade cannot be exercised through the real pipeline in this environment,
- * and is unit-tested against fakes instead.
  */
 
 /// <summary>Fixed value <see cref="IOptionsMonitor{TOptions}"/>, for constructing a service under test with one known configuration.</summary>
@@ -126,7 +120,9 @@ public sealed class FakeIspRepository : IIspRepository
 /// in-memory dictionary, backing both, so a test can seed and assert against
 /// <see cref="Users"/> exactly as before <c>UserManager</c> existed.
 /// </summary>
-public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPasswordStore<User>, IUserEmailStore<User>
+public sealed class FakeUserStore :
+    IUserRepository, IUserStore<User>, IUserPasswordStore<User>, IUserEmailStore<User>,
+    IUserTwoFactorStore<User>, IUserLockoutStore<User>
 {
     private long _nextUserId = 1;
 
@@ -240,6 +236,41 @@ public sealed class FakeUserStore : IUserRepository, IUserStore<User>, IUserPass
 
     public Task SetNormalizedEmailAsync(User user, string? normalizedEmail, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task SetTwoFactorEnabledAsync(User user, bool enabled, CancellationToken cancellationToken)
+    {
+        user.TwoFactorEnabled = enabled;
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> GetTwoFactorEnabledAsync(User user, CancellationToken cancellationToken) => Task.FromResult(user.TwoFactorEnabled);
+
+    public Task<DateTimeOffset?> GetLockoutEndDateAsync(User user, CancellationToken cancellationToken) => Task.FromResult(user.LockoutEnd);
+
+    public Task SetLockoutEndDateAsync(User user, DateTimeOffset? lockoutEnd, CancellationToken cancellationToken)
+    {
+        user.LockoutEnd = lockoutEnd;
+        return Task.CompletedTask;
+    }
+
+    public Task<int> IncrementAccessFailedCountAsync(User user, CancellationToken cancellationToken) =>
+        Task.FromResult(++user.AccessFailedCount);
+
+    public Task ResetAccessFailedCountAsync(User user, CancellationToken cancellationToken)
+    {
+        user.AccessFailedCount = 0;
+        return Task.CompletedTask;
+    }
+
+    public Task<int> GetAccessFailedCountAsync(User user, CancellationToken cancellationToken) => Task.FromResult(user.AccessFailedCount);
+
+    public Task<bool> GetLockoutEnabledAsync(User user, CancellationToken cancellationToken) => Task.FromResult(user.LockoutEnabled);
+
+    public Task SetLockoutEnabledAsync(User user, bool enabled, CancellationToken cancellationToken)
+    {
+        user.LockoutEnabled = enabled;
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
     }
@@ -293,71 +324,6 @@ public sealed class FakeRoleStore : IRoleStore<Role>
     public void Dispose()
     {
     }
-}
-
-/// <summary>Records the arguments of every bulk revoke call, so a test can assert the cascade happened without a real database.</summary>
-public sealed class FakeUserSessionStore : IUserSessionStore
-{
-    public List<UserSession> Sessions { get; } = [];
-
-    public List<(long UserId, string Reason)> UserRevocations { get; } = [];
-
-    public List<(long IspId, string Reason)> IspRevocations { get; } = [];
-
-    public Task AddAsync(UserSession session, CancellationToken cancellationToken = default)
-    {
-        Sessions.Add(session);
-        return Task.CompletedTask;
-    }
-
-    public Task<UserSession?> FindByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Sessions.FirstOrDefault(session => session.TokenHash == tokenHash));
-
-    public Task<int> RevokeAllForUserAsync(long userId, string reason, DateTimeOffset revokedAt, CancellationToken cancellationToken = default)
-    {
-        UserRevocations.Add((userId, reason));
-        var affected = Sessions.Count(session => session.UserId == userId && session.RevokedAt is null);
-
-        foreach (var session in Sessions.Where(session => session.UserId == userId && session.RevokedAt is null))
-        {
-            session.RevokedAt = revokedAt;
-            session.RevokedReason = reason;
-        }
-
-        return Task.FromResult(affected);
-    }
-
-    public Task<int> RevokeAllForIspAsync(long ispId, string reason, DateTimeOffset revokedAt, CancellationToken cancellationToken = default)
-    {
-        IspRevocations.Add((ispId, reason));
-        return Task.FromResult(0);
-    }
-}
-
-/// <summary>
-/// Throws if called. Used where a test deliberately configures <c>TwoFactorOptions.Channel</c>
-/// to something other than <c>Totp</c>, so the fake proves the Totp-only provisioning path was
-/// not taken rather than merely being unasserted.
-/// </summary>
-public sealed class ThrowingTotpService : ITotpService
-{
-    public byte[] GenerateSecret() => throw new InvalidOperationException("Not expected to be called: the configured channel is not Totp.");
-
-    public string GenerateCurrentCode(byte[] secret) => throw new InvalidOperationException("Not expected to be called.");
-
-    public bool Validate(byte[] secret, string code) => throw new InvalidOperationException("Not expected to be called.");
-
-    public string BuildProvisioningUri(byte[] secret, string accountLabel, string issuer) => throw new InvalidOperationException("Not expected to be called.");
-}
-
-/// <summary>See <see cref="ThrowingTotpService"/>.</summary>
-public sealed class ThrowingTotpSecretProtector : ITotpSecretProtector
-{
-    public Task<byte[]> ProtectAsync(byte[] plainSecret, CancellationToken cancellationToken = default) =>
-        throw new InvalidOperationException("Not expected to be called: the configured channel is not Totp.");
-
-    public Task<byte[]> UnprotectAsync(byte[] protectedSecret, CancellationToken cancellationToken = default) =>
-        throw new InvalidOperationException("Not expected to be called.");
 }
 
 /// <summary>Fixed in-memory secret store, for testing components that resolve a secret by name without a real secret store.</summary>

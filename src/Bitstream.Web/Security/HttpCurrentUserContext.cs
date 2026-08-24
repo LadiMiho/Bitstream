@@ -8,9 +8,10 @@ namespace Bitstream.Web.Security;
 
 /// <summary>
 /// Implements <see cref="ICurrentUserContext"/> by reading the claims
-/// <see cref="SessionAuthenticationHandler"/> put on the request's <see cref="ClaimsPrincipal"/>.
-/// The one place in the solution that turns "who is making this HTTP request" into the ambient
-/// identity the application layer authorises against.
+/// <see cref="BitstreamClaimsPrincipalFactory"/> put on the request's <see cref="ClaimsPrincipal"/>
+/// (via ASP.NET Core Identity's own cookie authentication — <c>Program.cs</c>). The one place in
+/// the solution that turns "who is making this HTTP request" into the ambient identity the
+/// application layer authorises against.
 /// <para>
 /// Scoped, not singleton: it wraps <see cref="IHttpContextAccessor"/>, so a new instance is
 /// resolved for whichever request is current in this scope, the same lifetime as

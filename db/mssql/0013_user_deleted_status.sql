@@ -7,8 +7,8 @@
     what a physical delete would have broken.
 
     Historical no-op as of 0014_drop_legacy_identity_tables.sql: sec.[User] (this script's
-    target) no longer exists by the time this runs, having been replaced by dbo.AspNetUsers,
-    whose equivalent CK_AspNetUsers_Status constraint is instead added by the identity EF
+    target) no longer exists by the time this runs, having been replaced by dbo.Users,
+    whose equivalent CK_Users_Status constraint is instead added by the identity EF
     migration (Identity/Migrations/20260824120000_InitialIdentitySchema.cs). Left in place,
     unmodified, purely as the schema-version history record described on
     BitstreamDbContext.ExpectedSchemaVersion; the guarded IF EXISTS below is false for a fresh

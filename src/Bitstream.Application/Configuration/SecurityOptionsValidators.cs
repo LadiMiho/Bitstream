@@ -58,48 +58,14 @@ public sealed class PasswordPolicyOptionsValidator : IValidateOptions<PasswordPo
     }
 }
 
-/// <summary>Validates <see cref="TwoFactorOptions"/>.</summary>
+/// <summary>Validates <see cref="TwoFactorOptions"/>. Code length/validity/attempt-budget are Identity's own now — nothing left to bound here beyond the channel itself, which is a plain enum and needs no range check.</summary>
 public sealed class TwoFactorOptionsValidator : IValidateOptions<TwoFactorOptions>
 {
     public ValidateOptionsResult Validate(string? name, TwoFactorOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var failures = new List<string>();
-
-        if (options.CodeValidity <= TimeSpan.Zero)
-        {
-            failures.Add("Security:TwoFactor:CodeValidity must be greater than zero.");
-        }
-        else if (options.CodeValidity > TimeSpan.FromMinutes(5))
-        {
-            // TR-SEC-04: "valid for a maximum of 5 minutes" is a ceiling, not a suggestion.
-            failures.Add(
-                $"Security:TwoFactor:CodeValidity must not exceed 5 minutes (TR-SEC-04). " +
-                $"Configured: {options.CodeValidity}.");
-        }
-
-        if (options.CodeLength is < 4 or > 10)
-        {
-            failures.Add($"Security:TwoFactor:CodeLength must be between 4 and 10. Configured: {options.CodeLength}.");
-        }
-
-        if (options.MaxVerificationAttempts < 1)
-        {
-            failures.Add("Security:TwoFactor:MaxVerificationAttempts must be at least 1.");
-        }
-
-        if (options.TotpStepSeconds < 1)
-        {
-            failures.Add("Security:TwoFactor:TotpStepSeconds must be at least 1.");
-        }
-
-        if (options.TotpAllowedSkewSteps < 0)
-        {
-            failures.Add("Security:TwoFactor:TotpAllowedSkewSteps must not be negative.");
-        }
-
-        return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+        return ValidateOptionsResult.Success;
     }
 }
 

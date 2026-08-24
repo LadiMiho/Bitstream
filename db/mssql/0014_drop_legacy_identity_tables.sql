@@ -2,23 +2,25 @@
     0014_drop_legacy_identity_tables.sql
 
     Identity now runs on ASP.NET Core Identity's own EF-migrated schema
-    (Bitstream.Infrastructure.Persistence/Identity/BitstreamIdentityDbContext.cs) — dbo.AspNetUsers
-    and dbo.AspNetRoles replace sec.[User] and sec.Role. This is the one deliberate exception to
+    (Bitstream.Infrastructure.Persistence/Identity/BitstreamIdentityDbContext.cs) — dbo.Users
+    and dbo.Roles replace sec.[User] and sec.Role. This is the one deliberate exception to
     ADR-0002 ("no EF migrations, ever"), narrowed to the identity subsystem only.
 
-    This script must run AFTER the EF migration has created dbo.AspNetUsers/AspNetRoles
+    This script must run AFTER the EF migration has created dbo.Users/Roles
     (DevelopmentBootstrapper.cs runs BitstreamIdentityDbContext.Database.MigrateAsync() before
     applying db/mssql; the equivalent manual step is documented for a real deployment) AND after
     every script that still creates/alters sec.[User] or sec.Role (0002, 0003, 0006, 0009, 0012,
     0013) — hence staying last in the numbering rather than moving earlier. Role/RolePermission
-    seeding against the new dbo.AspNetRoles table is correspondingly in
-    0015_seed_role_baseline.sql, which runs after this one, not in 0007 (which seeds only
-    sec.Permission — the table this script does not touch).
+    seeding against the new dbo.Roles table is correspondingly in 0015_seed_role_baseline.sql,
+    which runs after this one, not in 0007 (which seeds only sec.Permission — the table this
+    script does not touch).
 
     Dev-only reset: sec.[User]/sec.Role are dropped, not migrated — there is no production data
     to preserve. Every FK that pointed at them is re-pointed at the new tables; nothing else about
-    those tables (sec.RolePermission, sec.UserPasswordHistory, sec.UserSession,
-    sec.TwoFactorChallenge, portal.TicketComment) changes.
+    those tables (sec.RolePermission, sec.UserPasswordHistory, portal.TicketComment) changes.
+    sec.UserSession/sec.TwoFactorChallenge, which also pointed at sec.[User], are dropped outright
+    (not re-pointed) by 0016_drop_session_and_twofactor_tables.sql — both fully superseded by
+    ASP.NET Core Identity's own cookie authentication and 2FA token providers.
 */
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -55,28 +57,20 @@ IF OBJECT_ID('sec.Role', 'U') IS NOT NULL
     DROP TABLE sec.Role;
 GO
 
--- Step 3: re-point every FK dropped in step 1 at the new EF-migrated tables.
+-- Step 3: re-point every FK dropped in step 1 at the new EF-migrated tables, except
+-- sec.UserSession/sec.TwoFactorChallenge — those tables are dropped outright by 0016, not
+-- re-pointed, since they have no reason to keep existing once Identity owns sessions and 2FA.
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_RolePermission_Role')
     ALTER TABLE sec.RolePermission
-        ADD CONSTRAINT FK_RolePermission_Role FOREIGN KEY (RoleId) REFERENCES dbo.AspNetRoles (Id);
+        ADD CONSTRAINT FK_RolePermission_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles (Id);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserPasswordHistory_User')
     ALTER TABLE sec.UserPasswordHistory
-        ADD CONSTRAINT FK_UserPasswordHistory_User FOREIGN KEY (UserId) REFERENCES dbo.AspNetUsers (Id);
+        ADD CONSTRAINT FK_UserPasswordHistory_User FOREIGN KEY (UserId) REFERENCES dbo.Users (Id);
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_TicketComment_User')
     ALTER TABLE portal.TicketComment
-        ADD CONSTRAINT FK_TicketComment_User FOREIGN KEY (AuthorUserId) REFERENCES dbo.AspNetUsers (Id);
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserSession_User')
-    ALTER TABLE sec.UserSession
-        ADD CONSTRAINT FK_UserSession_User FOREIGN KEY (UserId) REFERENCES dbo.AspNetUsers (Id);
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_TwoFactorChallenge_User')
-    ALTER TABLE sec.TwoFactorChallenge
-        ADD CONSTRAINT FK_TwoFactorChallenge_User FOREIGN KEY (UserId) REFERENCES dbo.AspNetUsers (Id);
+        ADD CONSTRAINT FK_TicketComment_User FOREIGN KEY (AuthorUserId) REFERENCES dbo.Users (Id);
 GO

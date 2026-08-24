@@ -6,6 +6,7 @@ using Bitstream.Domain.Enums;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Web.Contracts;
 using Bitstream.Web.Security;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bitstream.Web.Endpoints;
@@ -236,6 +237,7 @@ public static class AdministrationEndpoints
     private static async Task<IResult> CreateUserAsync(
         [FromBody] CreateUserHttpRequest request,
         IAdministrationService administrationService,
+        UserManager<User> userManager,
         CancellationToken cancellationToken)
     {
         try
@@ -244,7 +246,7 @@ public static class AdministrationEndpoints
                 new CreateUserRequest(request.IspId, request.FullName, request.Email, request.Mobile, request.RoleName, request.InitialPassword),
                 cancellationToken).ConfigureAwait(false);
 
-            var response = ToResponse(user);
+            var response = await ToResponseAsync(user, userManager).ConfigureAwait(false);
 
             return Results.CreatedAtRoute("GetUser", new { userId = user.Id }, response);
         }
@@ -259,22 +261,26 @@ public static class AdministrationEndpoints
         [FromQuery] int? skip,
         [FromQuery] int? take,
         IAdministrationService administrationService,
+        UserManager<User> userManager,
         CancellationToken cancellationToken)
     {
         var result = await administrationService.SearchUsersAsync(
             search, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
 
-        return Results.Ok(new UserListResponse([.. result.Items.Select(ToResponse)], result.TotalCount));
+        var items = await Task.WhenAll(result.Items.Select(user => ToResponseAsync(user, userManager))).ConfigureAwait(false);
+
+        return Results.Ok(new UserListResponse(items, result.TotalCount));
     }
 
     private static async Task<IResult> GetUserAsync(
         [FromRoute] long userId,
         IAdministrationService administrationService,
+        UserManager<User> userManager,
         CancellationToken cancellationToken)
     {
         var user = await administrationService.GetUserAsync(userId, cancellationToken).ConfigureAwait(false);
 
-        return user is null ? Results.NotFound() : Results.Ok(ToResponse(user));
+        return user is null ? Results.NotFound() : Results.Ok(await ToResponseAsync(user, userManager).ConfigureAwait(false));
     }
 
     private static async Task<IResult> SetUserStatusAsync(
@@ -283,17 +289,29 @@ public static class AdministrationEndpoints
         IAdministrationService administrationService,
         CancellationToken cancellationToken)
     {
-        if (!TryParseStatus<UserStatus>(request.Status, out var status))
+        // "Locked" is not a stored UserStatus value any more (TR-SEC-12 — see
+        // AdministrationService.SetUserLockedAsync) — the wire contract still speaks
+        // Active/Locked, translated to a bool at this one boundary.
+        bool locked;
+
+        switch (request.Status)
         {
-            return Results.Problem(
-                title: "Invalid status",
-                detail: $"Status must be 'Active' or 'Locked'. Received: '{request.Status}'.",
-                statusCode: StatusCodes.Status400BadRequest);
+            case nameof(UserStatus.Active):
+                locked = false;
+                break;
+            case "Locked":
+                locked = true;
+                break;
+            default:
+                return Results.Problem(
+                    title: "Invalid status",
+                    detail: $"Status must be 'Active' or 'Locked'. Received: '{request.Status}'.",
+                    statusCode: StatusCodes.Status400BadRequest);
         }
 
         try
         {
-            await administrationService.SetUserStatusAsync(userId, status, cancellationToken).ConfigureAwait(false);
+            await administrationService.SetUserLockedAsync(userId, locked, cancellationToken).ConfigureAwait(false);
             return Results.NoContent();
         }
         catch (AdministrationValidationException)
@@ -306,6 +324,7 @@ public static class AdministrationEndpoints
         [FromRoute] long userId,
         [FromBody] UpdateUserHttpRequest request,
         IAdministrationService administrationService,
+        UserManager<User> userManager,
         CancellationToken cancellationToken)
     {
         try
@@ -314,7 +333,7 @@ public static class AdministrationEndpoints
                 userId, new UpdateUserRequest(request.IspId, request.FullName, request.Email, request.Mobile, request.RoleName),
                 cancellationToken).ConfigureAwait(false);
 
-            return Results.Ok(ToResponse(user));
+            return Results.Ok(await ToResponseAsync(user, userManager).ConfigureAwait(false));
         }
         catch (AdministrationValidationException exception) when (IsUserNotFound(exception, userId))
         {
@@ -386,7 +405,17 @@ public static class AdministrationEndpoints
         new(isp.IspId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile,
             isp.CrmBpReference, isp.Status.ToString(), isp.CreatedAt);
 
-    private static UserResponse ToResponse(User user) =>
-        new(user.Id, user.IspId, user.FullName, user.Email!, user.Mobile, user.Role.Name!,
-            user.Status.ToString(), user.LastLoginAt);
+    /// <summary>
+    /// "Locked" is not stored on <see cref="User.Status"/> any more (TR-SEC-12) — it is derived
+    /// from <c>UserManager.IsLockedOutAsync</c> here, so the wire contract still returns exactly
+    /// "Active"/"Locked"/"Deleted" as before, unaffected by the internal representation change.
+    /// </summary>
+    private static async Task<UserResponse> ToResponseAsync(User user, UserManager<User> userManager)
+    {
+        var status = user.Status == UserStatus.Deleted
+            ? "Deleted"
+            : await userManager.IsLockedOutAsync(user).ConfigureAwait(false) ? "Locked" : "Active";
+
+        return new UserResponse(user.Id, user.IspId, user.FullName, user.Email!, user.Mobile, user.Role.Name!, status, user.LastLoginAt);
+    }
 }

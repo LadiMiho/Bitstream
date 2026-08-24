@@ -2,7 +2,11 @@
  * Login page behaviour: the two-factor sign-in flow against the existing
  * POST /api/v1/auth/login and POST /api/v1/auth/login/verify endpoints
  * (Bitstream.Web/Endpoints/AuthEndpoints.cs) — nothing here re-implements the credential
- * check, the lockout decision or the 2FA challenge; both live entirely server-side.
+ * check, the lockout decision or the 2FA verification; both live entirely server-side, via
+ * ASP.NET Core Identity's own SignInManager. There is no challenge token to hold between the
+ * two requests any more: Identity tracks which account is mid-two-factor with its own
+ * short-lived cookie, sent and read automatically by the browser (same-origin fetch already
+ * includes cookies) — this script only needs the verification code itself.
  *
  * The two steps live on one page and are shown/hidden by this script so a JS-issued
  * fetch can drive the two-request flow without a page reload in between — that is not this
@@ -39,9 +43,6 @@ function init() {
   const totpEnrollment = el('#login-totp-enrollment');
   const totpQrImage = el('#login-totp-qr');
 
-  /** Held only in memory for this page load — never written to storage or the DOM. */
-  let challengeToken = null;
-
   credentialsForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     showError(credentialsError, '');
@@ -53,7 +54,6 @@ function init() {
 
     try {
       const challenge = await api.post('/api/v1/auth/login', { email, password });
-      challengeToken = challenge.challengeToken;
       codeChannel.textContent = describeChannel(challenge.channel, Boolean(challenge.qrCodeDataUri));
 
       if (challenge.qrCodeDataUri) {
@@ -83,7 +83,7 @@ function init() {
     submitButton.disabled = true;
 
     try {
-      await api.post('/api/v1/auth/login/verify', { challengeToken, code });
+      await api.post('/api/v1/auth/login/verify', { code });
       window.location.href = returnUrl;
     } catch (error) {
       showError(codeError, describeVerifyError(error));

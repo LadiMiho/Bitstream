@@ -43,16 +43,12 @@ public sealed partial class AdministrationService : IAdministrationService
     private readonly IUserRepository _userRepository;
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<Role> _roleManager;
-    private readonly IUserSessionStore _sessionStore;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IPasswordPolicyValidator _passwordPolicyValidator;
-    private readonly ITotpService _totpService;
-    private readonly ITotpSecretProtector _totpSecretProtector;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ICurrentUserContext _currentUser;
-    private readonly IOptionsMonitor<TwoFactorOptions> _twoFactorOptions;
     private readonly IOptionsMonitor<PasswordPolicyOptions> _passwordPolicyOptions;
 
     public AdministrationService(
@@ -60,32 +56,24 @@ public sealed partial class AdministrationService : IAdministrationService
         IUserRepository userRepository,
         UserManager<User> userManager,
         RoleManager<Role> roleManager,
-        IUserSessionStore sessionStore,
         IPasswordHasher passwordHasher,
         IPasswordPolicyValidator passwordPolicyValidator,
-        ITotpService totpService,
-        ITotpSecretProtector totpSecretProtector,
         IUnitOfWork unitOfWork,
         IAuditWriter auditWriter,
         IClock clock,
         ICurrentUserContext currentUser,
-        IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
         IOptionsMonitor<PasswordPolicyOptions> passwordPolicyOptions)
     {
         _ispRepository = ispRepository;
         _userRepository = userRepository;
         _userManager = userManager;
         _roleManager = roleManager;
-        _sessionStore = sessionStore;
         _passwordHasher = passwordHasher;
         _passwordPolicyValidator = passwordPolicyValidator;
-        _totpService = totpService;
-        _totpSecretProtector = totpSecretProtector;
         _unitOfWork = unitOfWork;
         _auditWriter = auditWriter;
         _clock = clock;
         _currentUser = currentUser;
-        _twoFactorOptions = twoFactorOptions;
         _passwordPolicyOptions = passwordPolicyOptions;
     }
 
@@ -190,30 +178,31 @@ public sealed partial class AdministrationService : IAdministrationService
         }
 
         isp.Status = status;
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        var now = _clock.UtcNow;
         var lockedUserIds = new List<long>();
 
         if (status == IspStatus.Locked)
         {
-            // TR-SEC-13: locking an ISP locks every one of its currently-active users. Unlocking
-            // the ISP does not reciprocally unlock them — see IAdministrationService.SetIspStatusAsync.
+            // TR-SEC-13: locking an ISP locks every one of its currently-active, not-already-locked
+            // users. Unlocking the ISP does not reciprocally unlock them — see
+            // IAdministrationService.SetIspStatusAsync. TR-SEC-07: UpdateSecurityStampAsync
+            // invalidates each user's existing cookie immediately (checked every request —
+            // Program.cs sets SecurityStampValidatorOptions.ValidationInterval to zero) rather
+            // than leaving it to lapse at its next natural expiry.
             var users = await _userRepository.GetByIspIdAsync(ispId, cancellationToken).ConfigureAwait(false);
 
             foreach (var user in users.Where(u => u.Status == UserStatus.Active))
             {
-                user.Status = UserStatus.Locked;
+                if (await _userManager.IsLockedOutAsync(user).ConfigureAwait(false))
+                {
+                    continue;
+                }
+
+                await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue).ConfigureAwait(false);
+                await _userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
                 lockedUserIds.Add(user.Id);
             }
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        // TR-SEC-07: revoked as a bulk operation, after the status change has committed, so a
-        // session validated in between sees the new (locked) status and is refused anyway.
-        if (status == IspStatus.Locked)
-        {
-            await _sessionStore.RevokeAllForIspAsync(ispId, "IspLocked", now, cancellationToken).ConfigureAwait(false);
         }
 
         await _auditWriter.WriteAsync(
@@ -304,21 +293,18 @@ public sealed partial class AdministrationService : IAdministrationService
             CreatedBy = _currentUser.UserId
         };
 
-        // TR-SEC-04/05: provision a TOTP secret up front when that is the configured channel, so
-        // the very first login is not the moment provisioning is discovered to be missing (see
-        // IdentityService.IssueChallengeAsync).
-        if (_twoFactorOptions.CurrentValue.Channel == TwoFactorChannel.Totp)
-        {
-            var secret = _totpService.GenerateSecret();
-            user.TotpSecret = await _totpSecretProtector.ProtectAsync(secret, cancellationToken).ConfigureAwait(false);
-        }
-
         var createResult = await _userManager.CreateAsync(user, request.InitialPassword).ConfigureAwait(false);
 
         if (!createResult.Succeeded)
         {
             throw new AdministrationValidationException([.. createResult.Errors.Select(error => error.Description)]);
         }
+
+        // TR-SEC-04: every user goes through 2FA at every login, from their very first one — no
+        // channel-specific pre-provisioning needed here. For the Totp channel, the authenticator
+        // key itself is generated lazily on that first login (AuthEndpoints.LoginAsync), the
+        // moment its absence is what signals "not yet enrolled."
+        await _userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -370,38 +356,40 @@ public sealed partial class AdministrationService : IAdministrationService
         return matches ? new PagedResult<User>([user!], 1) : new PagedResult<User>([], 0);
     }
 
-    public async Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default)
+    public async Task SetUserLockedAsync(long userId, bool locked, CancellationToken cancellationToken = default)
     {
-        if (status == UserStatus.Deleted)
-        {
-            // Deletion is its own action (DeleteUserAsync), with its own audit event and its own
-            // idempotency rule — not a status this endpoint accepts, so a lock/unlock caller can
-            // never reach it by accident and skip that path's guarantees.
-            throw new AdministrationValidationException("Use the delete action to remove a user, not the status endpoint.");
-        }
-
         var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
             throw new AdministrationValidationException($"User {userId} does not exist.");
 
-        var previousStatus = user.Status;
+        if (user.Status == UserStatus.Deleted)
+        {
+            // Deletion is its own, further-along state (DeleteUserAsync) — locking/unlocking a
+            // deleted user is meaningless, so this is treated as "no such (active) user" rather
+            // than silently flipping a lockout flag nobody can observe (the user cannot
+            // authenticate either way).
+            throw new AdministrationValidationException($"User {userId} does not exist.");
+        }
 
-        if (previousStatus == status)
+        var wasLockedOut = await _userManager.IsLockedOutAsync(user).ConfigureAwait(false);
+
+        if (wasLockedOut == locked)
         {
             return;
         }
 
-        user.Status = status;
-        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        // TR-SEC-12: "locked" is not User.Status — it's UserManager's own LockoutEnd.
+        await _userManager.SetLockoutEndDateAsync(user, locked ? DateTimeOffset.MaxValue : null).ConfigureAwait(false);
 
-        if (status == UserStatus.Locked)
+        if (locked)
         {
-            // TR-SEC-07: locking invalidates the session immediately, not at its next natural expiry.
-            await _sessionStore.RevokeAllForUserAsync(userId, "UserLocked", _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+            // TR-SEC-07: invalidates the session immediately (checked every request — see
+            // SetIspStatusAsync), not at its next natural expiry.
+            await _userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
         }
 
         await _auditWriter.WriteAsync(
             "User.StatusChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
-            $"{{\"status\":\"{previousStatus}\"}}", $"{{\"status\":\"{status}\"}}",
+            $"{{\"locked\":{(wasLockedOut ? "true" : "false")}}}", $"{{\"locked\":{(locked ? "true" : "false")}}}",
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -490,29 +478,28 @@ public sealed partial class AdministrationService : IAdministrationService
             throw new AdministrationValidationException(passwordCheck.Violations);
         }
 
-        // Set directly via the app's own Argon2id hasher (TR-SEC-02) rather than Identity's
-        // token-based reset flow — this codebase does not implement IUserSecurityStampStore, and
-        // an administrator resetting a password does not need the current one, so there is no
-        // token to verify in the first place.
-        user.PasswordHash = _passwordHasher.Hash(newPassword);
-        user.PasswordHashAlgorithm = _passwordHasher.AlgorithmTag;
-        user.PasswordUpdatedAt = _clock.UtcNow;
-
-        var updateResult = await _userManager.UpdateAsync(user).ConfigureAwait(false);
+        // Token-based reset (an administrator resetting a password does not need the current
+        // one, so this is ResetPasswordAsync rather than ChangePasswordAsync) — the app's own
+        // Argon2id hasher (TR-SEC-02) still does the actual hashing via the overridden
+        // IPasswordHasher<User> registration, this just goes through Identity's own store/token
+        // pipeline instead of setting PasswordHash by hand. ResetPasswordAsync rotates the
+        // security stamp internally, which is what invalidates a session opened under the old
+        // password (TR-SEC-07) — checked every request, see SetIspStatusAsync.
+        var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user).ConfigureAwait(false);
+        var updateResult = await _userManager.ResetPasswordAsync(user, resetToken, newPassword).ConfigureAwait(false);
 
         if (!updateResult.Succeeded)
         {
             throw new AdministrationValidationException([.. updateResult.Errors.Select(error => error.Description)]);
         }
 
+        user.PasswordHashAlgorithm = _passwordHasher.AlgorithmTag;
+        user.PasswordUpdatedAt = _clock.UtcNow;
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _userRepository.AddPasswordHistoryAsync(userId, user.PasswordHash!, _passwordHasher.AlgorithmTag, cancellationToken)
             .ConfigureAwait(false);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        // TR-SEC-07: a session opened under the old password must not outlive the change.
-        await _sessionStore.RevokeAllForUserAsync(userId, "PasswordChanged", _clock.UtcNow, cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
             "User.PasswordChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
@@ -533,8 +520,9 @@ public sealed partial class AdministrationService : IAdministrationService
         user.Status = UserStatus.Deleted;
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // TR-SEC-07: a deleted user's sessions must not outlive the deletion.
-        await _sessionStore.RevokeAllForUserAsync(userId, "UserDeleted", _clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        // TR-SEC-07: a deleted user's session must not outlive the deletion — invalidated
+        // immediately (checked every request, see SetIspStatusAsync), not left to lapse.
+        await _userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
             "User.Deleted", "User", userId.ToString(CultureInfo.InvariantCulture),

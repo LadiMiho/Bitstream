@@ -78,19 +78,22 @@ public static class DependencyInjection
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IIspRepository, IspRepository>();
-        services.AddScoped<IUserSessionStore, UserSessionStore>();
-        services.AddScoped<ITwoFactorChallengeStore, TwoFactorChallengeStore>();
 
-        // User/role credential storage and CRUD runs through ASP.NET Core Identity's own EF
-        // store (AddEntityFrameworkStores<BitstreamIdentityDbContext>) — genuinely, not
-        // decoratively: dbo.AspNetUsers/AspNetRoles/etc. are real, EF-migration-owned tables now
-        // (BitstreamIdentityDbContext), not a hand-written-schema bridge. Argon2IdentityPasswordHasher
-        // still keeps TR-SEC-02 (Argon2id specifically) rather than accepting Identity's PBKDF2
-        // default. AddIdentityCore (not AddIdentity) deliberately excludes Identity's own cookie
-        // authentication and lockout store: sessions stay the custom UserSessionStore above
-        // (TR-SEC-07, kept so "list active sessions" / "revoke all" keep working), and lockout
-        // stays User.FailedLoginCount/UserStatus (TR-SEC-06, IdentityService's business rule).
-        services.AddIdentityCore<User>(options =>
+        // Encrypts BitstreamIdentityDbContext's UserTokens.Value column (the TOTP authenticator
+        // key, among other Identity-generated tokens) at rest. Explicit even though AddIdentity
+        // below would register it too, so this registration is never load-bearing on ordering.
+        services.AddDataProtection();
+
+        // User/role credential storage and CRUD, lockout (TR-SEC-06/12), and two-factor
+        // (TR-SEC-04) all run through ASP.NET Core Identity's own EF store
+        // (AddEntityFrameworkStores<BitstreamIdentityDbContext>) — genuinely, not decoratively:
+        // dbo.Users/Roles/etc. are real, EF-migration-owned tables (BitstreamIdentityDbContext),
+        // not a hand-written-schema bridge, and every one of Identity's own subsystems is used as
+        // designed rather than re-implemented. AddIdentity (not AddIdentityCore) additionally
+        // wires SignInManager and the cookie authentication scheme Bitstream.Web/Program.cs
+        // configures. Argon2IdentityPasswordHasher still keeps TR-SEC-02 (Argon2id specifically)
+        // rather than accepting Identity's PBKDF2 default.
+        services.AddIdentity<User, Role>(options =>
         {
             // IPasswordPolicyValidator already enforces the real policy (TR-SEC-03) before
             // UserManager is ever called; Identity's own password/user validators would
@@ -102,10 +105,18 @@ public static class DependencyInjection
             options.Password.RequiredLength = 0;
             options.Password.RequiredUniqueChars = 0;
             options.User.RequireUniqueEmail = false;
-            options.Lockout.AllowedForNewUsers = false;
+
+            // TR-SEC-06: 5 consecutive failed attempts (password or 2FA code — SignInManager
+            // counts both against the same AccessFailedCount). No auto-expiry: today's design has
+            // never had one either — only an administrator unlocks an account
+            // (AdministrationService.SetUserLockedAsync).
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromDays(36500);
+            options.Lockout.AllowedForNewUsers = true;
         })
             .AddRoles<Role>()
-            .AddEntityFrameworkStores<BitstreamIdentityDbContext>();
+            .AddEntityFrameworkStores<BitstreamIdentityDbContext>()
+            .AddDefaultTokenProviders();
 
         // IdentityBuilder has no AddPasswordHasher fluent method — AddIdentityCore registers the
         // default IPasswordHasher<User> with TryAddScoped, so a plain AddScoped registered after

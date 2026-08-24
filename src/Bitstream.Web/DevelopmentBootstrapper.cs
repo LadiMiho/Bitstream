@@ -44,14 +44,6 @@ public static class DevelopmentBootstrapper
     /// <summary>The sqlcmd variable <c>0008_permissions.sql</c> expects to be given.</summary>
     private const string AppUserVariable = "$(AppUser)";
 
-    /// <summary>
-    /// Fixed rather than random so that the same authenticator entry keeps working across
-    /// re-seeds and across developers. It is a development credential and is documented as one.
-    /// </summary>
-    private static readonly byte[] DevelopmentTotpSecret =
-        [0x42, 0x49, 0x54, 0x53, 0x54, 0x52, 0x45, 0x41, 0x4D, 0x44,
-         0x45, 0x56, 0x54, 0x4F, 0x54, 0x50, 0x53, 0x45, 0x45, 0x44];
-
     /// <summary>Applies pending schema scripts and seeds the development administrator. A no-op outside Development, or when the flag is off.</summary>
     public static async Task RunDevelopmentBootstrapAsync(this WebApplication app)
     {
@@ -73,8 +65,8 @@ public static class DevelopmentBootstrapper
             var identityDbContext = scope.ServiceProvider.GetRequiredService<BitstreamIdentityDbContext>();
 
             // Must run first: db/mssql/0014 (applied below, as part of the schema-script pass)
-            // re-points several hand-written tables' foreign keys at dbo.AspNetUsers/AspNetRoles,
-            // and 0015 seeds roles into dbo.AspNetRoles — both need this migration's tables to
+            // re-points several hand-written tables' foreign keys at dbo.Users/Roles,
+            // and 0015 seeds roles into dbo.Roles — both need this migration's tables to
             // already exist.
             await identityDbContext.Database.MigrateAsync().ConfigureAwait(false);
             logger.LogInformation("Development bootstrap: identity schema migrated.");
@@ -241,8 +233,6 @@ public static class DevelopmentBootstrapper
         }
 
         var passwordHasher = services.GetRequiredService<IPasswordHasher>();
-        var totpProtector = services.GetRequiredService<ITotpSecretProtector>();
-        var totpService = services.GetRequiredService<ITotpService>();
 
         // UserName/NormalizedUserName/NormalizedEmail are ordinarily set by UserManager.CreateAsync
         // (via the registered ILookupNormalizer); this insert bypasses UserManager entirely, so
@@ -264,20 +254,19 @@ public static class DevelopmentBootstrapper
             PasswordHash = passwordHasher.Hash(password),
             PasswordHashAlgorithm = "argon2id",
             PasswordUpdatedAt = DateTimeOffset.UtcNow,
-            TotpSecret = await totpProtector.ProtectAsync(DevelopmentTotpSecret).ConfigureAwait(false),
+            TwoFactorEnabled = true,
             CreatedAt = DateTimeOffset.UtcNow
         });
 
         await dbContext.SaveChangesAsync().ConfigureAwait(false);
 
-        // TotpConfirmedAt is deliberately left null: signing in for the first time is what shows
-        // the QR code on /Login. Logged too, at warning so it is visible without debug logging
-        // on, purely as a fallback for a browser that cannot render it.
-        logger.LogWarning(
+        // No TOTP key seeded: exactly like every other user, the authenticator key is generated
+        // lazily on this account's first login (AuthEndpoints.LoginAsync sees
+        // GetAuthenticatorKeyAsync return null and shows the QR code then) — no special-cased dev
+        // secret to keep working across re-seeds any more, since a real login is just as fast.
+        logger.LogInformation(
             "Development bootstrap: seeded administrator {Email}. The Login page will show a QR " +
-            "code for the second factor on first sign-in; if you need it without a browser, here " +
-            "it is as a URI: {Uri}",
-            email,
-            totpService.BuildProvisioningUri(DevelopmentTotpSecret, email, "Bitstream Portal"));
+            "code for the second factor on first sign-in.",
+            email);
     }
 }

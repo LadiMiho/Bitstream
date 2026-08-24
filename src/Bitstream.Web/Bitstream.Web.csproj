@@ -21,8 +21,8 @@
 
   <ItemGroup>
     <!-- Renders the TOTP enrollment QR code (Endpoints/AuthEndpoints.cs). Presentation-only:
-         the decision that a login needs one at all is IIdentityService.AuthenticateAsync's,
-         not this project's. -->
+         the decision that a login needs one at all is AuthEndpoints.LoginAsync's own (whether
+         UserManager.GetAuthenticatorKeyAsync returns null), not this package's. -->
     <PackageReference Include="QRCoder" />
   </ItemGroup>
 

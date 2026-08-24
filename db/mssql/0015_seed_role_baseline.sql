@@ -2,7 +2,7 @@
     0015_seed_role_baseline.sql
     Seeded roles (TRD 4.3) and their baseline permission assignment.
 
-    Runs after 0014_drop_legacy_identity_tables.sql: roles now live in dbo.AspNetRoles (ASP.NET
+    Runs after 0014_drop_legacy_identity_tables.sql: roles now live in dbo.Roles (ASP.NET
     Core Identity's own EF-migrated schema), which only exists once the identity EF migration has
     run (DevelopmentBootstrapper.cs / the documented `dotnet ef database update` step), and
     sec.RolePermission.RoleId is only re-pointed at it once 0014 has run. NormalizedName is
@@ -19,7 +19,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
-MERGE dbo.AspNetRoles AS target
+MERGE dbo.Roles AS target
 USING
 (
     VALUES
@@ -39,7 +39,7 @@ GO
 ;WITH baseline (RoleName, PermissionCode) AS
 (
     SELECT r.Name, p.Code
-    FROM dbo.AspNetRoles r
+    FROM dbo.Roles r
     CROSS JOIN sec.Permission p
     WHERE r.Name = N'Administrator'
 
@@ -62,7 +62,7 @@ GO
 INSERT INTO sec.RolePermission (RoleId, PermissionId)
 SELECT r.Id, p.PermissionId
 FROM baseline b
-INNER JOIN dbo.AspNetRoles r ON r.Name = b.RoleName
+INNER JOIN dbo.Roles r ON r.Name = b.RoleName
 INNER JOIN sec.Permission p  ON p.Code = b.PermissionCode
 WHERE NOT EXISTS
 (

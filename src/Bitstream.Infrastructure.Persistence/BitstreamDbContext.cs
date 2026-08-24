@@ -15,11 +15,11 @@ namespace Bitstream.Infrastructure.Persistence;
 /// </para>
 /// <para>
 /// <see cref="Users"/>/<see cref="Roles"/> are the one deliberate exception to "never creates
-/// it": their physical table (<c>dbo.AspNetUsers</c>/<c>AspNetRoles</c>) is migration-owned by
+/// it": their physical table (<c>dbo.Users</c>/<c>Roles</c>) is migration-owned by
 /// <see cref="Identity.BitstreamIdentityDbContext"/>, not this context. They are mapped here,
-/// read/write, purely so <c>UserSession</c>/<c>TwoFactorChallenge</c>/<c>RolePermission</c>/
-/// <c>UserPasswordHistory</c> — all still hand-written, unmigrated tables — can
-/// <c>.Include()</c> across to them in one query, exactly as before this migration existed.
+/// read/write, purely so <c>RolePermission</c>/<c>UserPasswordHistory</c> — still hand-written,
+/// unmigrated tables — can <c>.Include()</c> across to them in one query, exactly as before this
+/// migration existed.
 /// </para>
 /// </summary>
 public sealed class BitstreamDbContext : DbContext
@@ -32,12 +32,14 @@ public sealed class BitstreamDbContext : DbContext
     /// when db/mssql/0012_totp_enrollment.sql (TR-SEC-04, first-login QR enrollment) was added,
     /// from 5 to 6 when db/mssql/0013_user_deleted_status.sql (soft-delete for User
     /// Administration) was added, from 6 to 7 when db/mssql/0014_drop_legacy_identity_tables.sql
-    /// (sec.[User]/sec.Role dropped in favour of the EF-migrated AspNetUsers/AspNetRoles) was
-    /// added, and from 7 to 8 when db/mssql/0015_seed_role_baseline.sql (role seeding, split out
-    /// of 0007 so it can run after 0014 has re-pointed sec.RolePermission at dbo.AspNetRoles) was
-    /// added.
+    /// (sec.[User]/sec.Role dropped in favour of the EF-migrated Users/Roles) was added, from 7
+    /// to 8 when db/mssql/0015_seed_role_baseline.sql (role seeding, split out of 0007 so it can
+    /// run after 0014 has re-pointed sec.RolePermission at dbo.Roles) was added, and from 8 to 9
+    /// when db/mssql/0016_drop_session_and_twofactor_tables.sql (sec.UserSession/TwoFactorChallenge
+    /// dropped — both fully superseded by ASP.NET Core Identity's own cookie auth and 2FA token
+    /// providers) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 8;
+    public const int ExpectedSchemaVersion = 9;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -51,10 +53,6 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<UserPasswordHistory> UserPasswordHistory => Set<UserPasswordHistory>();
 
     public DbSet<Role> Roles => Set<Role>();
-
-    public DbSet<UserSession> UserSessions => Set<UserSession>();
-
-    public DbSet<TwoFactorChallenge> TwoFactorChallenges => Set<TwoFactorChallenge>();
 
     public DbSet<Permission> Permissions => Set<Permission>();
 

@@ -52,8 +52,12 @@ public sealed class PasswordPolicyOptions
 }
 
 /// <summary>
-/// Two-factor authentication, TR-SEC-04 / TR-SEC-05. Enforced for every user at every login;
-/// the channel is configurable per environment and the production choice is TRD 11.4 open item 13.
+/// Two-factor authentication, TR-SEC-04 / TR-SEC-05. Enforced for every user at every login via
+/// ASP.NET Core Identity's own token providers (<c>UserManager.SetTwoFactorEnabledAsync</c> /
+/// <c>SignInManager.TwoFactorAuthenticatorSignInAsync</c> / <c>TwoFactorSignInAsync</c>) — code
+/// length, validity window and per-code attempt handling are Identity's own, no longer
+/// independently configurable here. Only which channel is active stays a per-environment choice
+/// (the production choice is TRD 11.4 open item 13).
 /// </summary>
 public sealed class TwoFactorOptions
 {
@@ -61,24 +65,14 @@ public sealed class TwoFactorOptions
 
     /// <summary>Configured second-factor channel. Default Totp: it needs no delivery channel, so it works before open item 13 is answered.</summary>
     public TwoFactorChannel Channel { get; set; } = TwoFactorChannel.Totp;
-
-    /// <summary>Digits in a generated (EmailOtp / SmsOtp) code.</summary>
-    public int CodeLength { get; set; } = 6;
-
-    /// <summary>TR-SEC-04 ceiling: at most 5 minutes.</summary>
-    public TimeSpan CodeValidity { get; set; } = TimeSpan.FromMinutes(5);
-
-    /// <summary>Failed verification attempts against one challenge before it is invalidated.</summary>
-    public int MaxVerificationAttempts { get; set; } = 5;
-
-    /// <summary>RFC 6238 time step for the Totp channel.</summary>
-    public int TotpStepSeconds { get; set; } = 30;
-
-    /// <summary>Steps of clock skew tolerated either side of the current one, for Totp.</summary>
-    public int TotpAllowedSkewSteps { get; set; } = 1;
 }
 
-/// <summary>Session lifetime, TR-SEC-07.</summary>
+/// <summary>
+/// Session lifetime, TR-SEC-07, applied to ASP.NET Core Identity's own authentication cookie
+/// (<c>Bitstream.Web/Program.cs</c>'s <c>ConfigureApplicationCookie</c>) — <see cref="IdleTimeout"/>
+/// as the cookie's sliding expiry, <see cref="AbsoluteTimeout"/> as an extra cap enforced from a
+/// custom <c>OnValidatePrincipal</c> check, since cookie auth alone only offers one or the other.
+/// </summary>
 public sealed class SessionOptions
 {
     public const string SectionName = "Security:Session";
@@ -89,7 +83,7 @@ public sealed class SessionOptions
     /// <summary>TR-SEC-07: 12 hours, whichever of the two is reached first.</summary>
     public TimeSpan AbsoluteTimeout { get; set; } = TimeSpan.FromHours(12);
 
-    /// <summary>Name of the HttpOnly session cookie.</summary>
+    /// <summary>Name of the authentication cookie.</summary>
     public string CookieName { get; set; } = "bitstream_session";
 }
 

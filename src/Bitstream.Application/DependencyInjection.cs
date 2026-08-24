@@ -76,16 +76,11 @@ public static class DependencyInjection
         // (TR-SEC-02, TR-SEC-04).
         services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
         services.AddSingleton<IPasswordPolicyValidator, PasswordPolicyValidator>();
-        services.AddSingleton<ITotpService, TotpService>();
-
-        // Encrypts the TOTP secret at rest through ISecretResolver (TR-SEC-28); registered here
-        // because it too is pure computation once the key is resolved, not an adapter.
-        services.AddSingleton<ITotpSecretProtector, AesGcmTotpSecretProtector>();
 
         // Orchestrate ports declared in Abstractions.Persistence and Abstractions.Integration —
         // implemented in the Persistence and Integration layers respectively, never referenced
-        // directly here (TR-ARC-01).
-        services.AddScoped<IIdentityService, IdentityService>();
+        // directly here (TR-ARC-01). Login/2FA/session orchestration itself now lives in
+        // Bitstream.Web (SignInManager needs HttpContext) — no IIdentityService registration here.
         services.AddScoped<IAdministrationService, AdministrationService>();
 
         // TRD 5 — activation request lifecycle (TR-ACT-01 to TR-ACT-19).

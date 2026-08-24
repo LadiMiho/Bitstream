@@ -1,40 +1,46 @@
-using Bitstream.Application.Services;
+using System.Security.Claims;
+using Bitstream.Application.Identity.Entities;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Options;
-// Sdk.Web's implicit global usings bring in Microsoft.AspNetCore.Builder, which also declares a
-// SessionOptions (the session-state-middleware one) — disambiguate in favour of ours.
-using SessionOptions = Bitstream.Application.Configuration.SessionOptions;
 
 namespace Bitstream.Web.Pages;
 
 /// <summary>
 /// Signs the current session out. A real page handler rather than client-side script, so
 /// sign-out is a normal form POST and never itself acts as page navigation from JavaScript
-/// (TR-SEC-07: the session token is revoked server-side immediately, not merely forgotten by
-/// the client). Idempotent, matching the equivalent API endpoint's behaviour.
+/// (TR-SEC-07: the session is invalidated server-side immediately, not merely forgotten by the
+/// client — see <see cref="Endpoints.AuthEndpoints"/>'s own logout endpoint, which does the same
+/// thing for the JSON API). Idempotent.
 /// </summary>
 public sealed class LogoutModel : PageModel
 {
-    private readonly IIdentityService _identityService;
-    private readonly IOptions<SessionOptions> _sessionOptions;
+    private readonly SignInManager<User> _signInManager;
+    private readonly UserManager<User> _userManager;
 
-    public LogoutModel(IIdentityService identityService, IOptions<SessionOptions> sessionOptions)
+    public LogoutModel(SignInManager<User> signInManager, UserManager<User> userManager)
     {
-        _identityService = identityService;
-        _sessionOptions = sessionOptions;
+        _signInManager = signInManager;
+        _userManager = userManager;
     }
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostAsync()
     {
-        var cookieName = _sessionOptions.Value.CookieName;
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        if (Request.Cookies.TryGetValue(cookieName, out var token) && !string.IsNullOrWhiteSpace(token))
+        await _signInManager.SignOutAsync().ConfigureAwait(false);
+
+        if (userId is not null)
         {
-            await _identityService.SignOutAsync(token, cancellationToken).ConfigureAwait(false);
-        }
+            var user = await _userManager.FindByIdAsync(userId).ConfigureAwait(false);
 
-        Response.Cookies.Delete(cookieName, new CookieOptions { Path = "/" });
+            if (user is not null)
+            {
+                // TR-SEC-07: invalidates any other copy of the cookie immediately (checked every
+                // request — SecurityStampValidatorOptions.ValidationInterval is zero).
+                await _userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
+            }
+        }
 
         return RedirectToPage("/Login");
     }

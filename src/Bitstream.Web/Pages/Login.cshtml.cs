@@ -5,10 +5,10 @@ namespace Bitstream.Web.Pages;
 
 /// <summary>
 /// Sign-in page: email/password, then the 2FA challenge. The two-step flow itself is driven by
-/// <c>wwwroot/js/pages/login.js</c> calling the existing
-/// <see cref="Bitstream.Application.Services.IIdentityService"/>-backed endpoints
-/// (<c>POST /api/v1/auth/login</c>, <c>POST /api/v1/auth/login/verify</c>) — this page only
-/// renders the form and decides where <c>/Login</c> sends an already-signed-in visitor.
+/// <c>wwwroot/js/pages/login.js</c> calling <see cref="Endpoints.AuthEndpoints"/>'s
+/// <c>SignInManager</c>-backed endpoints (<c>POST /api/v1/auth/login</c>,
+/// <c>POST /api/v1/auth/login/verify</c>) — this page only renders the form and decides where
+/// <c>/Login</c> sends an already-signed-in visitor.
 /// Deliberately not a <see cref="SecurePageModel"/>: guarding the page a redirect lands on
 /// would loop.
 /// </summary>

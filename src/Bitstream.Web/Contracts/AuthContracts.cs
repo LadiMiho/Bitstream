@@ -8,22 +8,20 @@ public sealed record LoginRequest(
     [property: JsonPropertyName("email")] string Email,
     [property: JsonPropertyName("password")] string Password);
 
-/// <param name="ChallengeToken">Submit with the code to <c>POST /api/v1/auth/login/verify</c>.</param>
 /// <param name="Channel">Where the second factor is coming from — <c>Totp</c>, <c>EmailOtp</c> or <c>SmsOtp</c> (TR-SEC-05).</param>
-/// <param name="ExpiresAt">At most 5 minutes from now (TR-SEC-04).</param>
 /// <param name="QrCodeDataUri">
 /// A <c>data:image/png;base64,...</c> image, present only on this user's first login with the
-/// <c>Totp</c> channel — nothing has confirmed the secret yet, so the login page shows this
-/// instead of a bare code prompt. Absent on every login after the first successful code.
+/// <c>Totp</c> channel — no authenticator key exists yet (<c>UserManager.GetAuthenticatorKeyAsync</c>
+/// returns null), so the login page shows this instead of a bare code prompt. Absent on every
+/// login after the first successful code. There is no challenge token any more: ASP.NET Core
+/// Identity's <c>SignInManager</c> tracks which account is mid-two-factor via its own short-lived
+/// cookie, set automatically alongside this response — <c>POST /login/verify</c> just needs the code.
 /// </param>
-public sealed record LoginChallengeResponse(
-    [property: JsonPropertyName("challengeToken")] string ChallengeToken,
+public sealed record TwoFactorRequiredResponse(
     [property: JsonPropertyName("channel")] string Channel,
-    [property: JsonPropertyName("expiresAt")] DateTimeOffset ExpiresAt,
     [property: JsonPropertyName("qrCodeDataUri")] string? QrCodeDataUri);
 
 public sealed record TwoFactorVerifyRequest(
-    [property: JsonPropertyName("challengeToken")] string ChallengeToken,
     [property: JsonPropertyName("code")] string Code);
 
 /// <summary>Returned after a successful second factor. The session itself travels as an HttpOnly cookie, not in this body.</summary>

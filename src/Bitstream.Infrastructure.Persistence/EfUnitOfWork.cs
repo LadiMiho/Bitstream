@@ -8,9 +8,9 @@ namespace Bitstream.Infrastructure.Persistence;
 /// <see cref="IUnitOfWork"/> over <see cref="BitstreamDbContext"/> and
 /// <see cref="BitstreamIdentityDbContext"/>. Repositories track changes on whichever context owns
 /// the entity they touch — most on <see cref="BitstreamDbContext"/>, but anything loaded via
-/// <c>UserManager&lt;User&gt;</c>/<c>RoleManager&lt;Role&gt;</c> (e.g. <c>IdentityService</c>
-/// mutating <c>User.FailedLoginCount</c>/<c>Status</c> after <c>UserManager.FindByEmailAsync</c>)
-/// is tracked by <see cref="BitstreamIdentityDbContext"/> instead. This is the one place that
+/// <c>UserManager&lt;User&gt;</c>/<c>RoleManager&lt;Role&gt;</c> (e.g. <c>AdministrationService</c>
+/// mutating a <c>User</c> after <c>UserManager.FindByIdAsync</c>) is tracked by
+/// <see cref="BitstreamIdentityDbContext"/> instead. This is the one place that
 /// calls <c>SaveChangesAsync</c>, so an application service controls exactly when a set of
 /// mutations across either context becomes durable, without needing to know which one it is.
 /// </summary>

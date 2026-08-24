@@ -203,136 +203,11 @@ public sealed record ExportRequest(
 public sealed record ExportStatus(Guid ExportId, string State, int RowCount, string? DownloadToken);
 
 /// <summary>
-/// Identity &amp; Access Service — authentication, 2FA, session lifecycle (TRD 4.1).
-/// <para>
-/// Two calls per login, matching TRD 4.1's two factors: <see cref="AuthenticateAsync"/> checks
-/// the password and, on success, issues a second-factor challenge; <see cref="CompleteSecondFactorAsync"/>
-/// checks the code and, on success, issues a session. Neither call on its own authenticates a
-/// user — TR-SEC-04 enforces 2FA at every login, with no path that skips it.
-/// </para>
+/// Login/2FA/session orchestration (TRD 4.1) moved to <c>Bitstream.Web.Endpoints.AuthEndpoints</c>:
+/// it is now <c>SignInManager&lt;User&gt;</c>-driven, which needs <c>HttpContext</c> to read/write
+/// the authentication cookie — an HTTP concern this layer has stayed decoupled from all along
+/// (the same reason <c>HttpCurrentUserContext</c> lives in <c>Bitstream.Web</c>, not here).
 /// </summary>
-public interface IIdentityService
-{
-    /// <summary>
-    /// First factor (TR-SEC-01, TR-SEC-02). A locked account is rejected without a password
-    /// check (TR-SEC-12); a wrong password increments the failure count and locks the account
-    /// at the configured threshold (TR-SEC-06, default 5).
-    /// </summary>
-    Task<LoginResult> AuthenticateAsync(string email, string password, string? actorIp, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Second factor (TR-SEC-04). The challenge is single-use: a repeated or expired token, or
-    /// one that has exhausted its attempt budget, is rejected without checking the code.
-    /// </summary>
-    Task<TwoFactorResult> CompleteSecondFactorAsync(string challengeToken, string code, string? actorIp, CancellationToken cancellationToken = default);
-
-    /// <summary>Invalidates a session token immediately (TR-SEC-07). Idempotent.</summary>
-    Task SignOutAsync(string sessionToken, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Validates a session token against the store, applying the idle and absolute timeouts and
-    /// the current user/ISP lock state (TR-SEC-07, TR-SEC-12). Called on every authenticated
-    /// request by the presentation layer's authentication handler; touches
-    /// <c>UserSession.LastActivityAt</c> on success, which is what makes the idle timeout slide.
-    /// </summary>
-    Task<AuthenticatedUser?> ValidateSessionAsync(string sessionToken, CancellationToken cancellationToken = default);
-}
-
-/// <summary>Outcome of the first factor.</summary>
-public enum LoginOutcome
-{
-    /// <summary>Password verified; a second-factor challenge was issued.</summary>
-    ChallengeIssued,
-
-    /// <summary>
-    /// No such account, or the password was wrong. Deliberately the same outcome for both —
-    /// TR-SEC-01 gives every user a unique email, and distinguishing "no such email" from
-    /// "wrong password" in the response would let a caller enumerate registered addresses.
-    /// </summary>
-    InvalidCredentials,
-
-    /// <summary>
-    /// The account is locked — either already, or as a result of this attempt reaching the
-    /// failure threshold. Disclosed deliberately: TR-NFR-12 asks for actionable errors, this is
-    /// a closed wholesale portal with no public self-registration, and a legitimate user who
-    /// gets locked out needs to know why (TR-SEC-06).
-    /// </summary>
-    AccountLocked
-}
-
-/// <param name="Outcome">Which of the three login outcomes this is.</param>
-/// <param name="ChallengeToken">Opaque token to submit with the code. Present only when <see cref="Outcome"/> is <see cref="LoginOutcome.ChallengeIssued"/>.</param>
-/// <param name="Channel">Second-factor channel the challenge was issued on.</param>
-/// <param name="ExpiresAt">At most 5 minutes from issuance (TR-SEC-04).</param>
-/// <param name="ProvisioningUri">
-/// <c>otpauth://</c> URI for an authenticator app, present only when <see cref="Channel"/> is
-/// <see cref="TwoFactorChannel.Totp"/> and this user has never confirmed a code before — i.e.
-/// the secret exists but nothing has scanned it yet. The presentation layer renders this as a
-/// QR code; submitting the resulting first code both confirms enrollment and signs the user in.
-/// </param>
-public sealed record LoginResult(
-    LoginOutcome Outcome,
-    string? ChallengeToken,
-    TwoFactorChannel? Channel,
-    DateTimeOffset? ExpiresAt,
-    string? ProvisioningUri)
-{
-    public static LoginResult ChallengeIssued(string challengeToken, TwoFactorChannel channel, DateTimeOffset expiresAt, string? provisioningUri) =>
-        new(LoginOutcome.ChallengeIssued, challengeToken, channel, expiresAt, provisioningUri);
-
-    public static LoginResult InvalidCredentials() => new(LoginOutcome.InvalidCredentials, null, null, null, null);
-
-    public static LoginResult AccountLocked() => new(LoginOutcome.AccountLocked, null, null, null, null);
-}
-
-/// <summary>Outcome of the second factor.</summary>
-public enum TwoFactorOutcome
-{
-    Succeeded,
-
-    /// <summary>Wrong code, or no such challenge — the same outcome for both, for the same enumeration reason as <see cref="LoginOutcome.InvalidCredentials"/>.</summary>
-    InvalidCode,
-
-    /// <summary>Past its 5-minute validity, or already consumed by an earlier successful verification.</summary>
-    ChallengeExpired,
-
-    /// <summary>The challenge's verification-attempt budget is exhausted; a new login is required.</summary>
-    TooManyAttempts
-}
-
-/// <param name="Outcome">Which of the second-factor outcomes this is.</param>
-/// <param name="SessionToken">Raw session token — the presentation layer sets this as the HttpOnly session cookie. Present only when <see cref="Outcome"/> is <see cref="TwoFactorOutcome.Succeeded"/>.</param>
-/// <param name="SessionExpiresAt">Present only on success.</param>
-/// <param name="User">The authenticated caller's profile. Present only on success.</param>
-public sealed record TwoFactorResult(
-    TwoFactorOutcome Outcome,
-    string? SessionToken,
-    DateTimeOffset? SessionExpiresAt,
-    AuthenticatedUser? User)
-{
-    public static TwoFactorResult Succeeded(string sessionToken, DateTimeOffset expiresAt, AuthenticatedUser user) =>
-        new(TwoFactorOutcome.Succeeded, sessionToken, expiresAt, user);
-
-    public static TwoFactorResult InvalidCode() => new(TwoFactorOutcome.InvalidCode, null, null, null);
-
-    public static TwoFactorResult Expired() => new(TwoFactorOutcome.ChallengeExpired, null, null, null);
-
-    public static TwoFactorResult TooManyAttempts() => new(TwoFactorOutcome.TooManyAttempts, null, null, null);
-}
-
-/// <summary>
-/// The authenticated principal, as built from the session's user, role and permissions
-/// (TR-SEC-17). <see cref="Permissions"/> is read fresh from the database on every request
-/// validation, not cached in the token, so a permission change takes effect on the caller's
-/// very next request rather than only after their next login.
-/// </summary>
-public sealed record AuthenticatedUser(
-    long UserId,
-    string FullName,
-    string Email,
-    string RoleName,
-    long? IspId,
-    IReadOnlyList<string> Permissions);
 
 /// <summary>
 /// ISP and user administration, Administrator role only (TR-SEC-09 to TR-SEC-16).
@@ -381,19 +256,25 @@ public interface IAdministrationService
     /// <summary>
     /// Administrator-set password reset: validated against the same policy as
     /// <see cref="CreateUserAsync"/> (TR-SEC-03), recorded to password history, and followed by an
-    /// immediate revocation of the user's sessions (TR-SEC-07) so a session opened under the old
-    /// password cannot outlive the change.
+    /// immediate invalidation of the user's other sessions (TR-SEC-07, via
+    /// <c>UserManager.ResetPasswordAsync</c>'s own security-stamp rotation) so a session opened
+    /// under the old password cannot outlive the change.
     /// </summary>
     Task ChangeUserPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default);
 
-    /// <summary>Locking revokes the user's sessions immediately (TR-SEC-12, TR-SEC-07).</summary>
-    Task SetUserStatusAsync(long userId, UserStatus status, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Locks or unlocks a user (TR-SEC-12) via <c>UserManager.SetLockoutEndDateAsync</c> —
+    /// "locked" is not <see cref="UserStatus"/> state, it is a derived condition
+    /// (<c>UserManager.IsLockedOutAsync</c>). Locking invalidates the user's sessions immediately
+    /// (TR-SEC-07).
+    /// </summary>
+    Task SetUserLockedAsync(long userId, bool locked, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Soft delete (TR-DAT-07: no physical delete). Sets <see cref="UserStatus.Deleted"/>, revokes
+    /// Soft delete (TR-DAT-07: no physical delete). Sets <see cref="UserStatus.Deleted"/>, invalidates
     /// every session immediately, and hides the user from <see cref="SearchUsersAsync"/> by
-    /// default — the row, and every audit log, session and password-history entry that references
-    /// it, are left exactly as they are. Idempotent: deleting an already-deleted user is a no-op.
+    /// default — the row, and every audit log and password-history entry that references it, are
+    /// left exactly as they are. Idempotent: deleting an already-deleted user is a no-op.
     /// </summary>
     Task DeleteUserAsync(long userId, CancellationToken cancellationToken = default);
 }

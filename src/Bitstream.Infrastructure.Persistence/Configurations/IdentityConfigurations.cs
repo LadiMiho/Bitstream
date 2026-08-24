@@ -42,29 +42,28 @@ internal sealed class IspConfiguration : IEntityTypeConfiguration<Isp>
 }
 
 /// <summary>
-/// <see cref="User"/>'s table (<c>dbo.AspNetUsers</c>) is migration-owned by
+/// <see cref="User"/>'s table (<c>dbo.Users</c>) is migration-owned by
 /// <c>Identity.BitstreamIdentityDbContext</c>, which configures the same custom columns
 /// independently — this configuration exists only so <see cref="BitstreamDbContext"/> can
 /// <c>.Include()</c> across to <see cref="User"/> from the hand-written tables that still
-/// navigate to it (<c>UserSession</c>, <c>TwoFactorChallenge</c>, <c>RolePermission</c> via
-/// <c>Role</c>, <c>UserPasswordHistory</c>). The explicit <c>ToTable</c> call below is required:
-/// unlike <c>IdentityDbContext&lt;TUser,...&gt;</c>, this is a plain <see cref="DbContext"/>, so
-/// there is no base <c>OnModelCreating</c> inferring <c>AspNetUsers</c> from <see cref="User"/>'s
-/// base type — without it, EF falls back to its normal convention (<c>Users</c>, the DbSet name),
-/// a table that does not exist.
+/// navigate to it (<c>RolePermission</c> via <c>Role</c>, <c>UserPasswordHistory</c>). The
+/// explicit <c>ToTable</c> call below is required: unlike <c>IdentityDbContext&lt;TUser,...&gt;</c>,
+/// this is a plain <see cref="DbContext"/>, so there is no base <c>OnModelCreating</c> inferring
+/// <c>Users</c> from <see cref="User"/>'s base type on its own — it would otherwise fall back to
+/// EF's normal convention, which happens to also be <c>Users</c> (the DbSet name) purely by
+/// coincidence now that the table has been renamed to match; the explicit call stays so this
+/// doesn't silently depend on that coincidence.
 /// </summary>
 internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
-        builder.ToTable("AspNetUsers");
+        builder.ToTable("Users");
 
         builder.Property(x => x.FullName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Mobile).HasMaxLength(20).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(x => x.PasswordHashAlgorithm).HasMaxLength(50).IsRequired();
-        builder.Property(x => x.TotpSecret).HasColumnType("varbinary(256)");
-        builder.Property(x => x.TotpConfirmedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastLoginAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.PasswordUpdatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
@@ -105,7 +104,7 @@ internal sealed class UserPasswordHistoryConfiguration : IEntityTypeConfiguratio
 }
 
 /// <summary>
-/// <see cref="Role"/>'s table (<c>dbo.AspNetRoles</c>) is migration-owned by
+/// <see cref="Role"/>'s table (<c>dbo.Roles</c>) is migration-owned by
 /// <c>Identity.BitstreamIdentityDbContext</c> — see <see cref="UserConfiguration"/> for why this
 /// mapping, including the explicit <c>ToTable</c> call, still exists on
 /// <see cref="BitstreamDbContext"/> regardless.
@@ -114,7 +113,7 @@ internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
     public void Configure(EntityTypeBuilder<Role> builder)
     {
-        builder.ToTable("AspNetRoles");
+        builder.ToTable("Roles");
         builder.Property(x => x.Description).HasMaxLength(500);
     }
 }
@@ -177,60 +176,5 @@ internal sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.HasIndex(x => new { x.ActorUserId, x.Timestamp }).HasDatabaseName("IX_AuditLog_Actor_Timestamp");
         builder.HasIndex(x => new { x.EntityType, x.EntityId }).HasDatabaseName("IX_AuditLog_Entity");
         builder.HasIndex(x => x.CorrelationId).HasDatabaseName("IX_AuditLog_CorrelationId");
-    }
-}
-
-internal sealed class UserSessionConfiguration : IEntityTypeConfiguration<UserSession>
-{
-    public void Configure(EntityTypeBuilder<UserSession> builder)
-    {
-        builder.ToTable("UserSession", Schemas.Security);
-        builder.HasKey(x => x.SessionId);
-
-        builder.Property(x => x.SessionId).UseIdentityColumn();
-        builder.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
-        builder.Property(x => x.IssuedAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.LastActivityAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.IssuedFromIp).HasMaxLength(64);
-        builder.Property(x => x.RevokedAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.RevokedReason).HasMaxLength(50);
-
-        // The lookup key: every authenticated request looks a session up by the hash of its
-        // cookie value (TR-SEC-07).
-        builder.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("UX_UserSession_TokenHash");
-
-        // TR-SEC-13: the bulk revoke-on-ISP-lock query filters to a user's still-active sessions.
-        builder.HasIndex(x => new { x.UserId, x.RevokedAt }).HasDatabaseName("IX_UserSession_UserId_RevokedAt");
-
-        builder.HasOne(x => x.User)
-            .WithMany()
-            .HasForeignKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
-    }
-}
-
-internal sealed class TwoFactorChallengeConfiguration : IEntityTypeConfiguration<TwoFactorChallenge>
-{
-    public void Configure(EntityTypeBuilder<TwoFactorChallenge> builder)
-    {
-        builder.ToTable("TwoFactorChallenge", Schemas.Security);
-        builder.HasKey(x => x.ChallengeId);
-
-        builder.Property(x => x.ChallengeId).UseIdentityColumn();
-        builder.Property(x => x.ChallengeToken).HasMaxLength(64).IsRequired();
-        builder.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20).IsRequired();
-        builder.Property(x => x.CodeHash).HasMaxLength(64);
-        builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.ExpiresAt).HasColumnType("datetimeoffset(7)");
-        builder.Property(x => x.ConsumedAt).HasColumnType("datetimeoffset(7)");
-
-        // TR-SEC-04: the lookup key for the second-factor verification call.
-        builder.HasIndex(x => x.ChallengeToken).IsUnique().HasDatabaseName("UX_TwoFactorChallenge_ChallengeToken");
-
-        builder.HasOne(x => x.User)
-            .WithMany()
-            .HasForeignKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

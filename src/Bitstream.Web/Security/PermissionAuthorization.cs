@@ -18,7 +18,7 @@ public sealed class PermissionRequirement : IAuthorizationRequirement
 
 /// <summary>
 /// Checks <see cref="PermissionRequirement"/> against the <see cref="BitstreamClaimTypes.Permission"/>
-/// claims <see cref="SessionAuthenticationHandler"/> put on the principal.
+/// claims <see cref="BitstreamClaimsPrincipalFactory"/> put on the principal.
 /// <para>
 /// This is TR-SEC-17 enforced, not merely documented: every minimal-API endpoint that requires
 /// a permission runs through this handler server-side, on every request — nothing here trusts

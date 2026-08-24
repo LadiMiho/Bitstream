@@ -51,30 +51,3 @@ public interface IIspRepository
     Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
         string? search, int skip, int take, CancellationToken cancellationToken = default);
 }
-
-/// <summary>Session store, TR-SEC-07.</summary>
-public interface IUserSessionStore
-{
-    Task AddAsync(UserSession session, CancellationToken cancellationToken = default);
-
-    /// <summary>By the SHA-256 hash of the raw token; includes the user, role, permissions and ISP for the authentication handler.</summary>
-    Task<UserSession?> FindByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Revokes every still-active session of a user in one statement, without loading them
-    /// individually — used when a user or their ISP is locked (TR-SEC-07, TR-SEC-13).
-    /// </summary>
-    Task<int> RevokeAllForUserAsync(long userId, string reason, DateTimeOffset revokedAt, CancellationToken cancellationToken = default);
-
-    /// <summary>Same, across every user of an ISP — used when the ISP itself is locked (TR-SEC-13).</summary>
-    Task<int> RevokeAllForIspAsync(long ispId, string reason, DateTimeOffset revokedAt, CancellationToken cancellationToken = default);
-}
-
-/// <summary>Second-factor challenge store, TR-SEC-04.</summary>
-public interface ITwoFactorChallengeStore
-{
-    Task AddAsync(TwoFactorChallenge challenge, CancellationToken cancellationToken = default);
-
-    /// <summary>Includes the user, for verification against their TOTP secret or code hash.</summary>
-    Task<TwoFactorChallenge?> FindByTokenAsync(string challengeToken, CancellationToken cancellationToken = default);
-}
