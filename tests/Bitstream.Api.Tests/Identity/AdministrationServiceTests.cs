@@ -4,27 +4,22 @@ using Bitstream.Application.Services;
 using Bitstream.Application.Services.Identity;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 using Xunit;
 
 namespace Bitstream.Api.Tests.Identity;
 
-/// <summary>
-/// TRD 4.2 (TR-SEC-09 to TR-SEC-16). Unit-tested against hand-written fakes rather than a real
-/// database: <see cref="AdministrationService.SetIspStatusAsync"/> and
-/// <see cref="AdministrationService.SetUserStatusAsync"/> call
-/// <c>IUserSessionStore</c>'s bulk revoke methods, which use EF Core's <c>ExecuteUpdateAsync</c>
-/// — unsupported by the InMemory provider the HTTP-level tests use, so this is the only way to
-/// exercise the lock cascade in this environment (see Fakes.cs).
-/// </summary>
+/// <summary>TRD 4.2 (TR-SEC-09 to TR-SEC-16). Unit-tested against hand-written fakes rather than a real database.</summary>
 public sealed class AdministrationServiceTests
 {
     private readonly FakeIspRepository _ispRepository = new();
     private readonly FakeUserStore _userRepository = new();
     private readonly FakeRoleStore _roleStore = new();
-    private readonly FakeUserSessionStore _sessionStore = new();
     private readonly FakeAuditWriter _auditWriter = new();
     private readonly FakeCurrentUserContext _currentUser = new() { UserId = 1, RoleName = "Administrator" };
     private readonly FakeClock _clock = new();
+
+    private UserManager<User> _userManager = null!;
 
     private AdministrationService CreateService()
     {
@@ -34,28 +29,20 @@ public sealed class AdministrationServiceTests
         var passwordPolicyOptions = new TestOptionsMonitor<PasswordPolicyOptions>(new PasswordPolicyOptions());
         var passwordHasher = new Argon2PasswordHasher(passwordPolicyOptions);
         var identityPasswordHasher = new Argon2IdentityPasswordHasher(passwordHasher);
-        var userManager = TestIdentityFactory.CreateUserManager(_userRepository, identityPasswordHasher);
+        _userManager = TestIdentityFactory.CreateUserManager(_userRepository, identityPasswordHasher);
         var roleManager = TestIdentityFactory.CreateRoleManager(_roleStore);
-
-        // EmailOtp, not Totp: proves ThrowingTotpService/ThrowingTotpSecretProtector are safe to
-        // pass in — CreateUserAsync's Totp provisioning branch must not run under this channel.
-        var twoFactorOptions = new TestOptionsMonitor<TwoFactorOptions>(new TwoFactorOptions { Channel = TwoFactorChannel.EmailOtp });
 
         return new AdministrationService(
             _ispRepository,
             _userRepository,
-            userManager,
+            _userManager,
             roleManager,
-            _sessionStore,
             passwordHasher,
             new PasswordPolicyValidator(passwordPolicyOptions, passwordHasher),
-            new ThrowingTotpService(),
-            new ThrowingTotpSecretProtector(),
             new FakeUnitOfWork(),
             _auditWriter,
             _clock,
             _currentUser,
-            twoFactorOptions,
             passwordPolicyOptions);
     }
 
@@ -112,11 +99,12 @@ public sealed class AdministrationServiceTests
 
         Assert.Equal("IspUser", user.Role.Name);
         Assert.Equal(UserStatus.Active, user.Status);
+        Assert.True(user.TwoFactorEnabled);
         Assert.Contains(_auditWriter.Entries, e => e.ActionCode == "User.Created");
     }
 
     [Fact]
-    public async Task SetIspStatusAsync_locking_cascades_to_active_users_and_revokes_their_sessions()
+    public async Task SetIspStatusAsync_locking_cascades_to_active_users_and_rotates_their_security_stamp()
     {
         var service = CreateService();
 
@@ -130,23 +118,26 @@ public sealed class AdministrationServiceTests
             ContactMobile = "+355691234567",
             CrmBpReference = "BP1"
         };
-        _userRepository.Users[100] = MakeUser(100, ispId: 1, status: UserStatus.Active);
-        _userRepository.Users[101] = MakeUser(101, ispId: 1, status: UserStatus.Active);
+        _userRepository.Users[100] = MakeUser(100, ispId: 1);
+        _userRepository.Users[101] = MakeUser(101, ispId: 1);
         // Already locked for an unrelated reason — must not appear in the cascade's audit trail
         // a second time, and must not be "unlocked" by this operation.
-        _userRepository.Users[102] = MakeUser(102, ispId: 1, status: UserStatus.Locked);
+        _userRepository.Users[102] = MakeUser(102, ispId: 1, locked: true);
         // A different ISP entirely — must be untouched.
-        _userRepository.Users[200] = MakeUser(200, ispId: 2, status: UserStatus.Active);
+        _userRepository.Users[200] = MakeUser(200, ispId: 2);
+
+        var stampBefore100 = _userRepository.Users[100].SecurityStamp;
 
         await service.SetIspStatusAsync(1, IspStatus.Locked);
 
         Assert.Equal(IspStatus.Locked, _ispRepository.Isps[1].Status);
-        Assert.Equal(UserStatus.Locked, _userRepository.Users[100].Status);
-        Assert.Equal(UserStatus.Locked, _userRepository.Users[101].Status);
-        Assert.Equal(UserStatus.Active, _userRepository.Users[200].Status);
+        Assert.True(await _userManager.IsLockedOutAsync(_userRepository.Users[100]));
+        Assert.True(await _userManager.IsLockedOutAsync(_userRepository.Users[101]));
+        Assert.False(await _userManager.IsLockedOutAsync(_userRepository.Users[200]));
 
-        // TR-SEC-07: sessions revoked as part of the same operation.
-        Assert.Single(_sessionStore.IspRevocations, revocation => revocation.IspId == 1 && revocation.Reason == "IspLocked");
+        // TR-SEC-07: the security stamp rotates as part of the same operation, invalidating any
+        // existing cookie immediately (checked every request in the real pipeline).
+        Assert.NotEqual(stampBefore100, _userRepository.Users[100].SecurityStamp);
 
         // TR-SEC-22: the cascade is audited per affected user, not just as one ISP-level entry.
         Assert.Equal(2, _auditWriter.Entries.Count(e => e.ActionCode == "User.StatusChanged"));
@@ -169,26 +160,26 @@ public sealed class AdministrationServiceTests
             CrmBpReference = "BP1",
             Status = IspStatus.Locked
         };
-        _userRepository.Users[100] = MakeUser(100, ispId: 1, status: UserStatus.Locked);
+        _userRepository.Users[100] = MakeUser(100, ispId: 1, locked: true);
 
         await service.SetIspStatusAsync(1, IspStatus.Active);
 
         Assert.Equal(IspStatus.Active, _ispRepository.Isps[1].Status);
         // Still locked: an administrator must unlock the user explicitly.
-        Assert.Equal(UserStatus.Locked, _userRepository.Users[100].Status);
-        Assert.Empty(_sessionStore.IspRevocations);
+        Assert.True(await _userManager.IsLockedOutAsync(_userRepository.Users[100]));
     }
 
     [Fact]
-    public async Task SetUserStatusAsync_locking_revokes_the_users_sessions()
+    public async Task SetUserLockedAsync_locking_rotates_the_users_security_stamp()
     {
         var service = CreateService();
-        _userRepository.Users[100] = MakeUser(100, ispId: 1, status: UserStatus.Active);
+        _userRepository.Users[100] = MakeUser(100, ispId: 1);
+        var stampBefore = _userRepository.Users[100].SecurityStamp;
 
-        await service.SetUserStatusAsync(100, UserStatus.Locked);
+        await service.SetUserLockedAsync(100, locked: true);
 
-        Assert.Equal(UserStatus.Locked, _userRepository.Users[100].Status);
-        Assert.Single(_sessionStore.UserRevocations, revocation => revocation.UserId == 100 && revocation.Reason == "UserLocked");
+        Assert.True(await _userManager.IsLockedOutAsync(_userRepository.Users[100]));
+        Assert.NotEqual(stampBefore, _userRepository.Users[100].SecurityStamp);
     }
 
     [Fact]
@@ -241,7 +232,7 @@ public sealed class AdministrationServiceTests
         Assert.Equal("Alpha", result.Name);
     }
 
-    private static User MakeUser(long userId, long ispId, UserStatus status) => new()
+    private static User MakeUser(long userId, long ispId, bool locked = false) => new()
     {
         Id = userId,
         IspId = ispId,
@@ -249,9 +240,12 @@ public sealed class AdministrationServiceTests
         Email = $"user{userId}@example.com",
         Mobile = "+355691234567",
         RoleId = 10,
-        Status = status,
+        Status = UserStatus.Active,
         PasswordHash = "irrelevant",
         PasswordHashAlgorithm = "Argon2id",
+        SecurityStamp = Guid.NewGuid().ToString(),
+        LockoutEnabled = true,
+        LockoutEnd = locked ? DateTimeOffset.MaxValue : null,
         CreatedAt = DateTimeOffset.UtcNow
     };
 }

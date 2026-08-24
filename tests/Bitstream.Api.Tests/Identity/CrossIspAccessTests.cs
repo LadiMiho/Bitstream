@@ -9,7 +9,7 @@ namespace Bitstream.Api.Tests.Identity;
 /// <summary>
 /// TR-SEC-19: "Any attempt by an ISP user to access a record belonging to another ISP must
 /// return a not-found response and must be logged as a security event." Proven through the real
-/// HTTP pipeline — real session cookie authentication, real authorization, real
+/// HTTP pipeline — real cookie authentication, real authorization, real
 /// <c>AdministrationService</c> — not a unit test of the decision in isolation.
 /// </summary>
 public sealed class CrossIspAccessTests
@@ -18,7 +18,7 @@ public sealed class CrossIspAccessTests
     public async Task An_ISP_user_reading_another_ISPs_record_gets_404_not_403()
     {
         await using var factory = new IdentityApiFactory();
-        string ownIspUserToken;
+        const string email = "own-isp-user@example.com";
         long otherIspId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -28,13 +28,12 @@ public sealed class CrossIspAccessTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000001");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000002");
-            var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user@example.com");
-            ownIspUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
+            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
             otherIspId = otherIsp.IspId;
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ownIspUserToken}");
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
 
@@ -48,7 +47,7 @@ public sealed class CrossIspAccessTests
     public async Task The_cross_ISP_attempt_is_logged_as_a_security_event()
     {
         await using var factory = new IdentityApiFactory();
-        string token;
+        const string email = "own-isp-user-2@example.com";
         long otherIspId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -58,13 +57,12 @@ public sealed class CrossIspAccessTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000003");
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000004");
-            var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user-2@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
+            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
             otherIspId = otherIsp.IspId;
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={token}");
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -85,7 +83,7 @@ public sealed class CrossIspAccessTests
         // The negative case (above) only means something next to this positive one: the
         // endpoint is not simply broken for everyone.
         await using var factory = new IdentityApiFactory();
-        string token;
+        const string email = "own-isp-user-3@example.com";
         long ownIspId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -94,13 +92,12 @@ public sealed class CrossIspAccessTests
 
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000005");
-            var user = await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, "own-isp-user-3@example.com");
-            token = await IdentitySeeder.AddSessionAsync(db, user.Id);
+            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
             ownIspId = ownIsp.IspId;
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={token}");
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.GetAsync(new Uri($"/api/v1/isps/{ownIspId}", UriKind.Relative));
 
@@ -115,7 +112,7 @@ public sealed class CrossIspAccessTests
         // isp.read.all is what makes the difference — proving the not-found rule is about
         // ownership, not a blanket restriction on the endpoint.
         await using var factory = new IdentityApiFactory();
-        string token;
+        const string email = "admin@example.com";
         long otherIspId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -123,14 +120,13 @@ public sealed class CrossIspAccessTests
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
 
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "isp.read.all");
-            var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, "admin@example.com");
+            await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, email);
             var otherIsp = await IdentitySeeder.AddIspAsync(db, "Some ISP", "L00000006");
-            token = await IdentitySeeder.AddSessionAsync(db, admin.Id);
             otherIspId = otherIsp.IspId;
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={token}");
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
 

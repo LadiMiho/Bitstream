@@ -1,47 +1,38 @@
 using System.Net;
 using System.Net.Http.Json;
-using Bitstream.Application.Abstractions.Security;
+using Bitstream.Application.Identity.Entities;
 using Bitstream.Infrastructure.Persistence;
-using Bitstream.Infrastructure.Persistence.Identity;
-using Bitstream.Web;
 using Bitstream.Web.Contracts;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Bitstream.Api.Tests.Identity;
 
 /// <summary>
-/// TR-SEC-04: a user who has never confirmed a TOTP code sees a QR code on login instead of a
-/// bare code prompt, and their first valid code both confirms enrollment and signs them in —
-/// the flow that replaces "read the secret off a console log" for every account after the
+/// TR-SEC-04: a user with no authenticator key yet sees a QR code on login instead of a bare
+/// code prompt, and their first valid code both generates/confirms the key (implicitly — its
+/// mere existence from here on *is* the enrollment state, see <c>AuthEndpoints.LoginAsync</c>)
+/// and signs them in. Replaces "read the secret off a console log" for every account after the
 /// first one seeded by <c>DevelopmentBootstrapper</c>.
 /// </summary>
 public sealed class TwoFactorEnrollmentTests
 {
     [Fact]
-    public async Task First_login_returns_a_QR_code_and_the_first_valid_code_confirms_enrollment()
+    public async Task First_login_returns_a_QR_code_and_the_first_valid_code_signs_in()
     {
-        await using var factory = new TwoFactorEnrollmentApiFactory();
+        await using var factory = new IdentityApiFactory();
         const string email = "enrollment-target@example.com";
-        byte[] rawSecret;
 
         await using (var scope = factory.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
-            var totpService = scope.ServiceProvider.GetRequiredService<ITotpService>();
-            var totpProtector = scope.ServiceProvider.GetRequiredService<ITotpSecretProtector>();
-
-            rawSecret = totpService.GenerateSecret();
-
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var isp = await IdentitySeeder.AddIspAsync(db, "Alpha", "L00000020");
-            var seededUser = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email, totpConfirmed: false);
-            seededUser.TotpSecret = await totpProtector.ProtectAsync(rawSecret);
-            await db.SaveChangesAsync();
+
+            // Deliberately no ResetAuthenticatorKeyAsync here: no key exists yet, which is what
+            // makes AuthEndpoints.LoginAsync treat this as a first login and return a QR code.
+            await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
         }
 
         using var client = factory.CreateClient();
@@ -51,7 +42,7 @@ public sealed class TwoFactorEnrollmentTests
             new LoginRequest(email, TestPassword.PlainText));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var challenge = await loginResponse.Content.ReadFromJsonAsync<LoginChallengeResponse>();
+        var challenge = await loginResponse.Content.ReadFromJsonAsync<TwoFactorRequiredResponse>();
         Assert.NotNull(challenge);
         Assert.StartsWith("data:image/png;base64,", challenge!.QrCodeDataUri, StringComparison.Ordinal);
 
@@ -59,25 +50,24 @@ public sealed class TwoFactorEnrollmentTests
 
         await using (var scope = factory.CreateAsyncScope())
         {
-            var totpService = scope.ServiceProvider.GetRequiredService<ITotpService>();
-            code = totpService.GenerateCurrentCode(rawSecret);
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+            Assert.NotNull(await userManager.GetAuthenticatorKeyAsync(user));
+
+            code = await userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
         }
 
         using var verifyResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login/verify", UriKind.Relative),
-            new TwoFactorVerifyRequest(challenge.ChallengeToken, code));
+            new TwoFactorVerifyRequest(code));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
-
-        await using var assertScope = factory.CreateAsyncScope();
-        var assertDb = assertScope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
-        var user = await assertDb.Users.SingleAsync(u => u.Email == email);
-        Assert.NotNull(user.TotpConfirmedAt);
     }
 
     [Fact]
-    public async Task Login_stops_returning_a_QR_code_once_enrollment_is_confirmed()
+    public async Task Login_stops_returning_a_QR_code_once_a_key_already_exists()
     {
-        await using var factory = new TwoFactorEnrollmentApiFactory();
+        await using var factory = new IdentityApiFactory();
         const string email = "already-enrolled@example.com";
 
         await using (var scope = factory.CreateAsyncScope())
@@ -85,7 +75,12 @@ public sealed class TwoFactorEnrollmentTests
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
             var isp = await IdentitySeeder.AddIspAsync(db, "Beta", "L00000021");
-            await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email, totpConfirmed: true);
+            var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
+
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var loaded = await userManager.FindByIdAsync(user.Id.ToString());
+            Assert.NotNull(loaded);
+            await userManager.ResetAuthenticatorKeyAsync(loaded);
         }
 
         using var client = factory.CreateClient();
@@ -95,48 +90,8 @@ public sealed class TwoFactorEnrollmentTests
             new LoginRequest(email, TestPassword.PlainText));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var challenge = await loginResponse.Content.ReadFromJsonAsync<LoginChallengeResponse>();
+        var challenge = await loginResponse.Content.ReadFromJsonAsync<TwoFactorRequiredResponse>();
+        Assert.NotNull(challenge);
         Assert.Null(challenge!.QrCodeDataUri);
     }
-}
-
-/// <summary>
-/// Distinct from <see cref="IdentityApiFactory"/> only in that it configures
-/// <c>Secrets:TotpEncryptionKey</c>: these tests are the ones that actually round-trip a secret
-/// through <see cref="ITotpSecretProtector"/>, which every other Totp-channel test avoids by
-/// seeding an already-enrolled user (see <see cref="IdentitySeeder.AddUserAsync"/>).
-/// </summary>
-internal sealed class TwoFactorEnrollmentApiFactory : WebApplicationFactory<WebHostEntryPoint>
-{
-    private static readonly string ValidTotpEncryptionKey = Convert.ToBase64String(Convert.FromHexString(new string('b', 64)));
-
-    private readonly string _databaseName = $"bitstream-2fa-enrollment-tests-{Guid.NewGuid()}";
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.UseEnvironment("IdentityTests");
-
-        builder.ConfigureAppConfiguration((_, configuration) =>
-        {
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Database:FailFastOnSchemaMismatch"] = "false",
-                ["WorkingCalendar:TimeZoneId"] = "UTC",
-                ["Integration:OutboxDispatcher:Enabled"] = "false",
-                ["Secrets:TotpEncryptionKey"] = ValidTotpEncryptionKey
-            });
-        });
-
-        builder.ConfigureServices(services =>
-        {
-            services.RemoveEntityFrameworkCoreServices();
-            services.AddDbContext<BitstreamDbContext>(options => options.UseInMemoryDatabase(_databaseName));
-            // Same name as BitstreamDbContext, deliberately — see IdentityApiFactory's comment.
-            services.AddDbContext<BitstreamIdentityDbContext>(options => options.UseInMemoryDatabase(_databaseName));
-        });
-    }
-
-    public AsyncServiceScope CreateAsyncScope() => Services.CreateAsyncScope();
 }

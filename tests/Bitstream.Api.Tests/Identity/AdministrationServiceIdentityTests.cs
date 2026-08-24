@@ -12,32 +12,30 @@ namespace Bitstream.Api.Tests.Identity;
 /// Proves <c>UserManager&lt;User&gt;</c> is genuinely wired in, not just compiling: a user
 /// created through <c>POST /api/v1/users</c> (which now calls <c>UserManager.CreateAsync</c>,
 /// not a hand-written repository) ends up with a real Argon2id hash that
-/// <c>POST /api/v1/auth/login</c> (via <c>UserManager.CheckPasswordAsync</c>) can verify.
+/// <c>POST /api/v1/auth/login</c> (via <c>SignInManager.PasswordSignInAsync</c>) can verify.
 /// </summary>
 public sealed class AdministrationServiceIdentityTests
 {
     [Fact]
     public async Task A_user_created_through_the_API_can_immediately_authenticate_with_the_password_it_was_given()
     {
-        await using var factory = new TwoFactorEnrollmentApiFactory();
+        await using var factory = new IdentityApiFactory();
         const string adminEmail = "identity-admin@example.com";
         const string newUserEmail = "identity-new-user@example.com";
         const string newUserPassword = "Correct-Horse-Battery-Staple-9";
-        string adminToken;
 
         await using (var scope = factory.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "user.create");
-            var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, adminEmail);
-            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.Id);
+            await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, adminEmail);
 
             // The new user's own role also needs to exist — CreateUserAsync validates it.
             await IdentitySeeder.AddRoleAsync(db, "IspUser");
         }
 
         using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={adminToken}");
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, adminEmail);
 
         using var createResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/users", UriKind.Relative),
@@ -57,7 +55,9 @@ public sealed class AdministrationServiceIdentityTests
             Assert.StartsWith("$argon2id$", storedUser.PasswordHash, StringComparison.Ordinal);
         }
 
-        using var loginResponse = await client.PostAsJsonAsync(
+        using var loginClient = factory.CreateClient();
+
+        using var loginResponse = await loginClient.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(newUserEmail, newUserPassword));
 

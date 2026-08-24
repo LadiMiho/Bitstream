@@ -122,7 +122,7 @@ public sealed class FakeIspRepository : IIspRepository
 /// </summary>
 public sealed class FakeUserStore :
     IUserRepository, IUserStore<User>, IUserPasswordStore<User>, IUserEmailStore<User>,
-    IUserTwoFactorStore<User>, IUserLockoutStore<User>
+    IUserTwoFactorStore<User>, IUserLockoutStore<User>, IUserSecurityStampStore<User>
 {
     private long _nextUserId = 1;
 
@@ -270,6 +270,14 @@ public sealed class FakeUserStore :
         user.LockoutEnabled = enabled;
         return Task.CompletedTask;
     }
+
+    public Task SetSecurityStampAsync(User user, string stamp, CancellationToken cancellationToken)
+    {
+        user.SecurityStamp = stamp;
+        return Task.CompletedTask;
+    }
+
+    public Task<string?> GetSecurityStampAsync(User user, CancellationToken cancellationToken) => Task.FromResult(user.SecurityStamp);
 
     public void Dispose()
     {

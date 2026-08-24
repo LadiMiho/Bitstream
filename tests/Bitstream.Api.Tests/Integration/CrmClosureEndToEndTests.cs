@@ -32,8 +32,8 @@ public sealed class CrmClosureEndToEndTests
     {
         await using var factory = new CrmApiFactory();
         await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
-        string ispUserToken;
-        string adminToken;
+        const string ispUserEmail = "closure-isp-user@example.com";
+        const string adminEmail = "closure-admin@example.com";
         long ispId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -44,11 +44,9 @@ public sealed class CrmClosureEndToEndTests
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.gis.record", "activation.read.all");
 
             var isp = await IdentitySeeder.AddIspAsync(db, "Closure Example ISP", "L00000900");
-            var ispUser = await IdentitySeeder.AddUserAsync(db, ispRole, isp.IspId, "closure-isp-user@example.com");
-            var admin = await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, "closure-admin@example.com");
+            await IdentitySeeder.AddUserAsync(db, ispRole, isp.IspId, ispUserEmail);
+            await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, adminEmail);
 
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, ispUser.Id);
-            adminToken = await IdentitySeeder.AddSessionAsync(db, admin.Id);
             ispId = isp.IspId;
         }
 
@@ -56,8 +54,7 @@ public sealed class CrmClosureEndToEndTests
         using var portalClient = portal.CreateClient();
 
         // --- Submit (TR-ACT-06, TR-DAT-01) --------------------------------------------------
-        portalClient.DefaultRequestHeaders.Remove("Cookie");
-        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, ispUserEmail);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
@@ -99,8 +96,11 @@ public sealed class CrmClosureEndToEndTests
         }
 
         // --- GIS verification admin screen (TR-ACT-12 to TR-ACT-19) -------------------------
-        portalClient.DefaultRequestHeaders.Remove("Cookie");
-        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={adminToken}");
+        using (var logoutResponse = await portalClient.PostAsync(new Uri("/api/v1/auth/logout", UriKind.Relative), content: null))
+        {
+            logoutResponse.EnsureSuccessStatusCode();
+        }
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, adminEmail);
 
         using var gisResponse = await portalClient.PatchAsJsonAsync(
             new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
@@ -169,7 +169,7 @@ public sealed class CrmClosureEndToEndTests
     {
         await using var factory = new CrmApiFactory();
         await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
-        string ispUserToken;
+        const string email = "out-of-sequence@example.com";
         long ispId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -177,14 +177,13 @@ public sealed class CrmClosureEndToEndTests
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Out Of Sequence ISP", "L00000901");
-            var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "out-of-sequence@example.com");
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
+            await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
             ispId = isp.IspId;
         }
 
         using var client = factory.CreateClient();
         using var portalClient = portal.CreateClient();
-        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, email);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
@@ -204,7 +203,7 @@ public sealed class CrmClosureEndToEndTests
     {
         await using var factory = new CrmApiFactory();
         await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
-        string ispUserToken;
+        const string email = "rejected@example.com";
         long ispId;
 
         await using (var scope = factory.CreateAsyncScope())
@@ -212,14 +211,13 @@ public sealed class CrmClosureEndToEndTests
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Rejected ISP", "L00000902");
-            var user = await IdentitySeeder.AddUserAsync(db, role, isp.IspId, "rejected@example.com");
-            ispUserToken = await IdentitySeeder.AddSessionAsync(db, user.Id);
+            await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
             ispId = isp.IspId;
         }
 
         using var client = factory.CreateClient();
         using var portalClient = portal.CreateClient();
-        portalClient.DefaultRequestHeaders.Add("Cookie", $"bitstream_session={ispUserToken}");
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, email);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/api/v1/activation-requests", UriKind.Relative),
