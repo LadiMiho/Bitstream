@@ -277,7 +277,7 @@ public static class AuthEndpoints
         {
             TwoFactorChannel.Totp => await signInManager.TwoFactorAuthenticatorSignInAsync(code, isPersistent: false, rememberClient: false).ConfigureAwait(false),
             TwoFactorChannel.EmailOtp => await signInManager.TwoFactorSignInAsync(TokenOptions.DefaultEmailProvider, code, isPersistent: false, rememberClient: false).ConfigureAwait(false),
-            _ => SignInResult.Failed
+            _ => Microsoft.AspNetCore.Identity.SignInResult.Failed
         };
 
         if (!result.Succeeded)

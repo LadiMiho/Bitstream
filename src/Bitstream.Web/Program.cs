@@ -12,6 +12,7 @@ using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web;
 using Bitstream.Web.Endpoints;
 using Bitstream.Web.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -53,7 +54,8 @@ builder.Services.AddScoped<IUserClaimsPrincipalFactory<User>, BitstreamClaimsPri
 
 // SessionOptions itself is bound/validated by AddBitstreamApplication above; read directly here
 // too, since cookie configuration below runs at startup composition time, before DI resolves.
-var sessionOptions = builder.Configuration.GetSection(SessionOptions.SectionName).Get<SessionOptions>() ?? new SessionOptions();
+var sessionOptions = builder.Configuration.GetSection(Bitstream.Application.Configuration.SessionOptions.SectionName)
+    .Get<Bitstream.Application.Configuration.SessionOptions>() ?? new Bitstream.Application.Configuration.SessionOptions();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
