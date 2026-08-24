@@ -16,8 +16,8 @@ namespace Bitstream.Application.Identity.Entities;
 /// Auditor) carry no <see cref="IspId"/>.
 /// </para>
 /// <para>
-/// <see cref="UserName"/> (inherited) is always set equal to <see cref="IdentityUser{TKey}.Email"/>
-/// at creation — this app has no separate username concept. <see cref="PasswordHash"/> (inherited)
+/// <see cref="IdentityUser{TKey}.UserName"/> (inherited) is always set equal to <see cref="IdentityUser{TKey}.Email"/>
+/// at creation — this app has no separate username concept. <see cref="IdentityUser{TKey}.PasswordHash"/> (inherited)
 /// is the Argon2id hash (TR-SEC-02), set via <c>Argon2IdentityPasswordHasher</c>. Inherited
 /// <c>PhoneNumber</c>/<c>AccessFailedCount</c>/lockout properties are deliberately unused — this
 /// app keeps its own <see cref="Mobile"/> and <see cref="FailedLoginCount"/>, the same lockout
