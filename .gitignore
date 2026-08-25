@@ -12,6 +12,9 @@ TestResults/
 tools/tailwindcss/
 src/Bitstream.Api/wwwroot/css/app.css
 
+## Per-machine MSBuild overrides (e.g. NuGetAudit=false behind a proxy that can't reach nuget.org)
+Directory.Build.local.props
+
 ## Local secrets — never commit (TR-SEC-28)
 appsettings.Local.json
 appsettings.*.Local.json

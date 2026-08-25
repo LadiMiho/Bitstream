@@ -17,6 +17,22 @@
   </PropertyGroup>
 
   <!--
+    Personal, untracked overrides (see .gitignore) — e.g. a machine that can't reach
+    https://api.nuget.org for NuGetAudit (NU1900) behind a proxy/firewall. A one-off `-p:` flag on
+    a terminal `dotnet build` never reaches Visual Studio's own background restore/build, since
+    that's a separate process reading properties from disk, not from another process's command
+    line — this file is how to actually reach it. Absent in CI, so this has no effect there.
+    Create Directory.Build.local.props next to this file with:
+      <Project>
+        <PropertyGroup>
+          <NuGetAudit>false</NuGetAudit>
+        </PropertyGroup>
+      </Project>
+    then restart Visual Studio (or Restore NuGet Packages) so it re-reads the import.
+  -->
+  <Import Project="Directory.Build.local.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+
+  <!--
     TR-ARC-01 / TR-ARC-02: the layering rule is enforced by project references only.
     Domain      -> (nothing)
     Application -> Domain
