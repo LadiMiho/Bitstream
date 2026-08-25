@@ -245,8 +245,10 @@ function renderResults(items) {
         openDrawer(`${user.fullName} — details`, `/AccessManagement/Users/${user.userId}/ViewDrawer`)));
 
       if (canEdit) {
-        menu.appendChild(menuItem('Edit', ICONS.edit, () =>
-          openDrawer(`Edit ${user.fullName}`, `/AccessManagement/Users/${user.userId}/EditDrawer`)));
+        menu.appendChild(menuItem('Edit', ICONS.edit, async () => {
+          await openDrawer(`Edit ${user.fullName}`, `/AccessManagement/Users/${user.userId}/EditDrawer`);
+          syncIspFieldVisibility(drawerBody.querySelector('[data-role="role-select"]'));
+        }));
         menu.appendChild(menuItem('New password', ICONS.key, () =>
           openDrawer(`Change password — ${user.fullName}`, `/AccessManagement/Users/${user.userId}/ChangePasswordDrawer`)));
       }
@@ -426,6 +428,39 @@ function ispIdOrNull(value) {
   return trimmed === '' ? null : Number(trimmed);
 }
 
+/**
+ * The ISP field only makes sense for an IspUser — every other role is an internal user with no
+ * owning ISP. Hidden for any other role selection, and cleared when hidden so a stale value from
+ * a previous IspUser selection is never silently submitted.
+ */
+function syncIspFieldVisibility(roleSelect) {
+  if (!roleSelect) {
+    return;
+  }
+
+  const form = roleSelect.closest('form');
+  const ispField = form?.querySelector('[data-role="isp-field"]');
+  if (!ispField) {
+    return;
+  }
+
+  const show = roleSelect.value === 'IspUser';
+  ispField.hidden = !show;
+
+  if (!show) {
+    const ispSelect = ispField.querySelector('select');
+    if (ispSelect) {
+      ispSelect.value = '';
+    }
+  }
+}
+
+drawerBody.addEventListener('change', (event) => {
+  if (event.target.matches('[data-role="role-select"]')) {
+    syncIspFieldVisibility(event.target);
+  }
+});
+
 drawerBody.addEventListener('submit', async (event) => {
   const form = event.target;
 
@@ -475,7 +510,10 @@ function init() {
     return;
   }
 
-  el('#user-add-button')?.addEventListener('click', () => openDrawer('Add user', '/AccessManagement/Users/AddDrawer'));
+  el('#user-add-button')?.addEventListener('click', async () => {
+    await openDrawer('Add user', '/AccessManagement/Users/AddDrawer');
+    syncIspFieldVisibility(drawerBody.querySelector('[data-role="role-select"]'));
+  });
 
   el('#user-search-form').addEventListener('submit', (event) => {
     event.preventDefault();

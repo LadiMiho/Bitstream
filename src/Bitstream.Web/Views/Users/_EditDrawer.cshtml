@@ -1,6 +1,8 @@
+@using Bitstream.Domain.Entities
 @model Bitstream.Application.Identity.Entities.User
 @{
     var roles = (IReadOnlyList<string>)(ViewBag.Roles ?? Array.Empty<string>());
+    var isps = (IReadOnlyList<Isp>)(ViewBag.Isps ?? Array.Empty<Isp>());
 }
 <form id="user-edit-form" class="grid gap-4" novalidate data-action="update" data-user-id="@Model.Id">
     <p class="field-error" role="alert" data-field-error="request" hidden></p>
@@ -21,7 +23,7 @@
     </div>
     <div>
         <label class="field-label" for="user-edit-role">Role</label>
-        <select class="field-input" id="user-edit-role" name="roleName" required>
+        <select class="field-input" id="user-edit-role" name="roleName" data-role="role-select" required>
             @foreach (var role in roles)
             {
                 <option value="@role" selected="@(role == Model.Role.Name)">@role</option>
@@ -29,10 +31,15 @@
         </select>
         <p class="field-error" role="alert" data-field-error="roleName" hidden></p>
     </div>
-    <div>
-        <label class="field-label" for="user-edit-isp-id">ISP ID</label>
-        <input class="field-input" id="user-edit-isp-id" name="ispId" type="number" min="1" value="@Model.IspId" />
-        <span class="mt-1 block text-xs text-ink-muted">Leave blank for an internal user (Administrator, Service Desk, Auditor).</span>
+    <div data-role="isp-field" hidden>
+        <label class="field-label" for="user-edit-isp-id">ISP</label>
+        <select class="field-input" id="user-edit-isp-id" name="ispId">
+            <option value="">— Select an ISP —</option>
+            @foreach (var isp in isps)
+            {
+                <option value="@isp.IspId" selected="@(isp.IspId == Model.IspId)">@isp.Name — @isp.Nipt</option>
+            }
+        </select>
         <p class="field-error" role="alert" data-field-error="ispId" hidden></p>
     </div>
 </form>

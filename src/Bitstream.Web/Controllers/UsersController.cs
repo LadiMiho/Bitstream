@@ -1,6 +1,7 @@
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Identity;
+using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
@@ -49,9 +50,10 @@ public sealed class UsersController : Controller
 
     [HttpGet("AddDrawer")]
     [RequirePermission(PermissionCodes.UserCreate)]
-    public IActionResult AddDrawer()
+    public async Task<IActionResult> AddDrawer(CancellationToken cancellationToken)
     {
         ViewBag.Roles = Roles;
+        ViewBag.Isps = await GetIspsForDropdownAsync(cancellationToken).ConfigureAwait(false);
         return PartialView("_AddDrawer");
     }
 
@@ -67,7 +69,17 @@ public sealed class UsersController : Controller
         }
 
         ViewBag.Roles = Roles;
+        ViewBag.Isps = await GetIspsForDropdownAsync(cancellationToken).ConfigureAwait(false);
         return PartialView("_EditDrawer", user);
+    }
+
+    /// <summary>The full ISP catalogue for the "ISP" dropdown — shown only when Role is IspUser.</summary>
+    private async Task<IReadOnlyList<Isp>> GetIspsForDropdownAsync(CancellationToken cancellationToken)
+    {
+        var result = await _administrationService.SearchIspsAsync(
+            search: null, status: null, skip: 0, take: 1000, cancellationToken).ConfigureAwait(false);
+
+        return result.Items;
     }
 
     [HttpGet("{userId:long}/ViewDrawer")]
