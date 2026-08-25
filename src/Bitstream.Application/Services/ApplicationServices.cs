@@ -234,7 +234,7 @@ public interface IAdministrationService
     /// </summary>
     Task<PagedResult<Isp>> SearchIspsAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
-    /// <summary>Throws <see cref="AdministrationValidationException"/> when the ISP does not exist, a field is invalid, or the new NIPT collides with another ISP.</summary>
+    /// <summary>Throws <see cref="Identity.AdministrationValidationException"/> when the ISP does not exist, a field is invalid, or the new NIPT collides with another ISP.</summary>
     Task<Isp> UpdateIspAsync(long ispId, UpdateIspRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
