@@ -179,6 +179,7 @@ public sealed class CrmClosureEndToEndTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Out Of Sequence ISP", "L00000901");
             await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
+            await Bitstream.Api.Tests.Activation.ActivationSeeder.SeedCatalogueAsync(db);
             ispId = isp.IspId;
         }
 
@@ -213,6 +214,7 @@ public sealed class CrmClosureEndToEndTests
             var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create");
             var isp = await IdentitySeeder.AddIspAsync(db, "Rejected ISP", "L00000902");
             await IdentitySeeder.AddUserAsync(db, role, isp.IspId, email);
+            await Bitstream.Api.Tests.Activation.ActivationSeeder.SeedCatalogueAsync(db);
             ispId = isp.IspId;
         }
 
