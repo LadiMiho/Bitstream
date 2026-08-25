@@ -8,7 +8,11 @@ internal sealed class ActivationRequestConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<ActivationRequest> builder)
     {
-        builder.ToTable("ActivationRequest", Schemas.Portal);
+        // db/mssql/0006_integrity_guards.sql puts triggers on this table (no-delete,
+        // PublicId-immutable); SQL Server refuses an OUTPUT clause against a table with
+        // enabled triggers, which EF Core otherwise emits by default to read back identity
+        // values.
+        builder.ToTable("ActivationRequest", Schemas.Portal, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.RequestId);
 
         builder.Property(x => x.RequestId).UseIdentityColumn();
@@ -84,7 +88,9 @@ internal sealed class ComplaintTicketConfiguration : IEntityTypeConfiguration<Co
 {
     public void Configure(EntityTypeBuilder<ComplaintTicket> builder)
     {
-        builder.ToTable("ComplaintTicket", Schemas.Portal);
+        // See ActivationRequestConfiguration: this table also carries triggers (no-delete,
+        // PublicId-immutable), which conflicts with EF Core's default OUTPUT clause.
+        builder.ToTable("ComplaintTicket", Schemas.Portal, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.TicketId);
 
         builder.Property(x => x.TicketId).UseIdentityColumn();
@@ -143,7 +149,9 @@ internal sealed class TicketCommentConfiguration : IEntityTypeConfiguration<Tick
 {
     public void Configure(EntityTypeBuilder<TicketComment> builder)
     {
-        builder.ToTable("TicketComment", Schemas.Portal);
+        // See ActivationRequestConfiguration: this table also carries triggers
+        // (immutable-once-saved, no-delete), which conflicts with EF Core's default OUTPUT clause.
+        builder.ToTable("TicketComment", Schemas.Portal, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.CommentId);
 
         builder.Property(x => x.CommentId).UseIdentityColumn();
@@ -209,7 +217,9 @@ internal sealed class ServiceChangeRequestConfiguration : IEntityTypeConfigurati
 {
     public void Configure(EntityTypeBuilder<ServiceChangeRequest> builder)
     {
-        builder.ToTable("ServiceChangeRequest", Schemas.Portal);
+        // See ActivationRequestConfiguration: this table also carries a no-delete trigger,
+        // which conflicts with EF Core's default OUTPUT clause.
+        builder.ToTable("ServiceChangeRequest", Schemas.Portal, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.ChangeId);
 
         builder.Property(x => x.ChangeId).UseIdentityColumn();

@@ -22,7 +22,10 @@ internal sealed class IspConfiguration : IEntityTypeConfiguration<Isp>
 {
     public void Configure(EntityTypeBuilder<Isp> builder)
     {
-        builder.ToTable("Isp", Schemas.Security);
+        // db/mssql/0006_integrity_guards.sql puts a no-delete trigger on this table; SQL Server
+        // refuses an OUTPUT clause against a table with enabled triggers, which EF Core
+        // otherwise emits by default to read back the identity value.
+        builder.ToTable("Isp", Schemas.Security, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.IspId);
 
         builder.Property(x => x.IspId).UseIdentityColumn();
@@ -158,7 +161,9 @@ internal sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 {
     public void Configure(EntityTypeBuilder<AuditLog> builder)
     {
-        builder.ToTable("AuditLog", Schemas.Security);
+        // See IspConfiguration: this table also carries a trigger (append-only), which
+        // conflicts with EF Core's default OUTPUT clause.
+        builder.ToTable("AuditLog", Schemas.Security, tb => tb.UseSqlOutputClause(false));
         builder.HasKey(x => x.AuditId);
 
         builder.Property(x => x.AuditId).UseIdentityColumn();
