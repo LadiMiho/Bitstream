@@ -53,9 +53,13 @@ public sealed class TwoFactorEnrollmentTests
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
             var user = await userManager.FindByEmailAsync(email);
             Assert.NotNull(user);
-            Assert.NotNull(await userManager.GetAuthenticatorKeyAsync(user));
+            var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user);
+            Assert.NotNull(authenticatorKey);
 
-            code = await userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider);
+            // Not UserManager.GenerateTwoFactorTokenAsync: ASP.NET Core Identity's own
+            // Authenticator provider deliberately never generates a code server-side (see
+            // TotpCodeGenerator) — this computes the same code a real authenticator app would.
+            code = TotpCodeGenerator.GenerateCode(authenticatorKey);
         }
 
         using var verifyResponse = await client.PostAsJsonAsync(

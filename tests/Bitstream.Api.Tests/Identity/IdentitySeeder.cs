@@ -137,6 +137,8 @@ internal static class IdentitySeeder
             throw new InvalidOperationException($"No seeded user with email '{email}' — call AddUserAsync first.");
 
         await userManager.ResetAuthenticatorKeyAsync(user).ConfigureAwait(false);
+        var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false) ??
+            throw new InvalidOperationException("ResetAuthenticatorKeyAsync did not persist a key.");
 
         using var loginResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login", UriKind.Relative),
@@ -144,7 +146,10 @@ internal static class IdentitySeeder
 
         await EnsureSuccessAsync(loginResponse).ConfigureAwait(false);
 
-        var code = await userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider).ConfigureAwait(false);
+        // Not UserManager.GenerateTwoFactorTokenAsync: ASP.NET Core Identity's own Authenticator
+        // provider deliberately never generates a code server-side (see TotpCodeGenerator) — this
+        // computes the same code a real authenticator app would show right now.
+        var code = TotpCodeGenerator.GenerateCode(authenticatorKey);
 
         using var verifyResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/auth/login/verify", UriKind.Relative),

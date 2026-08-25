@@ -111,6 +111,27 @@ public sealed class LockoutAndSessionTests
         Assert.NotNull(challenge);
         Assert.Equal("Totp", challenge.Channel);
 
+        // TR-SEC-06: the counter is only reset once the *whole* login succeeds, not merely the
+        // password step — otherwise a correct password alone (with 2FA never completed) could be
+        // replayed to keep clearing a would-be lockout.
+        string code;
+
+        await using (var codeScope = factory.CreateAsyncScope())
+        {
+            var codeUserManager = codeScope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var codeUser = await codeUserManager.FindByEmailAsync(email);
+            Assert.NotNull(codeUser);
+            var authenticatorKey = await codeUserManager.GetAuthenticatorKeyAsync(codeUser);
+            Assert.NotNull(authenticatorKey);
+            code = TotpCodeGenerator.GenerateCode(authenticatorKey);
+        }
+
+        using var verifyResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/auth/login/verify", UriKind.Relative),
+            new TwoFactorVerifyRequest(code));
+
+        Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
+
         await using var assertScope = factory.CreateAsyncScope();
         var assertUserManager = assertScope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var assertUser = await assertUserManager.FindByEmailAsync(email);
