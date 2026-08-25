@@ -1,0 +1,52 @@
+@{
+    var callerIspId = (string?)ViewBag.CallerIspId;
+}
+<form id="activation-add-form" class="grid gap-4" novalidate data-action="create">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+
+    <p class="text-xs text-ink-muted">
+        Package, classification and contract duration are configured, changeable lists (TR-ACT-01,
+        TR-ACT-04) with no API to read them from — entering a value not currently offered is
+        rejected by the server with a specific message rather than prevented here.
+    </p>
+
+    <div>
+        <label class="field-label" for="activation-add-isp-id">ISP ID</label>
+        <input class="field-input" id="activation-add-isp-id" name="ispId" type="number" min="1" value="@callerIspId" readonly="@(!string.IsNullOrEmpty(callerIspId))" required />
+        <p class="field-error" role="alert" data-field-error="ispId" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-package">Package code</label>
+        <input class="field-input" id="activation-add-package" name="packageCode" type="text" placeholder="e.g. BITSTREAM_STD" required />
+        <p class="field-error" role="alert" data-field-error="packageCode" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-location">Location</label>
+        <input class="field-input" id="activation-add-location" name="locationRaw" type="text" placeholder="Map link, or 'latitude,longitude'" required />
+        <p class="field-error" role="alert" data-field-error="locationRaw" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-classification">Ticket classification</label>
+        <input class="field-input" id="activation-add-classification" name="classification" type="text" placeholder="Leave blank for the default" />
+        <p class="field-error" role="alert" data-field-error="classification" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-duration">Contract duration (months)</label>
+        <input class="field-input" id="activation-add-duration" name="contractDurationMonths" type="number" placeholder="e.g. 12 or 24" required />
+        <p class="field-error" role="alert" data-field-error="contractDurationMonths" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-comments">Comments</label>
+        <textarea class="field-input" id="activation-add-comments" name="comments" rows="4" maxlength="2000"></textarea>
+        <p class="field-error" role="alert" data-field-error="comments" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="activation-add-form" class="btn-primary">Submit request</button>
+</template>

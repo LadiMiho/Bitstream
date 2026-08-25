@@ -1,0 +1,22 @@
+@model Bitstream.Domain.Entities.ActivationRequest
+<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Public ID</dt><dd class="mt-1 text-sm">@Model.PublicId</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@Model.Status</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@Model.Isp.Name (#@Model.IspId)</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@Model.PackageCode</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd class="mt-1 text-sm">@Model.LocationRaw</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@Model.LocationLat, @Model.LocationLng</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Classification</dt><dd class="mt-1 text-sm">@Model.Classification</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contract duration</dt><dd class="mt-1 text-sm">@Model.ContractDurationMonths months</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Sales order</dt><dd class="mt-1 text-sm">@(Model.SalesOrderId ?? "Not yet raised")</dd></div>
+    @if (Model.StatusReason is not null)
+    {
+        <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status reason</dt><dd class="mt-1 text-sm text-state-blocked">@Model.StatusReason</dd></div>
+    }
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Submitted</dt><dd class="mt-1 text-sm">@Model.CreatedAt.ToString("g")</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Last updated</dt><dd class="mt-1 text-sm">@(Model.LastUpdatedAt?.ToString("g") ?? "—")</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Comments</dt><dd class="mt-1 text-sm whitespace-pre-wrap">@(Model.Comments ?? "(none)")</dd></div>
+</dl>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+</template>

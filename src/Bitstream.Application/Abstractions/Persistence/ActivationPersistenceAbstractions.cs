@@ -1,4 +1,5 @@
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 
 namespace Bitstream.Application.Abstractions.Persistence;
 
@@ -12,4 +13,14 @@ public interface IActivationRequestRepository
     Task<ActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
     Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Case-insensitive substring match against the public ID and package code, most recently
+    /// created first, with <see cref="ActivationRequest.Isp"/> loaded for display.
+    /// <paramref name="ispId"/> restricts to one ISP's requests — the ownership scoping
+    /// <c>ActivationRequestService.SearchAsync</c> applies before calling this, not a filter the
+    /// caller opts into. <paramref name="status"/> narrows the grid further when given.
+    /// </summary>
+    Task<(IReadOnlyList<ActivationRequest> Items, int TotalCount)> SearchAsync(
+        string? search, ActivationRequestStatus? status, long? ispId, int skip, int take, CancellationToken cancellationToken = default);
 }

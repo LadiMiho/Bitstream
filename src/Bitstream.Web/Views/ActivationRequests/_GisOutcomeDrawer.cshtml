@@ -1,0 +1,46 @@
+@model Bitstream.Domain.Entities.ActivationRequest
+@{
+    var eligible = Model.Status == Bitstream.Domain.Enums.ActivationRequestStatus.AwaitingGisVerification;
+}
+<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Public ID</dt><dd class="mt-1 text-sm">@Model.PublicId</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@Model.Status</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@Model.Isp.Name (#@Model.IspId)</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@Model.PackageCode</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd class="mt-1 text-sm">@Model.LocationRaw</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@Model.LocationLat, @Model.LocationLng</dd></div>
+</dl>
+
+@if (!eligible)
+{
+    <p class="mt-6 text-sm text-ink-muted">This request is not awaiting GIS verification, so no outcome can be recorded right now.</p>
+    <template data-drawer-footer>
+        <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+    </template>
+}
+else
+{
+    <form id="activation-gis-outcome-form" class="mt-6 grid gap-4" novalidate data-action="gis-outcome" data-request-id="@Model.RequestId" data-public-id="@Model.PublicId">
+        <p class="field-error" role="alert" data-field-error="request" hidden></p>
+
+        <fieldset class="grid gap-4">
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="lineAvailable" value="true" required /> Line exists
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="lineAvailable" value="false" required /> No line
+                </label>
+            </div>
+
+            <div>
+                <label class="field-label" for="activation-gis-reason">Reason (required for "No line")</label>
+                <input class="field-input" id="activation-gis-reason" name="reason" type="text" />
+            </div>
+        </fieldset>
+    </form>
+    <template data-drawer-footer>
+        <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+        <button type="submit" form="activation-gis-outcome-form" class="btn-primary">Record outcome</button>
+    </template>
+}

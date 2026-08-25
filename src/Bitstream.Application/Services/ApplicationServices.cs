@@ -32,6 +32,14 @@ public interface IActivationRequestService
     Task<ActivationRequest?> GetByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Administrator/Auditor (<c>activation.read.all</c>) searches every request; anyone else's
+    /// search is silently narrowed to their own ISP — the same ownership rule
+    /// <see cref="GetByPublicIdAsync"/> enforces, no different a permission needed for "own"
+    /// (TR-SEC-19's reasoning applies here too). <paramref name="status"/> narrows further when given.
+    /// </summary>
+    Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Records that INT-CRM-01 and INT-CRM-02 both succeeded and moves PendingCrmSync to
     /// AwaitingGisVerification (TRD 5.3). Called by the outbox dispatcher, not by an endpoint —
     /// CRM's response is synchronous, so this does not wait for an inbound event. Keyed by the

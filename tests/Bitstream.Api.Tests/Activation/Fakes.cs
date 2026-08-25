@@ -35,6 +35,21 @@ public sealed class FakeActivationRequestRepository : IActivationRequestReposito
         Requests[request.RequestId] = request;
         return Task.CompletedTask;
     }
+
+    public Task<(IReadOnlyList<ActivationRequest> Items, int TotalCount)> SearchAsync(
+        string? search, ActivationRequestStatus? status, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var matches = Requests.Values
+            .Where(request => ispId is null || request.IspId == ispId)
+            .Where(request => string.IsNullOrWhiteSpace(search)
+                || request.PublicId.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || request.PackageCode.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(request => status is null || request.Status == status)
+            .OrderByDescending(request => request.CreatedAt)
+            .ToList();
+
+        return Task.FromResult<(IReadOnlyList<ActivationRequest>, int)>(([.. matches.Skip(skip).Take(take)], matches.Count));
+    }
 }
 
 /// <summary>Deterministic, in-memory stand-in for <see cref="IPublicIdentifierGenerator"/> — no stored procedure, no database.</summary>

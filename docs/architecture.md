@@ -198,11 +198,15 @@ independently restated copy of the TRD 5.3 table — every permitted transition 
 rejection, including self-transitions and skipped steps — so the table in
 `ActivationRequestTransitions` cannot silently drift from the design without a test failing.
 
-### Activation request screens (GUI-4) and the API gaps they surfaced
+### Activation request screens (GUI-4)
 
-`Views/ActivationRequests/{New,Detail,GisVerification}.cshtml` (rendered by
-`ActivationRequestsController`) call the three endpoints above from client-side script
-(`wwwroot/js/pages/activation-{new,detail,gis}.js`) — submission validation, coordinate parsing,
+`Views/ActivationRequests/Index.cshtml` (rendered by `ActivationRequestsController`) is a
+browsable, searchable, filterable grid — the same pattern as User/ISP Administration
+(`wwwroot/js/pages/activation-admin.js`, mirroring `user-admin.js`/`isp-admin.js`) — with drawer
+forms for submitting a new request and, from an eligible row, recording the GIS verification
+outcome. `IActivationRequestRepository.SearchAsync`/`ActivationRequestService.SearchAsync` back
+the grid with the same ownership scoping as everywhere else (`activation.read.all` sees every
+ISP's requests; anyone else sees only their own). Submission validation, coordinate parsing,
 state-machine enforcement and the GIS outcome decision all stay entirely server-side; the views
 only render what the API returns.
 
@@ -212,7 +216,7 @@ on the outbox and transitions `Submitted` → `PendingCrmSync` *synchronously, i
 before returning — the CRM call itself is made later by the out-of-process `OutboxDispatcher`.
 So the `201 Created` response, and every subsequent `GET`, already shows `PendingCrmSync`
 regardless of whether `Integration:Crm:BaseAddress` is configured or the dispatcher has run at
-all. The new-request and detail screens surface every status verbatim, integration-pending ones
+all. The grid and its view drawer surface every status verbatim, integration-pending ones
 included (TR-ACT-11) — `wwwroot/js/status-presentation.js` only maps a label and a colour, it
 does not decide which status a request is in.
 

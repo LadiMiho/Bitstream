@@ -256,6 +256,29 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         return request;
     }
 
+    public async Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        var parsedStatus = !string.IsNullOrEmpty(status) && Enum.TryParse<ActivationRequestStatus>(status, ignoreCase: false, out var value)
+            ? value
+            : (ActivationRequestStatus?)null;
+
+        if (_currentUser.HasPermission(ActivationPermissionCodes.ActivationReadAll))
+        {
+            var (items, totalCount) = await _requestRepository.SearchAsync(search, parsedStatus, ispId: null, skip, take, cancellationToken).ConfigureAwait(false);
+            return new PagedResult<ActivationRequest>(items, totalCount);
+        }
+
+        // Not entitled to browse every ISP's requests: the caller's own ISP is the entire result
+        // set, the same ownership rule GetByPublicIdAsync enforces.
+        if (_currentUser.IspId is not { } ownIspId)
+        {
+            return new PagedResult<ActivationRequest>([], 0);
+        }
+
+        var (ownItems, ownTotalCount) = await _requestRepository.SearchAsync(search, parsedStatus, ownIspId, skip, take, cancellationToken).ConfigureAwait(false);
+        return new PagedResult<ActivationRequest>(ownItems, ownTotalCount);
+    }
+
     public async Task RecordGisOutcomeAsync(long requestId, bool lineAvailable, string? reason, CancellationToken cancellationToken = default)
     {
         var request = await _requestRepository.FindByIdAsync(requestId, cancellationToken).ConfigureAwait(false) ??

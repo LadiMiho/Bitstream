@@ -12,15 +12,15 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Bitstream.Web.Controllers;
 
 /// <summary>
-/// TRD 5: the Activation Requests hub, new-request form, detail lookup and GIS verification
-/// screens, plus the JSON actions those screens' own scripts call
-/// (<c>wwwroot/js/pages/activation-new.js</c>, <c>activation-detail.js</c>, <c>activation-gis.js</c>)
-/// — mirrors <see cref="UsersController"/>/<see cref="IspsController"/>'s shape.
+/// TRD 5: the Activation Requests grid (search/filter/browse, drawer forms for add/view/record
+/// GIS outcome), plus the JSON actions those drawers' own scripts call
+/// (<c>wwwroot/js/pages/activation-admin.js</c>) — mirrors <see cref="UsersController"/>/
+/// <see cref="IspsController"/>'s shape.
 /// <para>
-/// Submission and the read action are open to any authenticated caller at the route level;
-/// <see cref="IActivationRequestService"/> enforces ownership from identity, before the
-/// repository is touched, the same way <see cref="UsersController"/>/<see cref="IspsController"/>
-/// do (TR-SEC-18, TR-SEC-19). Recording a GIS outcome is Administrator-only (TR-ACT-12).
+/// Search and the read action enforce ownership the same way as everywhere else in the portal:
+/// an Administrator/Auditor (<c>activation.read.all</c>) sees every ISP's requests; anyone else
+/// sees only their own ISP's, decided from identity alone before the repository is touched
+/// (TR-SEC-18, TR-SEC-19). Recording a GIS outcome needs <c>activation.gis.record</c>.
 /// </para>
 /// </summary>
 [Route("ActivationRequests")]
@@ -31,7 +31,6 @@ public sealed class ActivationRequestsController : Controller
     public ActivationRequestsController(IActivationRequestService activationRequestService) =>
         _activationRequestService = activationRequestService;
 
-    /// <summary>Activation Requests (TRD §5) hub, linking to the three screens this module has.</summary>
     [HttpGet("")]
     [RequireSession]
     public IActionResult Index()
@@ -44,9 +43,9 @@ public sealed class ActivationRequestsController : Controller
     }
 
     /// <summary>
-    /// The activation request submission form (TRD §5.1), posted from client-side script
-    /// (<c>wwwroot/js/pages/activation-new.js</c>) to <see cref="Submit"/> — nothing here
-    /// re-implements validation or identifier issuance; both happen entirely server-side.
+    /// The activation request submission form (TRD §5.1), posted from client-side script to
+    /// <see cref="Submit"/> — nothing here re-implements validation or identifier issuance; both
+    /// happen entirely server-side.
     /// <para>
     /// Package, classification and contract duration are configured lists (TR-ACT-01, TR-ACT-04 —
     /// "extensible without a release"), but there is no API that exposes that configuration to the
@@ -56,62 +55,55 @@ public sealed class ActivationRequestsController : Controller
     /// not in the current catalogue. Reported in docs/architecture.md.
     /// </para>
     /// </summary>
-    [HttpGet("New")]
-    [RequireSession]
-    public IActionResult New()
+    [HttpGet("AddDrawer")]
+    [RequirePermission(ActivationPermissionCodes.ActivationCreate)]
+    public IActionResult AddDrawer()
     {
-        ViewData["Title"] = "New Activation Request";
-        ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationCreate);
         // Pre-fills the ISP ID field for an ISP user, who may only submit for their own ISP.
         ViewBag.CallerIspId = User.FindFirst(BitstreamClaimTypes.IspId)?.Value;
+        return PartialView("_AddDrawer");
+    }
 
-        return View();
+    [HttpGet("{publicId}/ViewDrawer")]
+    [RequireSession]
+    public async Task<IActionResult> ViewDrawer(string publicId, CancellationToken cancellationToken)
+    {
+        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
+
+        return request is null ? NotFound() : PartialView("_ViewDrawer", request);
     }
 
     /// <summary>
-    /// The ISP-facing request detail view: looks up one activation request by its public ID
-    /// against <see cref="Get"/> (<c>wwwroot/js/pages/activation-detail.js</c>) and shows its live
-    /// status, including the integration-pending states (TR-ACT-11) — <c>PendingCrmSync</c> and
-    /// <c>IntegrationFailed</c> render just like every other status; nothing here waits for CRM to
-    /// be "live" before showing a newly submitted request.
-    /// <para>
-    /// There is no list endpoint for activation requests (no search/browse action on this
-    /// controller, and <c>IActivationRequestRepository</c> has no query beyond find-by-id), so
-    /// this is a look-up-by-ID screen rather than a browsable list. Reported in docs/architecture.md.
-    /// </para>
+    /// The GIS verification outcome drawer (TR-ACT-12 to TR-ACT-19): opened from a specific grid
+    /// row, so eligibility (status must be <c>AwaitingGisVerification</c>) is already known
+    /// server-side rather than discovered by a separate lookup step. Recording the outcome itself
+    /// goes through <see cref="RecordGisOutcome"/>.
     /// </summary>
-    [HttpGet("Detail")]
-    [RequireSession]
-    public IActionResult Detail([FromQuery] string? publicId)
+    [HttpGet("{publicId}/GisOutcomeDrawer")]
+    [RequirePermission(ActivationPermissionCodes.ActivationGisRecord)]
+    public async Task<IActionResult> GisOutcomeDrawer(string publicId, CancellationToken cancellationToken)
     {
-        ViewData["Title"] = "Activation Request";
-        // Pre-fills the lookup field, e.g. arriving from the "View this request" link right after submission.
-        ViewBag.PublicId = publicId;
+        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
 
-        return View();
+        return request is null ? NotFound() : PartialView("_GisOutcomeDrawer", request);
     }
 
-    /// <summary>
-    /// The GIS verification admin screen (TR-ACT-12 to TR-ACT-19): looks a request up by public
-    /// ID (reusing the same read action <see cref="Get"/> does) to get its numeric
-    /// <c>requestId</c>, then — only when its status is <c>AwaitingGisVerification</c> — records
-    /// the outcome via <see cref="RecordGisOutcome"/> (<c>wwwroot/js/pages/activation-gis.js</c>).
-    /// The line-exists/no-line decision and the state transition it drives both happen entirely
-    /// server-side.
-    /// <para>
-    /// There is no endpoint to list requests currently awaiting verification, so an administrator
-    /// needs the public ID in hand (e.g. from the ISP or a submission notification) rather than
-    /// picking one off a queue. Reported in docs/architecture.md alongside the other read gaps.
-    /// </para>
-    /// </summary>
-    [HttpGet("GisVerification")]
-    [RequireSession]
-    public IActionResult GisVerification()
-    {
-        ViewData["Title"] = "GIS Verification";
-        ViewBag.CanRecordGis = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationGisRecord);
+    // --- JSON support endpoints for the grid + drawer forms above (activation-admin.js) -----
 
-        return View();
+    [HttpGet("Search")]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public async Task<IActionResult> Search(
+        [FromQuery] string? search,
+        [FromQuery] string? status,
+        [FromQuery] int? skip,
+        [FromQuery] int? take,
+        CancellationToken cancellationToken)
+    {
+        var result = await _activationRequestService.SearchAsync(
+            search, status, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+
+        return Ok(new ActivationRequestListResponse([.. result.Items.Select(ToSummaryResponse)], result.TotalCount));
     }
 
     [HttpPost("")]
@@ -189,4 +181,8 @@ public sealed class ActivationRequestsController : Controller
             request.LocationLat, request.LocationLng, request.Classification, request.ContractDurationMonths,
             request.Comments, request.Status.ToString(), request.StatusReason, request.SalesOrderId,
             request.CreatedAt, request.LastUpdatedAt);
+
+    private static ActivationRequestSummaryResponse ToSummaryResponse(ActivationRequest request) =>
+        new(request.RequestId, request.PublicId, request.IspId, request.Isp.Name, request.PackageCode,
+            request.Status.ToString(), request.CreatedAt);
 }

@@ -33,6 +33,22 @@ public sealed record ActivationRequestResponse(
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("lastUpdatedAt")] DateTimeOffset? LastUpdatedAt);
 
+/// <summary>One grid row — lighter than <see cref="ActivationRequestResponse"/>, with the ISP name for display.</summary>
+public sealed record ActivationRequestSummaryResponse(
+    [property: JsonPropertyName("requestId")] long RequestId,
+    [property: JsonPropertyName("publicId")] string PublicId,
+    [property: JsonPropertyName("ispId")] long IspId,
+    [property: JsonPropertyName("ispName")] string IspName,
+    [property: JsonPropertyName("packageCode")] string PackageCode,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+
+/// <param name="Items">At most <c>take</c> rows.</param>
+/// <param name="TotalCount">Every matching row, ignoring paging.</param>
+public sealed record ActivationRequestListResponse(
+    [property: JsonPropertyName("items")] IReadOnlyList<ActivationRequestSummaryResponse> Items,
+    [property: JsonPropertyName("totalCount")] int TotalCount);
+
 /// <summary>
 /// Body of the GIS verification admin screen's outcome submission (TR-ACT-12 to TR-ACT-19).
 /// </summary>
