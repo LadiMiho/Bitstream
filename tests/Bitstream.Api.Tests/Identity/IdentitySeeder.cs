@@ -101,6 +101,10 @@ internal static class IdentitySeeder
             TwoFactorEnabled = true,
             LockoutEnabled = true,
             LockoutEnd = lockoutEnd,
+            // UserManager.CreateAsync would ordinarily set this; every write path it exposes
+            // (ResetAuthenticatorKeyAsync, AccessFailedAsync, ResetAccessFailedCountAsync, ...)
+            // calls ValidateUserAsync first, which throws InvalidOperationException if it's null.
+            SecurityStamp = Guid.NewGuid().ToString(),
             CreatedAt = DateTimeOffset.UtcNow
         };
 
