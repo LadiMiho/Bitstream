@@ -67,6 +67,6 @@ INNER JOIN sec.Permission p  ON p.Code = b.PermissionCode
 WHERE NOT EXISTS
 (
     SELECT 1 FROM sec.RolePermission rp
-    WHERE rp.RoleId = r.RoleId AND rp.PermissionId = p.PermissionId
+    WHERE rp.RoleId = r.Id AND rp.PermissionId = p.PermissionId
 );
 GO
