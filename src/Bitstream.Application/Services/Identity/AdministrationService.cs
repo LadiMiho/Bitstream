@@ -412,7 +412,8 @@ public sealed partial class AdministrationService : IAdministrationService
         var user = await _userManager.FindByIdAsync(ownUserId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
         if (user is not null)
         {
-            user.Role = await _roleManager.FindByIdAsync(user.RoleId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+            user.Role = await _roleManager.FindByIdAsync(user.RoleId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+                throw new InvalidOperationException($"User {user.Id} references role {user.RoleId}, which does not exist.");
         }
 
         var isLockedOut = user is not null && await _userManager.IsLockedOutAsync(user).ConfigureAwait(false);
