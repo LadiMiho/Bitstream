@@ -1,4 +1,5 @@
 using Bitstream.Application.Configuration;
+using Bitstream.Domain.Enums;
 using Xunit;
 
 namespace Bitstream.Api.Tests.Identity;
@@ -65,36 +66,16 @@ public sealed class TwoFactorOptionsValidatorTests
     [Fact]
     public void Accepts_the_TRD_default_values()
     {
+        // Code length/validity/attempt-budget are ASP.NET Core Identity's own token providers'
+        // concern now (TR-SEC-04/05) — nothing left here to bound beyond the channel itself.
         Assert.True(_validator.Validate(null, new TwoFactorOptions()).Succeeded);
     }
 
     [Fact]
-    public void Rejects_a_code_validity_exceeding_5_minutes()
+    public void Accepts_every_configured_channel()
     {
-        // TR-SEC-04: "valid for a maximum of 5 minutes" is a ceiling.
-        var result = _validator.Validate(null, new TwoFactorOptions { CodeValidity = TimeSpan.FromMinutes(6) });
-
-        Assert.True(result.Failed);
-        Assert.Contains(result.Failures!, f => f.Contains("TR-SEC-04", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Accepts_a_code_validity_of_exactly_5_minutes()
-    {
-        Assert.True(_validator.Validate(null, new TwoFactorOptions { CodeValidity = TimeSpan.FromMinutes(5) }).Succeeded);
-    }
-
-    [Fact]
-    public void Rejects_a_zero_code_validity()
-    {
-        Assert.True(_validator.Validate(null, new TwoFactorOptions { CodeValidity = TimeSpan.Zero }).Failed);
-    }
-
-    [Fact]
-    public void Rejects_a_code_length_outside_4_to_10_digits()
-    {
-        Assert.True(_validator.Validate(null, new TwoFactorOptions { CodeLength = 3 }).Failed);
-        Assert.True(_validator.Validate(null, new TwoFactorOptions { CodeLength = 11 }).Failed);
+        Assert.True(_validator.Validate(null, new TwoFactorOptions { Channel = TwoFactorChannel.Totp }).Succeeded);
+        Assert.True(_validator.Validate(null, new TwoFactorOptions { Channel = TwoFactorChannel.EmailOtp }).Succeeded);
     }
 }
 
