@@ -130,6 +130,22 @@ public static class AuthEndpoints
             return AccountLockedProblem();
         }
 
+        var channel = twoFactorOptions.CurrentValue.Channel;
+
+        // ASP.NET Core Identity's own "does this account have a usable second factor" check
+        // (run inside PasswordSignInAsync below, ahead of the RequiresTwoFactor decision) treats
+        // the Authenticator provider as unavailable until a key exists — so a never-enrolled
+        // Totp-channel user would sign straight in, skipping 2FA entirely, unless a key exists
+        // before that call. A non-mutating password check (no lockout side effect) gates this so
+        // an attacker probing a valid email doesn't cause a key to be minted on a wrong guess.
+        var wasNeverEnrolledInTotp = channel == TwoFactorChannel.Totp
+            && await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false) is null;
+
+        if (wasNeverEnrolledInTotp && await userManager.CheckPasswordAsync(user, request.Password).ConfigureAwait(false))
+        {
+            await userManager.ResetAuthenticatorKeyAsync(user).ConfigureAwait(false);
+        }
+
         // TR-SEC-02: Argon2IdentityPasswordHasher (the overridden IPasswordHasher<User>) also
         // handles the opportunistic rehash — SignInManager persists that itself, via Identity's
         // own store. lockoutOnFailure: true is TR-SEC-06 (5 consecutive failed attempts, see
@@ -179,21 +195,18 @@ public static class AuthEndpoints
                 clock.UtcNow + sessionOptions.CurrentValue.IdleTimeout));
         }
 
-        var channel = twoFactorOptions.CurrentValue.Channel;
         string? provisioningUri = null;
 
         switch (channel)
         {
             case TwoFactorChannel.Totp:
-                var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false);
-
-                if (authenticatorKey is null)
+                if (wasNeverEnrolledInTotp)
                 {
-                    // Never confirmed a code: nothing has scanned a key yet, because none exists.
-                    // Generating it here (rather than only at verify time) is what lets the QR
-                    // code render alongside the code prompt on this, this user's first login.
-                    await userManager.ResetAuthenticatorKeyAsync(user).ConfigureAwait(false);
-                    authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false);
+                    // The key was already minted above (before the real PasswordSignInAsync call,
+                    // so Identity's own provider-availability check would recognise this account
+                    // as two-factor-capable) — this is what lets the QR code render alongside the
+                    // code prompt on this, this user's first login.
+                    var authenticatorKey = await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false);
                     provisioningUri = BuildAuthenticatorProvisioningUri(authenticatorKey!, user.Email!);
                 }
 

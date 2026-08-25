@@ -67,7 +67,11 @@ public sealed class LockoutAndSessionTests
         Assert.NotNull(user);
 
         Assert.True(await userManager.IsLockedOutAsync(user));
-        Assert.Equal(5, await userManager.GetAccessFailedCountAsync(user));
+
+        // ASP.NET Core Identity's own AccessFailedAsync resets the counter to 0 the moment it
+        // sets LockoutEnd — its purpose was only to reach the threshold, and a future unlock
+        // should start a fresh count rather than one already sitting at the limit.
+        Assert.Equal(0, await userManager.GetAccessFailedCountAsync(user));
 
         var assertDb = assertScope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
         Assert.Contains(assertDb.AuditLog, entry => entry.ActionCode == "Security.Account.AutoLocked");

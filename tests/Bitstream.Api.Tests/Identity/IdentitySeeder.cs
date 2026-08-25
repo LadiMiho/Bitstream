@@ -142,7 +142,7 @@ internal static class IdentitySeeder
             new Uri("/api/v1/auth/login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText)).ConfigureAwait(false);
 
-        loginResponse.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(loginResponse).ConfigureAwait(false);
 
         var code = await userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider).ConfigureAwait(false);
 
@@ -150,7 +150,25 @@ internal static class IdentitySeeder
             new Uri("/api/v1/auth/login/verify", UriKind.Relative),
             new TwoFactorVerifyRequest(code)).ConfigureAwait(false);
 
-        verifyResponse.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(verifyResponse).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// <c>HttpResponseMessage.EnsureSuccessStatusCode</c> discards the response body, which for a
+    /// <c>ProblemDetails</c> failure is exactly the detail a failing test needs — surfaced here in
+    /// the exception message instead of requiring a second CI round just to see it.
+    /// </summary>
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+        throw new InvalidOperationException(
+            $"{(int)response.StatusCode} {response.StatusCode} from {response.RequestMessage?.RequestUri}: {body}");
     }
 }
 
