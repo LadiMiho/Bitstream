@@ -10,6 +10,14 @@ public sealed record CreateIspHttpRequest(
     [property: JsonPropertyName("contactMobile")] string ContactMobile,
     [property: JsonPropertyName("crmBpReference")] string CrmBpReference);
 
+public sealed record UpdateIspHttpRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("nipt")] string Nipt,
+    [property: JsonPropertyName("contactPerson")] string ContactPerson,
+    [property: JsonPropertyName("contactEmail")] string ContactEmail,
+    [property: JsonPropertyName("contactMobile")] string ContactMobile,
+    [property: JsonPropertyName("crmBpReference")] string CrmBpReference);
+
 public sealed record IspResponse(
     [property: JsonPropertyName("ispId")] long IspId,
     [property: JsonPropertyName("name")] string Name,

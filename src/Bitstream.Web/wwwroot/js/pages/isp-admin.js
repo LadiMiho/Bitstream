@@ -106,6 +106,7 @@ function confirmAction(message) {
 // --- Icons (inline, no icon font/library) -----------------------------------------------
 const ICONS = {
   view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
+  edit: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 3.5 16.5 6.5 7 16H4v-3L13.5 3.5Z"/></svg>',
   lock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"/></svg>',
   unlock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 6.6-1.5"/></svg>',
   kebab: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
@@ -179,6 +180,7 @@ function statusPill(status) {
 
 function renderResults(items) {
   const root = el('[data-role="isp-admin-page"]');
+  const canEdit = root.dataset.canEdit === 'true';
   const canLock = root.dataset.canLock === 'true';
 
   const body = el('#isp-search-results');
@@ -232,6 +234,11 @@ function renderResults(items) {
       menu.className = 'menu-panel';
       menu.appendChild(menuItem('View', ICONS.view, () =>
         openDrawer(`${isp.name} — details`, `/AccessManagement/Isps/${isp.ispId}/ViewDrawer`)));
+
+      if (canEdit) {
+        menu.appendChild(menuItem('Edit', ICONS.edit, () =>
+          openDrawer(`Edit ${isp.name}`, `/AccessManagement/Isps/${isp.ispId}/EditDrawer`)));
+      }
 
       if (canLock) {
         const nextStatus = isp.status === 'Locked' ? 'Active' : 'Locked';
@@ -389,6 +396,15 @@ drawerBody.addEventListener('submit', async (event) => {
   try {
     if (action === 'create') {
       await api.post('/AccessManagement/Isps', {
+        name: form.querySelector('[name=name]').value.trim(),
+        nipt: form.querySelector('[name=nipt]').value.trim(),
+        contactPerson: form.querySelector('[name=contactPerson]').value.trim(),
+        contactEmail: form.querySelector('[name=contactEmail]').value.trim(),
+        contactMobile: form.querySelector('[name=contactMobile]').value.trim(),
+        crmBpReference: form.querySelector('[name=crmBpReference]').value.trim()
+      });
+    } else if (action === 'update') {
+      await api.put(`/AccessManagement/Isps/${form.dataset.ispId}`, {
         name: form.querySelector('[name=name]').value.trim(),
         nipt: form.querySelector('[name=nipt]').value.trim(),
         contactPerson: form.querySelector('[name=contactPerson]').value.trim(),

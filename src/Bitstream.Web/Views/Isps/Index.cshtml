@@ -1,11 +1,13 @@
 @{
     ViewData["Title"] = "ISP Administration";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    var canEdit = (bool)(ViewBag.CanEdit ?? false);
     var canLock = (bool)(ViewBag.CanLock ?? false);
 }
 
 <div class="grid gap-6"
      data-role="isp-admin-page"
+     data-can-edit="@canEdit.ToString().ToLowerInvariant()"
      data-can-lock="@canLock.ToString().ToLowerInvariant()">
     <div class="flex items-center justify-between">
         <div>

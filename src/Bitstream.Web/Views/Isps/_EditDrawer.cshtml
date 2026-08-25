@@ -1,0 +1,38 @@
+@model Bitstream.Domain.Entities.Isp
+<form id="isp-edit-form" class="grid gap-4" novalidate data-action="update" data-isp-id="@Model.IspId">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <div>
+        <label class="field-label" for="isp-edit-name">Name</label>
+        <input class="field-input" id="isp-edit-name" name="name" type="text" value="@Model.Name" required />
+        <p class="field-error" role="alert" data-field-error="name" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-edit-nipt">NIPT</label>
+        <input class="field-input" id="isp-edit-nipt" name="nipt" type="text" value="@Model.Nipt" required />
+        <p class="field-error" role="alert" data-field-error="nipt" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-edit-contact-person">Contact person</label>
+        <input class="field-input" id="isp-edit-contact-person" name="contactPerson" type="text" value="@Model.ContactPerson" required />
+        <p class="field-error" role="alert" data-field-error="contactPerson" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-edit-contact-email">Contact email</label>
+        <input class="field-input" id="isp-edit-contact-email" name="contactEmail" type="email" value="@Model.ContactEmail" required />
+        <p class="field-error" role="alert" data-field-error="contactEmail" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-edit-contact-mobile">Contact mobile</label>
+        <input class="field-input" id="isp-edit-contact-mobile" name="contactMobile" type="tel" value="@Model.ContactMobile" required />
+        <p class="field-error" role="alert" data-field-error="contactMobile" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-edit-crm-bp">CRM Business Partner reference</label>
+        <input class="field-input" id="isp-edit-crm-bp" name="crmBpReference" type="text" value="@Model.CrmBpReference" required />
+        <p class="field-error" role="alert" data-field-error="crmBpReference" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="isp-edit-form" class="btn-primary">Save changes</button>
+</template>

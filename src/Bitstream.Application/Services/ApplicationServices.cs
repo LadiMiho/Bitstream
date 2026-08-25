@@ -234,6 +234,9 @@ public interface IAdministrationService
     /// </summary>
     Task<PagedResult<Isp>> SearchIspsAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
+    /// <summary>Throws <see cref="AdministrationValidationException"/> when the ISP does not exist, a field is invalid, or the new NIPT collides with another ISP.</summary>
+    Task<Isp> UpdateIspAsync(long ispId, UpdateIspRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Locking cascades to every currently-active user of the ISP and revokes their sessions
     /// immediately (TR-SEC-13, TR-SEC-07). Unlocking the ISP does not reciprocally unlock its
@@ -294,6 +297,15 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount);
 /// <param name="ContactMobile">E.164 format (TR-SEC-14, TR-SEC-15).</param>
 /// <param name="CrmBpReference">CRM Business Partner reference; verified against CRM before activation per TR-SEC-16 (Should — CRM contract is TRD 11.4 open item 1, so this is recorded but not yet cross-checked).</param>
 public sealed record CreateIspRequest(
+    string Name,
+    string Nipt,
+    string ContactPerson,
+    string ContactEmail,
+    string ContactMobile,
+    string CrmBpReference);
+
+/// <summary>Same fields as <see cref="CreateIspRequest"/> — everything but status is editable (TR-SEC-15).</summary>
+public sealed record UpdateIspRequest(
     string Name,
     string Nipt,
     string ContactPerson,

@@ -32,6 +32,7 @@ public sealed class IspsController : Controller
     {
         ViewData["Title"] = "ISP Administration";
         ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.IspCreate);
+        ViewBag.CanEdit = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.IspUpdate);
         ViewBag.CanLock = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.IspLock);
 
         return View();
@@ -40,6 +41,15 @@ public sealed class IspsController : Controller
     [HttpGet("AddDrawer")]
     [RequirePermission(PermissionCodes.IspCreate)]
     public IActionResult AddDrawer() => PartialView("_AddDrawer");
+
+    [HttpGet("{ispId:long}/EditDrawer")]
+    [RequirePermission(PermissionCodes.IspUpdate)]
+    public async Task<IActionResult> EditDrawer(long ispId, CancellationToken cancellationToken)
+    {
+        var isp = await _administrationService.GetIspAsync(ispId, cancellationToken).ConfigureAwait(false);
+
+        return isp is null ? NotFound() : PartialView("_EditDrawer", isp);
+    }
 
     [HttpGet("{ispId:long}/ViewDrawer")]
     [RequireSession]
@@ -105,6 +115,35 @@ public sealed class IspsController : Controller
         return isp is null ? NotFound() : Ok(ToResponse(isp));
     }
 
+    [HttpPut("{ispId:long}")]
+    [RequireJsonPermission(PermissionCodes.IspUpdate)]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public async Task<IActionResult> Update(long ispId, [FromBody] UpdateIspHttpRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var isp = await _administrationService.UpdateIspAsync(
+                ispId, new UpdateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference),
+                cancellationToken).ConfigureAwait(false);
+
+            return Ok(ToResponse(isp));
+        }
+        catch (AdministrationValidationException exception) when (IsIspNotFound(exception, ispId))
+        {
+            return NotFound();
+        }
+        catch (AdministrationValidationException exception)
+        {
+            var errors = exception.FieldErrors.Count > 0
+                ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
+                : exception.Violations.Count > 0
+                    ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                    : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
+
+            return BadRequest(new ValidationProblemDetails(errors));
+        }
+    }
+
     [HttpPatch("{ispId:long}/status")]
     [RequireJsonPermission(PermissionCodes.IspLock)]
     [EnableRateLimiting(RateLimitPolicies.Administration)]
@@ -131,6 +170,15 @@ public sealed class IspsController : Controller
             return NotFound();
         }
     }
+
+    /// <summary>
+    /// Distinguishes "no such ISP" (404) from every other <see cref="AdministrationValidationException"/>
+    /// the same call can throw (a bad field, a colliding NIPT) — both of which also happen to say
+    /// "does not exist", so this matches the exact message <c>AdministrationService</c> throws for
+    /// the missing-ISP case specifically, not a substring.
+    /// </summary>
+    private static bool IsIspNotFound(AdministrationValidationException exception, long ispId) =>
+        exception.Message == $"ISP {ispId} does not exist.";
 
     private static IspResponse ToResponse(Isp isp) =>
         new(isp.IspId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile,

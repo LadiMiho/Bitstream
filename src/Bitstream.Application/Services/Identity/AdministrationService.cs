@@ -216,6 +216,53 @@ public sealed partial class AdministrationService : IAdministrationService
         return matches ? new PagedResult<Isp>([isp!], 1) : new PagedResult<Isp>([], 0);
     }
 
+    public async Task<Isp> UpdateIspAsync(long ispId, UpdateIspRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var isp = await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false) ??
+            throw new AdministrationValidationException($"ISP {ispId} does not exist.");
+
+        var violations = new ValidationCollector();
+
+        RequireNonEmpty(request.Name, "name", "Name", violations);
+        RequireValidNipt(request.Nipt, violations);
+        RequireNonEmpty(request.ContactPerson, "contactPerson", "Contact person", violations);
+        RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
+        RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
+        RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
+
+        if (violations.Count == 0 && !string.Equals(request.Nipt, isp.Nipt, StringComparison.Ordinal)
+            && await _ispRepository.NiptExistsAsync(request.Nipt, cancellationToken).ConfigureAwait(false))
+        {
+            // TR-SEC-16: NIPT unique across the platform.
+            violations.Add("nipt", $"An ISP with NIPT '{request.Nipt}' already exists.");
+        }
+
+        if (violations.Count > 0)
+        {
+            throw violations.ToException();
+        }
+
+        var previous = $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)}}}";
+
+        isp.Name = request.Name;
+        isp.Nipt = request.Nipt;
+        isp.ContactPerson = request.ContactPerson;
+        isp.ContactEmail = request.ContactEmail;
+        isp.ContactMobile = request.ContactMobile;
+        isp.CrmBpReference = request.CrmBpReference;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "Isp.Updated", "Isp", ispId.ToString(CultureInfo.InvariantCulture),
+            previous, $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)}}}",
+            cancellationToken).ConfigureAwait(false);
+
+        return isp;
+    }
+
     public async Task SetIspStatusAsync(long ispId, IspStatus status, CancellationToken cancellationToken = default)
     {
         var isp = await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false) ??

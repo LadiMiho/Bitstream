@@ -173,11 +173,10 @@ reported here rather than compensated for in the frontend:
   there is nothing to browse. `Isps.cshtml` and `Users.cshtml` are therefore "look up by ID"
   screens, not browsable tables — each says so in-page. An administrator has to already know (or
   have just created) the ID.
-- **No update endpoint for either record's own fields.** `isp.update` and `user.update` are
-  seeded permission codes (`db/mssql/0007_seed_roles_permissions.sql`) but nothing checks them —
-  only `SetIspStatusAsync`/`SetUserStatusAsync` (status, i.e. lock/unlock) exist. "Create/edit"
-  is therefore create and lock/unlock only; there is no way to correct a name, NIPT or contact
-  detail after creation without one of these being built.
+- **(Resolved)** `isp.update`/`user.update` now gate real update endpoints
+  (`IspsController.Update`/`UsersController.Update`, `AdministrationService.UpdateIspAsync`/
+  `UpdateUserAsync`), alongside the existing `SetIspStatusAsync`/`SetUserStatusAsync`
+  (status, i.e. lock/unlock).
 - **No audit log read path at all.** `IAuditWriter` only writes; `audit.read` is seeded and
   granted to the Auditor and Administrator roles, but no service method or endpoint reads an
   audit entry back. `AuditLog.cshtml` stays an explanatory placeholder rather than querying the
