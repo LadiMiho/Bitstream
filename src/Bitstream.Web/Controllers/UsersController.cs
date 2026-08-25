@@ -242,15 +242,18 @@ public sealed class UsersController : Controller
     private static bool IsUserNotFound(AdministrationValidationException exception, long userId) =>
         exception.Message == $"User {userId} does not exist.";
 
-    private ActionResult ValidationProblemFor(AdministrationValidationException exception) =>
-        ValidationProblem(
-            errors: exception.FieldErrors.Count > 0
-                // TR-NFR-12: each message keyed by the field it concerns, so the drawer can show
-                // it next to that field instead of a single combined banner.
-                ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
-                : exception.Violations.Count > 0
-                    ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
-                    : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+    private ActionResult ValidationProblemFor(AdministrationValidationException exception)
+    {
+        // TR-NFR-12: each message keyed by the field it concerns, so the drawer can show it next
+        // to that field instead of a single combined banner.
+        var errors = exception.FieldErrors.Count > 0
+            ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
+            : exception.Violations.Count > 0
+                ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
+
+        return BadRequest(new ValidationProblemDetails(errors));
+    }
 
     /// <summary>
     /// "Locked" is not stored on <see cref="Application.Identity.Entities.User.Status"/> any more

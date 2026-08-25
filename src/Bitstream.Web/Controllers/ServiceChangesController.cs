@@ -62,11 +62,14 @@ public sealed class ServiceChangesController : Controller
         return Ok(packages);
     }
 
-    private ActionResult ValidationProblemFor(IReadOnlyList<string> violations, string fallbackMessage) =>
-        ValidationProblem(
-            errors: violations.Count > 0
-                ? new Dictionary<string, string[]> { ["request"] = [.. violations] }
-                : new Dictionary<string, string[]> { ["request"] = [fallbackMessage] });
+    private ActionResult ValidationProblemFor(IReadOnlyList<string> violations, string fallbackMessage)
+    {
+        var errors = violations.Count > 0
+            ? new Dictionary<string, string[]> { ["request"] = [.. violations] }
+            : new Dictionary<string, string[]> { ["request"] = [fallbackMessage] };
+
+        return BadRequest(new ValidationProblemDetails(errors));
+    }
 
     private static ServiceChangeRequestResponse ToResponse(ServiceChangeRequest request) =>
         new(request.ChangeId, request.PublicId, request.LineId, request.ChangeType.ToString(), request.PackageAsIs,

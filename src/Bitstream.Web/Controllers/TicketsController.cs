@@ -174,11 +174,14 @@ public sealed class TicketsController : Controller
         }
     }
 
-    private ActionResult ValidationProblemFor(IReadOnlyList<string> violations, string fallbackMessage) =>
-        ValidationProblem(
-            errors: violations.Count > 0
-                ? new Dictionary<string, string[]> { ["request"] = [.. violations] }
-                : new Dictionary<string, string[]> { ["request"] = [fallbackMessage] });
+    private ActionResult ValidationProblemFor(IReadOnlyList<string> violations, string fallbackMessage)
+    {
+        var errors = violations.Count > 0
+            ? new Dictionary<string, string[]> { ["request"] = [.. violations] }
+            : new Dictionary<string, string[]> { ["request"] = [fallbackMessage] };
+
+        return BadRequest(new ValidationProblemDetails(errors));
+    }
 
     private static ComplaintTicketResponse ToResponse(ComplaintTicket ticket) =>
         new(ticket.TicketId, ticket.PublicId, ticket.IspId, ticket.LineId, ticket.CategoryL1, ticket.CategoryL2, ticket.CategoryL3,

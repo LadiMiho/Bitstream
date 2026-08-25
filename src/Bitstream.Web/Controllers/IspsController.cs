@@ -69,12 +69,13 @@ public sealed class IspsController : Controller
         }
         catch (AdministrationValidationException exception)
         {
-            return ValidationProblem(
-                errors: exception.FieldErrors.Count > 0
-                    ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
-                    : exception.Violations.Count > 0
-                        ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
-                        : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+            var errors = exception.FieldErrors.Count > 0
+                ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
+                : exception.Violations.Count > 0
+                    ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                    : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
+
+            return BadRequest(new ValidationProblemDetails(errors));
         }
     }
 

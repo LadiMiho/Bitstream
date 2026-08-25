@@ -91,11 +91,14 @@ public sealed class ActivationRequestsController : Controller
         }
     }
 
-    private ActionResult ValidationProblemFor(ActivationRequestValidationException exception) =>
-        ValidationProblem(
-            errors: exception.Violations.Count > 0
-                ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
-                : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+    private ActionResult ValidationProblemFor(ActivationRequestValidationException exception)
+    {
+        var errors = exception.Violations.Count > 0
+            ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+            : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
+
+        return BadRequest(new ValidationProblemDetails(errors));
+    }
 
     private static ActivationRequestResponse ToResponse(ActivationRequest request) =>
         new(request.RequestId, request.PublicId, request.IspId, request.PackageCode, request.LocationRaw,
