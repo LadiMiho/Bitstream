@@ -175,9 +175,13 @@ public sealed class ActivationRequestsController : Controller
 
     private ActionResult ValidationProblemFor(ActivationRequestValidationException exception)
     {
-        var errors = exception.Violations.Count > 0
-            ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
-            : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
+        // TR-NFR-12: each message keyed by the field it concerns, so the drawer can show it next
+        // to that field instead of a single combined banner.
+        var errors = exception.FieldErrors.Count > 0
+            ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
+            : exception.Violations.Count > 0
+                ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                : new Dictionary<string, string[]> { ["request"] = [exception.Message] };
 
         return BadRequest(new ValidationProblemDetails(errors));
     }

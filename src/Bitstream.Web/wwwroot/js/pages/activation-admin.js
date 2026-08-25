@@ -23,10 +23,10 @@ function showError(target, message) {
 }
 
 /**
- * TR-NFR-12: shows each server-reported violation next to the field it concerns when the server
- * keyed one — falling back to the form's general error banner for anything that isn't (or can't
- * be) tied to one field, e.g. a network failure. ActivationRequestsController currently reports
- * every validation failure under "request", so in practice this always lands on the banner.
+ * TR-NFR-12: shows each server-reported violation next to the field it concerns — a
+ * `[data-field-error="fieldName"]` element next to that field, matching the key the server used
+ * (ActivationRequestsController.ValidationProblemFor) — falling back to the form's general error
+ * banner for anything that isn't (or can't be) tied to one field, e.g. a network failure.
  */
 function showFieldErrors(form, error) {
   const generalTarget = form.querySelector('[data-field-error="request"]');

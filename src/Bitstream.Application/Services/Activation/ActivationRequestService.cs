@@ -26,7 +26,18 @@ public sealed class ActivationRequestValidationException : Exception
         : base(string.Join(" ", violations)) =>
         Violations = violations;
 
+    /// <param name="violations">Every message, flattened — <see cref="Exception.Message"/>/<see cref="Violations"/>, as before.</param>
+    /// <param name="fieldErrors">The same messages, keyed by the request field each concerns (TR-NFR-12), so the presentation layer can show one next to the field it's about instead of a single combined banner.</param>
+    public ActivationRequestValidationException(IReadOnlyList<string> violations, IReadOnlyDictionary<string, IReadOnlyList<string>> fieldErrors)
+        : base(string.Join(" ", violations))
+    {
+        Violations = violations;
+        FieldErrors = fieldErrors;
+    }
+
     public IReadOnlyList<string> Violations { get; } = [];
+
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors { get; } = new Dictionary<string, IReadOnlyList<string>>();
 }
 
 /// <summary>
@@ -126,17 +137,34 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             throw new ActivationRequestValidationException("You may only submit activation requests for your own ISP.");
         }
 
+        // TR-NFR-12: each message keyed by the request field it concerns, alongside the flat
+        // list, so the presentation layer can show it next to that field instead of a single
+        // combined banner.
         var violations = new List<string>();
+        var fieldErrors = new Dictionary<string, List<string>>();
+
+        void AddViolation(string field, string message)
+        {
+            violations.Add(message);
+
+            if (!fieldErrors.TryGetValue(field, out var messages))
+            {
+                messages = [];
+                fieldErrors[field] = messages;
+            }
+
+            messages.Add(message);
+        }
 
         var isp = await _ispRepository.FindByIdAsync(request.IspId, cancellationToken).ConfigureAwait(false);
 
         if (isp is null)
         {
-            violations.Add($"ISP {request.IspId} does not exist.");
+            AddViolation("ispId", $"ISP {request.IspId} does not exist.");
         }
         else if (isp.Status != IspStatus.Active)
         {
-            violations.Add("The ISP is locked and cannot submit activation requests.");
+            AddViolation("ispId", "The ISP is locked and cannot submit activation requests.");
         }
 
         // TR-ACT-01: package code from the DB-backed catalogue (portal.Package), active offers only.
@@ -145,11 +173,11 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         if (package is null)
         {
-            violations.Add($"Package '{request.PackageCode}' is not in the configured catalogue.");
+            AddViolation("packageCode", $"Package '{request.PackageCode}' is not in the configured catalogue.");
         }
         else if (!package.IsActive)
         {
-            violations.Add($"Package '{request.PackageCode}' is no longer offered.");
+            AddViolation("packageCode", $"Package '{request.PackageCode}' is no longer offered.");
         }
 
         // TR-ACT-02/03: location exactly as entered, parsed into normalised coordinates.
@@ -157,11 +185,11 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         if (string.IsNullOrWhiteSpace(request.LocationRaw))
         {
-            violations.Add("Location is required.");
+            AddViolation("locationRaw", "Location is required.");
         }
         else if (!hasCoordinates)
         {
-            violations.Add("Location must be a map URL or a 'latitude,longitude' pair; it could not be parsed.");
+            AddViolation("locationRaw", "Location must be a map URL or a 'latitude,longitude' pair; it could not be parsed.");
         }
 
         // TR-ACT-04: classification from the DB-backed catalogue (portal.ActivationClassification);
@@ -173,7 +201,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         if (classifications.Count > 0 && !classifications.Any(c => string.Equals(c.Code, classification, StringComparison.Ordinal) && c.IsActive))
         {
-            violations.Add($"Classification '{classification}' is not in the configured list.");
+            AddViolation("classification", $"Classification '{classification}' is not in the configured list.");
         }
 
         // TRD 5.1: contract duration is one of the DB-backed catalogue's selectable values (portal.ContractDuration).
@@ -181,7 +209,8 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         if (contractDurations.Count > 0 && !contractDurations.Any(d => d.Months == request.ContractDurationMonths && d.IsActive))
         {
-            violations.Add(
+            AddViolation(
+                "contractDurationMonths",
                 $"Contract duration {request.ContractDurationMonths} months is not offered. Configured durations: " +
                 $"{string.Join(", ", contractDurations.Where(d => d.IsActive).Select(d => d.Months))}.");
         }
@@ -192,12 +221,14 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         if (comments is { Length: > 2000 })
         {
-            violations.Add("Comments must not exceed 2000 characters.");
+            AddViolation("comments", "Comments must not exceed 2000 characters.");
         }
 
         if (violations.Count > 0)
         {
-            throw new ActivationRequestValidationException(violations);
+            throw new ActivationRequestValidationException(
+                violations,
+                fieldErrors.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value));
         }
 
         var now = _clock.UtcNow;
