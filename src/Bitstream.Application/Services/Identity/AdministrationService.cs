@@ -31,7 +31,7 @@ public sealed class AdministrationValidationException : Exception
         : base(string.Join(" ", violations)) =>
         Violations = violations;
 
-    /// <param name="violations">Every message, flattened — <see cref="Message"/>/<see cref="Violations"/>, as before.</param>
+    /// <param name="violations">Every message, flattened — <see cref="Exception.Message"/>/<see cref="Violations"/>, as before.</param>
     /// <param name="fieldErrors">The same messages, keyed by the request field each concerns (TR-NFR-12), so the presentation layer can show one next to the field it's about instead of a single combined banner.</param>
     public AdministrationValidationException(IReadOnlyList<string> violations, IReadOnlyDictionary<string, IReadOnlyList<string>> fieldErrors)
         : base(string.Join(" ", violations))
