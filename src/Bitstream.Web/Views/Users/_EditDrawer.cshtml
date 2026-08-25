@@ -3,18 +3,21 @@
     var roles = (IReadOnlyList<string>)(ViewBag.Roles ?? Array.Empty<string>());
 }
 <form id="user-edit-form" class="grid gap-4" novalidate data-action="update" data-user-id="@Model.Id">
-    <p class="field-error" role="alert" hidden></p>
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
     <div>
         <label class="field-label" for="user-edit-full-name">Full name</label>
         <input class="field-input" id="user-edit-full-name" name="fullName" type="text" value="@Model.FullName" required />
+        <p class="field-error" role="alert" data-field-error="fullName" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-edit-email">Email</label>
         <input class="field-input" id="user-edit-email" name="email" type="email" value="@Model.Email" required />
+        <p class="field-error" role="alert" data-field-error="email" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-edit-mobile">Mobile</label>
         <input class="field-input" id="user-edit-mobile" name="mobile" type="tel" value="@Model.Mobile" required />
+        <p class="field-error" role="alert" data-field-error="mobile" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-edit-role">Role</label>
@@ -24,14 +27,16 @@
                 <option value="@role" selected="@(role == Model.Role.Name)">@role</option>
             }
         </select>
+        <p class="field-error" role="alert" data-field-error="roleName" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-edit-isp-id">ISP ID</label>
         <input class="field-input" id="user-edit-isp-id" name="ispId" type="number" min="1" value="@Model.IspId" />
         <span class="mt-1 block text-xs text-ink-muted">Leave blank for an internal user (Administrator, Service Desk, Auditor).</span>
-    </div>
-    <div class="flex justify-end gap-2">
-        <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
-        <button type="submit" class="btn-primary">Save changes</button>
+        <p class="field-error" role="alert" data-field-error="ispId" hidden></p>
     </div>
 </form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="user-edit-form" class="btn-primary">Save changes</button>
+</template>

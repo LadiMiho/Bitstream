@@ -31,7 +31,55 @@ public sealed class AdministrationValidationException : Exception
         : base(string.Join(" ", violations)) =>
         Violations = violations;
 
+    /// <param name="violations">Every message, flattened — <see cref="Message"/>/<see cref="Violations"/>, as before.</param>
+    /// <param name="fieldErrors">The same messages, keyed by the request field each concerns (TR-NFR-12), so the presentation layer can show one next to the field it's about instead of a single combined banner.</param>
+    public AdministrationValidationException(IReadOnlyList<string> violations, IReadOnlyDictionary<string, IReadOnlyList<string>> fieldErrors)
+        : base(string.Join(" ", violations))
+    {
+        Violations = violations;
+        FieldErrors = fieldErrors;
+    }
+
     public IReadOnlyList<string> Violations { get; } = [];
+
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors { get; } = new Dictionary<string, IReadOnlyList<string>>();
+}
+
+/// <summary>
+/// Accumulates a request's validation violations both as a flat, human-readable list (what
+/// <see cref="AdministrationValidationException.Violations"/> has always been) and keyed by the
+/// request field each one concerns, so <see cref="ToException"/> can carry both.
+/// </summary>
+file sealed class ValidationCollector
+{
+    private readonly List<string> _messages = [];
+    private readonly Dictionary<string, List<string>> _fieldErrors = [];
+
+    public int Count => _messages.Count;
+
+    public void Add(string fieldKey, string message)
+    {
+        _messages.Add(message);
+
+        if (!_fieldErrors.TryGetValue(fieldKey, out var fieldMessages))
+        {
+            fieldMessages = [];
+            _fieldErrors[fieldKey] = fieldMessages;
+        }
+
+        fieldMessages.Add(message);
+    }
+
+    public void AddRange(string fieldKey, IEnumerable<string> messages)
+    {
+        foreach (var message in messages)
+        {
+            Add(fieldKey, message);
+        }
+    }
+
+    public AdministrationValidationException ToException() =>
+        new(_messages, _fieldErrors.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value));
 }
 
 /// <summary>Implements <see cref="IAdministrationService"/>: TRD 4.2, TR-SEC-09 to TR-SEC-16.</summary>
@@ -81,25 +129,25 @@ public sealed partial class AdministrationService : IAdministrationService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var violations = new List<string>();
+        var violations = new ValidationCollector();
 
         // TR-SEC-15: ISP creation must validate and require these six fields.
-        RequireNonEmpty(request.Name, "Name", violations);
+        RequireNonEmpty(request.Name, "name", "Name", violations);
         RequireValidNipt(request.Nipt, violations);
-        RequireNonEmpty(request.ContactPerson, "Contact person", violations);
-        RequireValidEmail(request.ContactEmail, "Contact email", violations);
-        RequireValidE164(request.ContactMobile, "Contact mobile", violations);
-        RequireNonEmpty(request.CrmBpReference, "CRM Business Partner reference", violations);
+        RequireNonEmpty(request.ContactPerson, "contactPerson", "Contact person", violations);
+        RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
+        RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
+        RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
 
         if (violations.Count == 0 && await _ispRepository.NiptExistsAsync(request.Nipt, cancellationToken).ConfigureAwait(false))
         {
             // TR-SEC-16: NIPT unique across the platform.
-            violations.Add($"An ISP with NIPT '{request.Nipt}' already exists.");
+            violations.Add("nipt", $"An ISP with NIPT '{request.Nipt}' already exists.");
         }
 
         if (violations.Count > 0)
         {
-            throw new AdministrationValidationException(violations);
+            throw violations.ToException();
         }
 
         var now = _clock.UtcNow;
@@ -223,22 +271,22 @@ public sealed partial class AdministrationService : IAdministrationService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var violations = new List<string>();
+        var violations = new ValidationCollector();
 
         // TR-SEC-14: full name, RFC-compliant unique email, E.164 mobile.
-        RequireNonEmpty(request.FullName, "Full name", violations);
-        RequireValidEmail(request.Email, "Email", violations);
-        RequireValidE164(request.Mobile, "Mobile", violations);
+        RequireNonEmpty(request.FullName, "fullName", "Full name", violations);
+        RequireValidEmail(request.Email, "email", "Email", violations);
+        RequireValidE164(request.Mobile, "mobile", "Mobile", violations);
 
         if (!SeededRoleNames.Contains(request.RoleName, StringComparer.Ordinal))
         {
-            violations.Add($"Role '{request.RoleName}' is not a recognised role.");
+            violations.Add("roleName", $"Role '{request.RoleName}' is not a recognised role.");
         }
 
         if (violations.Count == 0 && await _userManager.FindByEmailAsync(request.Email).ConfigureAwait(false) is not null)
         {
             // TR-SEC-01: unique across the platform.
-            violations.Add($"A user with email '{request.Email}' already exists.");
+            violations.Add("email", $"A user with email '{request.Email}' already exists.");
         }
 
         Isp? isp = null;
@@ -249,7 +297,7 @@ public sealed partial class AdministrationService : IAdministrationService
 
             if (isp is null)
             {
-                violations.Add($"ISP {ispId} does not exist.");
+                violations.Add("ispId", $"ISP {ispId} does not exist.");
             }
         }
 
@@ -258,12 +306,12 @@ public sealed partial class AdministrationService : IAdministrationService
 
         if (!passwordCheck.IsValid)
         {
-            violations.AddRange(passwordCheck.Violations);
+            violations.AddRange("initialPassword", passwordCheck.Violations);
         }
 
         if (violations.Count > 0)
         {
-            throw new AdministrationValidationException(violations);
+            throw violations.ToException();
         }
 
         var role = await ResolveRoleAsync(request.RoleName, cancellationToken).ConfigureAwait(false);
@@ -411,15 +459,15 @@ public sealed partial class AdministrationService : IAdministrationService
         var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
             throw new AdministrationValidationException($"User {userId} does not exist.");
 
-        var violations = new List<string>();
+        var violations = new ValidationCollector();
 
-        RequireNonEmpty(request.FullName, "Full name", violations);
-        RequireValidEmail(request.Email, "Email", violations);
-        RequireValidE164(request.Mobile, "Mobile", violations);
+        RequireNonEmpty(request.FullName, "fullName", "Full name", violations);
+        RequireValidEmail(request.Email, "email", "Email", violations);
+        RequireValidE164(request.Mobile, "mobile", "Mobile", violations);
 
         if (!SeededRoleNames.Contains(request.RoleName, StringComparer.Ordinal))
         {
-            violations.Add($"Role '{request.RoleName}' is not a recognised role.");
+            violations.Add("roleName", $"Role '{request.RoleName}' is not a recognised role.");
         }
 
         if (violations.Count == 0)
@@ -429,18 +477,18 @@ public sealed partial class AdministrationService : IAdministrationService
             if (existing is not null && existing.Id != userId)
             {
                 // TR-SEC-01: unique across the platform.
-                violations.Add($"A user with email '{request.Email}' already exists.");
+                violations.Add("email", $"A user with email '{request.Email}' already exists.");
             }
         }
 
         if (request.IspId is { } ispId && await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false) is null)
         {
-            violations.Add($"ISP {ispId} does not exist.");
+            violations.Add("ispId", $"ISP {ispId} does not exist.");
         }
 
         if (violations.Count > 0)
         {
-            throw new AdministrationValidationException(violations);
+            throw violations.ToException();
         }
 
         var role = await ResolveRoleAsync(request.RoleName, cancellationToken).ConfigureAwait(false);
@@ -486,7 +534,9 @@ public sealed partial class AdministrationService : IAdministrationService
 
         if (!passwordCheck.IsValid)
         {
-            throw new AdministrationValidationException(passwordCheck.Violations);
+            throw new AdministrationValidationException(
+                passwordCheck.Violations,
+                new Dictionary<string, IReadOnlyList<string>> { ["newPassword"] = passwordCheck.Violations });
         }
 
         // Token-based reset (an administrator resetting a password does not need the current
@@ -588,19 +638,19 @@ public sealed partial class AdministrationService : IAdministrationService
             throw new AdministrationValidationException($"Role '{roleName}' is not seeded in this environment.");
     }
 
-    private static void RequireNonEmpty(string value, string fieldName, List<string> violations)
+    private static void RequireNonEmpty(string value, string fieldKey, string fieldName, ValidationCollector violations)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            violations.Add($"{fieldName} is required.");
+            violations.Add(fieldKey, $"{fieldName} is required.");
         }
     }
 
-    private static void RequireValidEmail(string value, string fieldName, List<string> violations)
+    private static void RequireValidEmail(string value, string fieldKey, string fieldName, ValidationCollector violations)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            violations.Add($"{fieldName} is required.");
+            violations.Add(fieldKey, $"{fieldName} is required.");
             return;
         }
 
@@ -613,36 +663,36 @@ public sealed partial class AdministrationService : IAdministrationService
         }
         catch (FormatException)
         {
-            violations.Add($"{fieldName} is not a valid email address.");
+            violations.Add(fieldKey, $"{fieldName} is not a valid email address.");
         }
     }
 
     [GeneratedRegex(@"^\+[1-9]\d{6,14}$")]
     private static partial Regex E164Pattern();
 
-    private static void RequireValidE164(string value, string fieldName, List<string> violations)
+    private static void RequireValidE164(string value, string fieldKey, string fieldName, ValidationCollector violations)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            violations.Add($"{fieldName} is required.");
+            violations.Add(fieldKey, $"{fieldName} is required.");
             return;
         }
 
         // E.164: a leading '+', no leading zero, 7 to 15 digits total (TR-SEC-14/15).
         if (!E164Pattern().IsMatch(value))
         {
-            violations.Add($"{fieldName} must be in E.164 format, e.g. +35569XXXXXXX.");
+            violations.Add(fieldKey, $"{fieldName} must be in E.164 format, e.g. +35569XXXXXXX.");
         }
     }
 
     [GeneratedRegex(@"^[A-Za-z0-9]{5,20}$")]
     private static partial Regex NiptPattern();
 
-    private static void RequireValidNipt(string value, List<string> violations)
+    private static void RequireValidNipt(string value, ValidationCollector violations)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            violations.Add("NIPT is required.");
+            violations.Add("nipt", "NIPT is required.");
             return;
         }
 
@@ -651,7 +701,7 @@ public sealed partial class AdministrationService : IAdministrationService
         // specify a canonical checksum algorithm to verify against (TR-SEC-16).
         if (!NiptPattern().IsMatch(value))
         {
-            violations.Add("NIPT must be 5 to 20 alphanumeric characters.");
+            violations.Add("nipt", "NIPT must be 5 to 20 alphanumeric characters.");
         }
     }
 }

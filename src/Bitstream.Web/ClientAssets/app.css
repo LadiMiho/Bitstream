@@ -117,31 +117,52 @@
   }
 
   /*
-    Drawer (slide-out panel) and its backdrop. Shared by every add/edit/view/change-password
-    action across the admin screens — one component, filled with a different server-rendered
-    partial each time, rather than a bespoke panel per screen.
+    Drawer (slide-out panel) and its backdrop — the one shared component every add/edit/view/
+    change-password action on every admin screen uses (wwwroot/js/drawer.js), filled with a
+    different server-rendered partial each time rather than a bespoke panel per screen. Always
+    three regions: a coloured header (title + close), a scrollable body (the partial's fields),
+    and a footer pinned to the bottom (the partial's own buttons, relocated there by drawer.js
+    so the markup that defines them stays next to the form it submits).
   */
   .drawer-backdrop {
     @apply fixed inset-0 z-40 bg-ink/40;
   }
 
   .drawer {
-    @apply fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col overflow-y-auto
-           bg-surface p-6 shadow-xl;
+    @apply fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-xl;
   }
 
   .drawer-header {
-    @apply mb-4 flex items-center justify-between border-b border-line pb-4;
+    @apply flex items-center justify-between bg-brand-600 px-6 py-4 text-white;
   }
 
   .drawer-close {
-    @apply rounded-md p-1 text-xl leading-none text-ink-muted transition-colors
-           hover:bg-surface-muted hover:text-ink focus-visible:outline-2
-           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+    @apply rounded-md p-1 text-xl leading-none text-white/80 transition-colors
+           hover:bg-white/10 hover:text-white focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-white;
   }
 
   .drawer-body {
-    @apply flex-1;
+    @apply flex-1 overflow-y-auto p-6;
+  }
+
+  .drawer-footer {
+    @apply flex justify-end gap-2 border-t border-line bg-surface px-6 py-4 empty:hidden;
+  }
+
+  /* Password show/hide toggle, positioned inside its field's input. */
+  .field-input-group {
+    @apply relative;
+  }
+
+  .field-input-group .field-input {
+    @apply pr-10;
+  }
+
+  .field-toggle {
+    @apply absolute inset-y-0 right-0 mt-1 flex items-center px-3 text-xs font-medium
+           text-ink-muted transition-colors hover:text-ink focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
   }
 
   /* Standard confirmation popup for delete / lock / unlock — a single click, not a form. */

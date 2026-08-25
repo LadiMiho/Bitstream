@@ -393,9 +393,13 @@ public static class AdministrationEndpoints
 
     private static IResult ValidationProblem(AdministrationValidationException exception) =>
         Results.ValidationProblem(
-            exception.Violations.Count > 0
-                ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
-                : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
+            exception.FieldErrors.Count > 0
+                // TR-NFR-12: each message keyed by the field it concerns, so the drawer can show
+                // it next to that field instead of a single combined banner.
+                ? exception.FieldErrors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray())
+                : exception.Violations.Count > 0
+                    ? new Dictionary<string, string[]> { ["request"] = [.. exception.Violations] }
+                    : new Dictionary<string, string[]> { ["request"] = [exception.Message] });
 
     private static bool TryParseStatus<TStatus>(string value, out TStatus status)
         where TStatus : struct, Enum =>

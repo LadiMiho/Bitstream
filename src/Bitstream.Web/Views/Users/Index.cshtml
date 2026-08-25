@@ -57,34 +57,6 @@
     </section>
 </div>
 
-<!--
-    Drawer: add/edit/view/change-password all render into this one slide-out panel, from
-    server-rendered partials fetched on demand (Controllers/UsersController.cs). Submitting a
-    drawer's form still calls the existing /api/v1/users JSON endpoints (user-admin.js) — the
-    drawer only ever hosts the form, it never validates or authorises a write itself.
--->
-<div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
-<aside id="drawer" class="drawer" hidden aria-hidden="true" aria-labelledby="drawer-title">
-    <div class="drawer-header">
-        <h2 id="drawer-title" class="text-base font-semibold"></h2>
-        <button type="button" id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
-    </div>
-    <div id="drawer-body" class="drawer-body"></div>
-</aside>
-
-<!--
-    Confirmation popup for delete / lock / unlock — the three actions that are a single click
-    rather than a form, so they get a standard confirm dialog instead of a drawer.
--->
-<div id="confirm-backdrop" class="drawer-backdrop" hidden></div>
-<div id="confirm-modal" class="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-message">
-    <p id="confirm-message" class="text-sm text-ink"></p>
-    <div class="mt-4 flex justify-end gap-2">
-        <button type="button" id="confirm-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="confirm-ok" class="btn-primary">Confirm</button>
-    </div>
-</div>
-
 @section Scripts {
     <script type="module" src="~/js/pages/user-admin.js"></script>
 }

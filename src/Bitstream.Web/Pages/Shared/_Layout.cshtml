@@ -64,6 +64,34 @@
         @RenderBody()
     </main>
 
+    <!--
+        Drawer: the one slide-out panel shared by every add/edit/view/change-password action on
+        every admin screen (wwwroot/js/drawer.js), filled with a different server-rendered
+        partial fetched on demand by whichever page opens it. Living here, once, means a page
+        never has to declare this markup itself to use a drawer.
+    -->
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+    <aside id="drawer" class="drawer" hidden aria-hidden="true" aria-labelledby="drawer-title">
+        <div class="drawer-header">
+            <h2 id="drawer-title" class="text-lg font-semibold"></h2>
+            <button type="button" id="drawer-close" class="drawer-close" aria-label="Close">&times;</button>
+        </div>
+        <div id="drawer-body" class="drawer-body"></div>
+        <div id="drawer-footer" class="drawer-footer"></div>
+    </aside>
+
+    <!-- Standard confirmation popup for a single-click action (delete / lock / unlock, ...) — a
+         page uses it instead of a drawer when there is no form, just a yes/no decision. -->
+    <div id="confirm-backdrop" class="drawer-backdrop" hidden></div>
+    <div id="confirm-modal" class="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-message">
+        <p id="confirm-message" class="text-sm text-ink"></p>
+        <div class="mt-4 flex justify-end gap-2">
+            <button type="button" id="confirm-cancel" class="btn-secondary">Cancel</button>
+            <button type="button" id="confirm-ok" class="btn-primary">Confirm</button>
+        </div>
+    </div>
+
+    <script type="module" src="~/js/drawer.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

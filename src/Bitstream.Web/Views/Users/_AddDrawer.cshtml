@@ -2,18 +2,21 @@
     var roles = (IReadOnlyList<string>)(ViewBag.Roles ?? Array.Empty<string>());
 }
 <form id="user-add-form" class="grid gap-4" novalidate data-action="create">
-    <p class="field-error" role="alert" hidden></p>
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
     <div>
         <label class="field-label" for="user-add-full-name">Full name</label>
         <input class="field-input" id="user-add-full-name" name="fullName" type="text" required />
+        <p class="field-error" role="alert" data-field-error="fullName" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-add-email">Email</label>
         <input class="field-input" id="user-add-email" name="email" type="email" required />
+        <p class="field-error" role="alert" data-field-error="email" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-add-mobile">Mobile</label>
         <input class="field-input" id="user-add-mobile" name="mobile" type="tel" placeholder="+355..." required />
+        <p class="field-error" role="alert" data-field-error="mobile" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-add-role">Role</label>
@@ -23,19 +26,25 @@
                 <option value="@role">@role</option>
             }
         </select>
+        <p class="field-error" role="alert" data-field-error="roleName" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-add-isp-id">ISP ID</label>
         <input class="field-input" id="user-add-isp-id" name="ispId" type="number" min="1" />
         <span class="mt-1 block text-xs text-ink-muted">Leave blank for an internal user (Administrator, Service Desk, Auditor).</span>
+        <p class="field-error" role="alert" data-field-error="ispId" hidden></p>
     </div>
     <div>
         <label class="field-label" for="user-add-password">Initial password</label>
-        <input class="field-input" id="user-add-password" name="initialPassword" type="password" required />
+        <div class="field-input-group">
+            <input class="field-input" id="user-add-password" name="initialPassword" type="password" required />
+            <button type="button" class="field-toggle" data-password-toggle="user-add-password" aria-label="Show password">Show</button>
+        </div>
         <span class="mt-1 block text-xs text-ink-muted">Must satisfy the configured password policy — the API reports specifics if it does not.</span>
-    </div>
-    <div class="flex justify-end gap-2">
-        <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
-        <button type="submit" class="btn-primary">Create user</button>
+        <p class="field-error" role="alert" data-field-error="initialPassword" hidden></p>
     </div>
 </form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="user-add-form" class="btn-primary">Create user</button>
+</template>

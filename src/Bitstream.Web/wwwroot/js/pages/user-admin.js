@@ -1,12 +1,13 @@
 /**
  * User administration behaviour: search/browse grid, plus add/edit/view/change-password
- * (opened in a drawer, its form fetched from Controllers/UsersController.cs) and
- * delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call to
+ * (opened in the shared drawer, ../drawer.js, its form fetched from Controllers/UsersController.cs)
+ * and delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call to
  * the existing /api/v1/users endpoints (Bitstream.Web/Endpoints/AdministrationEndpoints.cs) —
  * this script never validates or authorises anything itself, it only renders what the API and
  * the drawer partials return.
  */
 import { api, ApiError } from '../api-client.js';
+import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
 
 const PAGE_SIZE = 20;
 
@@ -22,6 +23,41 @@ function showError(target, message) {
   target.hidden = !message;
 }
 
+/**
+ * TR-NFR-12: shows each server-reported violation next to the field it concerns — a
+ * `[data-field-error="fieldName"]` element next to that field, matching the key the API used
+ * (AdministrationEndpoints.ValidationProblem) — falling back to the form's general error banner
+ * for anything that isn't (or can't be) tied to one field, e.g. a network failure.
+ */
+function showFieldErrors(form, error) {
+  const generalTarget = form.querySelector('[data-field-error="request"]');
+
+  form.querySelectorAll('[data-field-error]').forEach((target) => showError(target, ''));
+
+  if (!(error instanceof ApiError)) {
+    showError(generalTarget, 'Something went wrong. Please try again.');
+    return;
+  }
+
+  const unmatched = [];
+
+  for (const [field, messages] of Object.entries(error.errors)) {
+    const target = form.querySelector(`[data-field-error="${field}"]`);
+    if (target) {
+      showError(target, messages.join(' '));
+    } else {
+      unmatched.push(...messages);
+    }
+  }
+
+  if (unmatched.length > 0) {
+    showError(generalTarget, unmatched.join(' '));
+  } else if (Object.keys(error.errors).length === 0) {
+    showError(generalTarget, error.message);
+  }
+}
+
+/** For contexts with no per-field targets to show against (the search bar, a grid-row action). */
 function describeError(error) {
   if (!(error instanceof ApiError)) {
     return 'Something went wrong. Please try again.';
@@ -36,41 +72,6 @@ function describeError(error) {
 let currentSkip = 0;
 let currentSearch = '';
 let currentTotalCount = 0;
-
-// --- Drawer (add / edit / view / change password) --------------------------------------
-const drawer = el('#drawer');
-const drawerBackdrop = el('#drawer-backdrop');
-const drawerTitle = el('#drawer-title');
-const drawerBody = el('#drawer-body');
-
-async function openDrawer(title, url) {
-  drawerTitle.textContent = title;
-  drawerBody.innerHTML = '';
-  drawer.hidden = false;
-  drawerBackdrop.hidden = false;
-  drawer.setAttribute('aria-hidden', 'false');
-
-  try {
-    const response = await fetch(url, { credentials: 'same-origin' });
-
-    if (!response.ok) {
-      drawerBody.innerHTML = '<p class="text-sm text-ink-muted">This record is not available.</p>';
-      return;
-    }
-
-    drawerBody.innerHTML = await response.text();
-    drawerBody.querySelector('input, select, textarea')?.focus();
-  } catch {
-    drawerBody.innerHTML = '<p class="text-sm text-ink-muted">Something went wrong loading this form.</p>';
-  }
-}
-
-function closeDrawer() {
-  drawer.hidden = true;
-  drawerBackdrop.hidden = true;
-  drawer.setAttribute('aria-hidden', 'true');
-  drawerBody.innerHTML = '';
-}
 
 // --- Confirmation popup (delete / lock / unlock) ----------------------------------------
 const confirmModal = el('#confirm-modal');
@@ -235,8 +236,7 @@ drawerBody.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const action = form.dataset.action;
-  const errorTarget = form.querySelector('.field-error');
-  showError(errorTarget, '');
+  form.querySelectorAll('[data-field-error]').forEach((target) => showError(target, ''));
 
   try {
     if (action === 'create') {
@@ -265,7 +265,7 @@ drawerBody.addEventListener('submit', async (event) => {
     closeDrawer();
     await search(currentSkip, currentSearch);
   } catch (error) {
-    showError(errorTarget, describeError(error));
+    showFieldErrors(form, error);
   }
 });
 
@@ -276,14 +276,6 @@ function init() {
   }
 
   el('#user-add-button')?.addEventListener('click', () => openDrawer('Add user', '/AccessManagement/Users/AddDrawer'));
-
-  el('#drawer-close').addEventListener('click', closeDrawer);
-  drawerBackdrop.addEventListener('click', closeDrawer);
-  drawerBody.addEventListener('click', (event) => {
-    if (event.target.closest('[data-drawer-cancel]')) {
-      closeDrawer();
-    }
-  });
 
   el('#user-search-form').addEventListener('submit', (event) => {
     event.preventDefault();
