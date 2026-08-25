@@ -16,9 +16,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
-// The portal site: everything a person interacts with. Razor Pages for the screens, plus the
-// JSON endpoints those screens' own scripts call — both served from this host, same origin, so
-// the session cookie works with no CORS configuration.
+// The portal site: everything a person interacts with. MVC controllers + views for the screens,
+// plus the JSON actions those screens' own scripts call — both served from this host, same
+// origin, so the session cookie works with no CORS configuration.
 //
 // It deliberately does NOT expose the CRM-facing interface, and does NOT run the background
 // jobs; both belong to Bitstream.Api. See AddBitstreamBackgroundJobs for why exactly one host
@@ -138,19 +138,13 @@ builder.Services.AddSingleton<IHostedService>(provider => new OptionsStartupVali
 // --- Presentation ----------------------------------------------------------------------
 builder.Services.AddProblemDetails();
 
-// Folder-based Razor Pages under /Pages, one module per folder, styled with Tailwind
-// (ClientAssets/app.css, compiled to wwwroot/css/app.css). The auth-guard is SecurePageModel,
-// a page filter every protected page derives from; it is not a client-side redirect
-// (TR-SEC-20). Vanilla JavaScript is for client-side behaviour only and never owns navigation.
-builder.Services.AddRazorPages();
-
-// MVC controllers + views under /Controllers and /Views, alongside Razor Pages above — the two
-// coexist in the same host with no routing conflict, since nothing maps the same path twice.
-// User Administration (Controllers/UsersController.cs) is the first screen built this way: a
-// grid plus drawer forms (add/edit/view/change password) rendered as server-side partial views,
-// exactly the same auth-guard discipline as SecurePageModel (RequireSessionAttribute /
-// RequirePermissionAttribute, Security/MvcAuthorization.cs) and the same rule as every other
-// screen that a write only ever happens through the JSON API, never through model binding here.
+// MVC controllers + views under /Controllers and /Views, one module per controller, styled with
+// Tailwind (ClientAssets/app.css, compiled to wwwroot/css/app.css). The auth-guard is
+// RequireSessionAttribute/RequirePermissionAttribute (Security/MvcAuthorization.cs), applied
+// per controller/action; it is not a client-side redirect (TR-SEC-20). Vanilla JavaScript is
+// for client-side behaviour only and never owns navigation. A write only ever happens through
+// the JSON actions on the same controller that renders the screen, never through model binding
+// on a page-rendering action.
 builder.Services.AddControllersWithViews();
 
 var rateLimits = builder.Configuration
@@ -222,7 +216,6 @@ app.UseAuthorization();
 
 app.MapHealthEndpoints();
 
-app.MapRazorPages();
 app.MapControllers();
 
 await app.RunAsync().ConfigureAwait(false);

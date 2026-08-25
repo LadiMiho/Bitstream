@@ -25,7 +25,7 @@ Bitstream.Web                        Bitstream.Api
 | `Bitstream.Infrastructure.Persistence` | Application, Domain | Persistence | `BitstreamDbContext`, entity configurations, repositories. |
 | `Bitstream.Infrastructure.Integration` | Application, Domain | Integration adapters | The only place with an `HttpClient`, an SMTP client or a vendor SDK. |
 | `Bitstream.Hosting` | Application | Presentation (shared) | Correlation and request-logging middleware, secret resolver, options validator, rate-limit options and policy names, health endpoints, claim types. |
-| `Bitstream.Web` | all of the above | Presentation | Razor Pages, session authentication, RBAC, and the endpoints the screens call. Composition root for the portal. |
+| `Bitstream.Web` | all of the above | Presentation | MVC controllers and views, session authentication, RBAC, and the JSON actions the screens call. Composition root for the portal. |
 | `Bitstream.Api` | all of the above | Presentation | The CRM-facing inbound event API, and the background jobs that call CRM outbound. Composition root for the integration host. |
 
 ### Why two hosts
@@ -74,7 +74,7 @@ document is one refactoring away from gone:
   `Bitstream.Hosting`, which both already reference;
 - `Bitstream.Hosting` may not reference an Infrastructure project, which would make it a second
   composition root and let the two hosts disagree about how the platform is wired;
-- `Bitstream.Api` may not reference Razor Pages, since a screen served from the https-only site
+- `Bitstream.Api` may not reference MVC views, since a screen served from the https-only site
   that only CRM's source ranges can reach is a screen nobody can use.
 
 ## Ports and adapters (TR-ARC-02)
@@ -160,27 +160,21 @@ Two design choices worth knowing before extending this module:
 
 ### Access management screens (GUI-3) and the API gaps they surfaced
 
-`Pages/Login.cshtml` (the two-factor sign-in flow) and `Pages/AccessManagement/{Isps,Users,AuditLog}.cshtml`
+`Views/Auth/Login.cshtml` (the two-factor sign-in flow, rendered by `AuthController.LoginPage`) and
+`Views/AccessManagement/Index.cshtml`, `Views/{Isps,Users}/Index.cshtml`, `Views/AccessManagement/AuditLog.cshtml`
 call the endpoints above from client-side script (`wwwroot/js/pages/*.js`, via the shared fetch
-wrapper `wwwroot/js/api-client.js`) — nothing server-side in these pages re-implements
-authentication, validation or the lock/unlock decision; `SecurePageModel`/permission claims only
-decide what to *show* (TR-SEC-17), never what the API actually allows. Building these screens
-against the real endpoints surfaced three gaps in what TRD §4's backend currently exposes,
-reported here rather than compensated for in the frontend:
+wrapper `wwwroot/js/api-client.js`) — nothing server-side in these views re-implements
+authentication, validation or the lock/unlock decision; `RequireSessionAttribute`/permission claims
+only decide what to *show* (TR-SEC-17), never what the API actually allows. Building these screens
+against the real endpoints originally surfaced gaps in what TRD §4's backend exposed; the search/
+list and update gaps have since been closed (`UsersController`/`IspsController`'s `Search` and
+`Update` actions, backed by `AdministrationService`) — the one still open:
 
-- **No list or search endpoint for ISPs or users.** `IspsController.Get`/`UsersController.Get`
-  (`GET /AccessManagement/Isps/{id}`, `GET /AccessManagement/Users/{id}`) are the only reads;
-  there is nothing to browse. `Isps.cshtml` and `Users.cshtml` are therefore "look up by ID"
-  screens, not browsable tables — each says so in-page. An administrator has to already know (or
-  have just created) the ID.
-- **(Resolved)** `isp.update`/`user.update` now gate real update endpoints
-  (`IspsController.Update`/`UsersController.Update`, `AdministrationService.UpdateIspAsync`/
-  `UpdateUserAsync`), alongside the existing `SetIspStatusAsync`/`SetUserStatusAsync`
-  (status, i.e. lock/unlock).
 - **No audit log read path at all.** `IAuditWriter` only writes; `audit.read` is seeded and
   granted to the Auditor and Administrator roles, but no service method or endpoint reads an
-  audit entry back. `AuditLog.cshtml` stays an explanatory placeholder rather than querying the
-  database directly or otherwise reimplementing that read path in the frontend.
+  audit entry back. `Views/AccessManagement/AuditLog.cshtml` stays an explanatory placeholder
+  rather than querying the database directly or otherwise reimplementing that read path in the
+  frontend.
 
 ## Activation requests (TRD 5)
 
@@ -206,10 +200,11 @@ rejection, including self-transitions and skipped steps — so the table in
 
 ### Activation request screens (GUI-4) and the API gaps they surfaced
 
-`Pages/ActivationRequests/{New,Detail,GisVerification}.cshtml` call the three endpoints above
-from client-side script (`wwwroot/js/pages/activation-{new,detail,gis}.js`) — submission
-validation, coordinate parsing, state-machine enforcement and the GIS outcome decision all stay
-entirely server-side; the pages only render what the API returns.
+`Views/ActivationRequests/{New,Detail,GisVerification}.cshtml` (rendered by
+`ActivationRequestsController`) call the three endpoints above from client-side script
+(`wwwroot/js/pages/activation-{new,detail,gis}.js`) — submission validation, coordinate parsing,
+state-machine enforcement and the GIS outcome decision all stay entirely server-side; the views
+only render what the API returns.
 
 **Confirmed rather than assumed: a request is visible with a `PendingCrmSync`-style status
 before CRM integration is "live".** `ActivationRequestService.SubmitAsync` enqueues INT-CRM-01

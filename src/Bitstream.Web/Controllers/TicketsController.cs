@@ -17,7 +17,7 @@ namespace Bitstream.Web.Controllers;
 /// no permission at all, TR-SEC-19 makes a cross-ISP read a 404, and every write is server-side
 /// validated regardless of what the client sent (TR-SEC-20).
 /// <para>
-/// No page consumes this controller's actions yet — <c>Pages/PostActivation/Index.cshtml</c> is
+/// No page consumes this controller's actions yet — <see cref="PostActivationController"/> is
 /// currently a placeholder — but the JSON contract stays in place for when that screen is built,
 /// and tests already exercise it.
 /// </para>

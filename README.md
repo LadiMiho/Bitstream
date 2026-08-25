@@ -12,8 +12,8 @@ machine are built, and that state machine is driven end to end by a real (if pro
 integration — an outbox dispatcher calling CRM for customer and ticket creation, and the
 inbound event API applying sales order, provisioning and completion events back; complaint
 tickets, the closure handshake, the working-day auto-confirmation engine and service status
-changes are built on top of it. A Razor Pages UI covers sign-in with 2FA, ISP and user
-administration, and the activation request screens.
+changes are built on top of it. An MVC (controllers + views) UI covers sign-in with 2FA, ISP and
+user administration, and the activation request screens.
 
 **Not built yet:** reporting (TRD §9), the SAP adapter (blocked on TRD §11.4 open item 5),
 `BiGateway`'s real HTTP calls (blocked on the §11.2 BI table structure), and an audit-log
@@ -22,7 +22,7 @@ they exist, still answer `501 Not Implemented`.
 
 - .NET 10 (C#) backend, layered per TRD §2.1
 - MSSQL, schema defined by T-SQL scripts
-- Razor Pages UI, Tailwind CSS via the standalone CLI — no Node.js, no npm, no client-side router
+- MVC (controllers + views) UI, Tailwind CSS via the standalone CLI — no Node.js, no npm, no client-side router
 - Windows Server / IIS, no containers anywhere
 
 ## Layout
@@ -35,8 +35,8 @@ src/
   Bitstream.Infrastructure.Persistence  EF Core mapped to the physical schema
   Bitstream.Infrastructure.Integration  CRM, BI, SAP and SMTP adapters
   Bitstream.Hosting                     middleware, options and health endpoints shared by both hosts
-  Bitstream.Web                         the portal site people use — Razor Pages plus the endpoints they call
-    Pages/                              folder-based Razor Pages, one module per folder
+  Bitstream.Web                         the portal site people use — MVC controllers/views plus the JSON actions they call
+    Controllers/, Views/                 one controller (+ views folder) per module
     ClientAssets/app.css                Tailwind source (compiled to wwwroot/css/app.css)
   Bitstream.Api                         the integration site CRM calls — inbound events, outbound background jobs
 tests/
@@ -89,7 +89,7 @@ The solution builds **two** web applications against one database, split by audi
 | | `Bitstream.Web` | `Bitstream.Api` |
 | --- | --- | --- |
 | Who calls it | People — ISP users, administrators | CRM |
-| Contains | Razor Pages, session sign-in, and the JSON endpoints those pages fetch | The inbound CRM event API |
+| Contains | MVC controllers/views, session sign-in, and the JSON actions those views fetch | The inbound CRM event API |
 | Background jobs | none | outbox dispatcher, active-line sync, auto-confirmation sweep |
 
 `AddBitstreamBackgroundJobs()` is called by the API host **only**, and exactly one deployed
@@ -311,10 +311,11 @@ PostCSS, no bundler, and no Node.js or npm anywhere in the project: the standalo
 — a single self-contained native binary — is downloaded on demand and run as a plain MSBuild
 `Exec` step (`Bitstream.Web.csproj`, gated behind `-p:BuildFrontend=true` so an ordinary backend
 build never touches the network). It compiles `ClientAssets/app.css` to `wwwroot/css/app.css`.
-The UI itself is folder-based Razor Pages under `src/Bitstream.Web/Pages` — one module per
-folder, a shared `_Layout.cshtml` for the header/nav/content-area chrome, and the auth-guard
-implemented as `SecurePageModel`, a page filter every protected page derives from rather than a
-client-side redirect. There is no client-side router: navigation is ordinary page requests, and
+The UI itself is MVC controllers and views under `src/Bitstream.Web/Controllers`/`Views` — one
+controller per module, a shared `_Layout.cshtml` for the header/nav/content-area chrome, and the
+auth-guard implemented as `RequireSessionAttribute`/`RequirePermissionAttribute`
+(`Security/MvcAuthorization.cs`), applied per controller/action rather than a client-side
+redirect. There is no client-side router: navigation is ordinary page requests, and
 JavaScript, where used at all, is for behaviour (fetch calls, form feedback) only. The screens
 and the endpoints they fetch are served by the same host, so the session cookie works with no
 CORS configuration.

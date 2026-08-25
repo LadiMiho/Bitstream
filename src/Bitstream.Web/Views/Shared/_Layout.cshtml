@@ -1,9 +1,8 @@
 @using System.Security.Claims
 @inject IWebHostEnvironment Env
 @{
-    // Request.Path rather than the "page" route value: it identifies the current screen the
-    // same way whether it was served by a Razor Page or an MVC controller (e.g. User
-    // Administration, Controllers/UsersController.cs), so this one check works for both.
+    // Request.Path rather than a page/action route value: it identifies the current screen the
+    // same way for every controller, so this one check works everywhere.
     var currentPage = ViewContext.HttpContext.Request.Path.Value ?? string.Empty;
 
     bool IsActive(string prefix) => currentPage.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
@@ -37,7 +36,7 @@
             <!-- TR-SEC-17: this navigation only decides what is offered to click. Every module's
                  own calls are authorised server-side regardless of whether a link to it is shown
                  here — reaching a page without a session is separately stopped by
-                 SecurePageModel (TR-SEC-20), not by this list being short. -->
+                 RequireSessionAttribute (TR-SEC-20), not by this list being short. -->
             @if (isAuthenticated)
             {
                 <nav aria-label="Main" class="hidden gap-1 md:flex">
@@ -52,7 +51,7 @@
                 @if (isAuthenticated)
                 {
                     <span class="text-sm text-ink-muted">@displayName · @roleName</span>
-                    <form method="post" asp-page="/Logout">
+                    <form method="post" asp-controller="Auth" asp-action="LogoutPage">
                         <button type="submit" class="btn-secondary">Sign out</button>
                     </form>
                 }

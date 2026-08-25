@@ -16,7 +16,6 @@
   as a source in case any of them ever toggles a class name that isn't otherwise written in a
   .cshtml file.
 */
-@source "../Pages/**/*.cshtml";
 @source "../Views/**/*.cshtml";
 @source "../wwwroot/**/*.js";
 

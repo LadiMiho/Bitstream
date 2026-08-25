@@ -5,8 +5,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace Bitstream.Web.Security;
 
 /// <summary>
-/// MVC-controller equivalent of <c>SecurePageModel</c> (<c>Pages/SecurePageModel.cs</c>): an
-/// unauthenticated visitor is redirected to <c>/Login</c> before the action ever runs,
+/// An unauthenticated visitor is redirected to <c>/Login</c> before the action ever runs,
 /// server-side, not by client-side script (TR-SEC-20). Apply to a controller or action that
 /// needs a signed-in session but no specific permission — <see cref="RequirePermissionAttribute"/>
 /// covers the case where a permission is also required.
@@ -25,8 +24,11 @@ public sealed class RequireSessionAttribute : Attribute, IAsyncAuthorizationFilt
         return Task.CompletedTask;
     }
 
-    internal static RedirectToPageResult LoginRedirect(AuthorizationFilterContext context) =>
-        new("/Login", new { returnUrl = context.HttpContext.Request.Path + context.HttpContext.Request.QueryString });
+    internal static RedirectResult LoginRedirect(AuthorizationFilterContext context)
+    {
+        var returnUrl = context.HttpContext.Request.Path + context.HttpContext.Request.QueryString;
+        return new RedirectResult($"/Login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+    }
 }
 
 /// <summary>

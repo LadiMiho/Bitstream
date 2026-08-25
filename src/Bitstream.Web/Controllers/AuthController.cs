@@ -12,6 +12,7 @@ using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web.Contracts;
+using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -30,16 +31,78 @@ namespace Bitstream.Web.Controllers;
 /// TR-SEC-20 requires is never trusted on its own, since every subsequent call is authorised
 /// again server-side regardless of what the interface shows.
 /// <para>
-/// Called from <c>wwwroot/js/pages/login.js</c> (login + verify only — <c>Pages/Logout.cshtml.cs</c>
-/// signs out directly via <c>SignInManager</c> without going through <see cref="Logout"/> at all,
-/// and nothing calls <see cref="Me"/> from the browser today; both stay here for symmetry and for
-/// the tests that exercise them).
+/// Called from <c>wwwroot/js/pages/login.js</c> (login + verify only — <see cref="LogoutPage"/>
+/// signs out directly via <c>SignInManager</c> without going through the JSON <see cref="Logout"/>
+/// action at all, and nothing calls <see cref="Me"/> from the browser today; both stay here for
+/// symmetry and for the tests that exercise them).
 /// </para>
 /// </summary>
 [Route("Auth")]
 [EnableRateLimiting(RateLimitPolicies.Authentication)] // TR-SEC-29: tighter than Administration — this is exactly where credential stuffing lands.
 public sealed class AuthController : Controller
 {
+    /// <summary>
+    /// Renders the sign-in form. The two-step flow itself is driven by
+    /// <c>wwwroot/js/pages/login.js</c> calling <see cref="Login"/>/<see cref="VerifyTwoFactor"/>
+    /// below — this action only renders the form and decides where an already-signed-in visitor
+    /// is sent. Deliberately not <see cref="RequireSessionAttribute"/>-guarded: guarding the page
+    /// a redirect lands on would loop. Page rendering is not credential-stuffing risk, so this
+    /// overrides the class-level Authentication rate limit back to the looser Administration one.
+    /// </summary>
+    [HttpGet("/Login")]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public IActionResult LoginPage([FromQuery] string? returnUrl)
+    {
+        var safeReturnUrl = SafeReturnUrl(returnUrl);
+
+        // An already-signed-in visitor has no reason to see the sign-in page again.
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return Redirect(safeReturnUrl);
+        }
+
+        ViewData["Title"] = "Sign in";
+        ViewBag.SafeReturnUrl = safeReturnUrl;
+        return View("Login");
+    }
+
+    /// <summary>
+    /// Signs the current session out. A real form POST rather than client-side script, so
+    /// sign-out never itself acts as page navigation from JavaScript (TR-SEC-07: the session is
+    /// invalidated server-side immediately, not merely forgotten by the client — same effect as
+    /// <see cref="Logout"/>'s JSON counterpart, just redirecting instead of returning 204).
+    /// Idempotent.
+    /// </summary>
+    [HttpPost("/Logout")]
+    [ValidateAntiForgeryToken]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public async Task<IActionResult> LogoutPage(
+        [FromServices] SignInManager<User> signInManager,
+        [FromServices] UserManager<User> userManager)
+    {
+        var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        await signInManager.SignOutAsync().ConfigureAwait(false);
+
+        if (userId is not null)
+        {
+            var user = await userManager.FindByIdAsync(userId).ConfigureAwait(false);
+
+            if (user is not null)
+            {
+                // TR-SEC-07: invalidates any other copy of the cookie immediately (checked every
+                // request — SecurityStampValidatorOptions.ValidationInterval is zero).
+                await userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
+            }
+        }
+
+        return Redirect("/Login");
+    }
+
+    /// <summary>The return URL to hand to the client script, after an open-redirect check — an unrecognised or external value falls back to the module landing page.</summary>
+    private string SafeReturnUrl(string? returnUrl) =>
+        !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/AccessManagement";
+
     [HttpPost("Login")]
     public async Task<IActionResult> Login(
         [FromBody] LoginRequest request,

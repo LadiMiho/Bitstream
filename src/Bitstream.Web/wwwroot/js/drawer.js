@@ -1,7 +1,7 @@
 /**
  * Shared slide-out drawer: one component, filled with a different server-rendered partial each
  * time, used by every add/edit/view/change-password action across the admin screens rather than
- * a bespoke panel per screen. The drawer element itself (Pages/Shared/_Layout.cshtml) is shared
+ * a bespoke panel per screen. The drawer element itself (Views/Shared/_Layout.cshtml) is shared
  * by every page, so any page can call openDrawer()/closeDrawer() without owning any drawer markup
  * of its own — only the fetched partial's fields differ.
  *

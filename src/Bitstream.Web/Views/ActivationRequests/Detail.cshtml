@@ -1,10 +1,8 @@
-@page
-@model Bitstream.Web.Pages.ActivationRequests.DetailModel
 @{
-    ViewData["Title"] = "Activation Request";
+    var publicId = (string?)ViewBag.PublicId;
 }
 
-<div class="grid gap-6" data-role="activation-detail-page" data-public-id="@Model.PublicId">
+<div class="grid gap-6" data-role="activation-detail-page" data-public-id="@publicId">
     <div>
         <a href="/ActivationRequests" class="text-sm text-brand-600 underline">&larr; Activation Requests</a>
         <h1 class="mt-2 text-xl font-semibold">Look up a request</h1>

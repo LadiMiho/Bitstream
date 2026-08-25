@@ -1,10 +1,8 @@
-@page
-@model Bitstream.Web.Pages.LoginModel
 @{
-    ViewData["Title"] = "Sign in";
+    var safeReturnUrl = (string)(ViewBag.SafeReturnUrl ?? "/AccessManagement");
 }
 
-<section class="card mx-auto max-w-md" aria-labelledby="login-heading" data-role="login-page" data-return-url="@Model.SafeReturnUrl">
+<section class="card mx-auto max-w-md" aria-labelledby="login-heading" data-role="login-page" data-return-url="@safeReturnUrl">
     <h1 id="login-heading" class="text-xl font-semibold">Sign in</h1>
 
     <form id="login-credentials-form" class="mt-6 grid gap-4" novalidate>

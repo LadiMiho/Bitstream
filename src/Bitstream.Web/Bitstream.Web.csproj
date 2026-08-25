@@ -39,7 +39,7 @@
 
   <!--
     Tailwind. The stylesheet source is ClientAssets/app.css; the compiled output is
-    wwwroot/css/app.css, referenced by Pages/Shared/_Layout.cshtml. No Node.js, npm or
+    wwwroot/css/app.css, referenced by Views/Shared/_Layout.cshtml. No Node.js, npm or
     package.json: the standalone Tailwind CLI is a self-contained native executable,
     downloaded on demand into tools/tailwindcss/ (outside source control) and invoked as a
     plain MSBuild Exec step.

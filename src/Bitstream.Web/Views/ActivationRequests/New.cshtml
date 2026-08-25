@@ -1,7 +1,6 @@
-@page
-@model Bitstream.Web.Pages.ActivationRequests.NewModel
 @{
-    ViewData["Title"] = "New Activation Request";
+    var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    var callerIspId = (string?)ViewBag.CallerIspId;
 }
 
 <div class="grid gap-6">
@@ -10,7 +9,7 @@
         <h1 class="mt-2 text-xl font-semibold">New Activation Request</h1>
     </div>
 
-    @if (!Model.CanCreate)
+    @if (!canCreate)
     {
         <section class="card">
             <p class="text-sm text-ink-muted">Your role does not hold <code class="rounded bg-surface-muted px-1">activation.create</code>.</p>
@@ -27,7 +26,7 @@
             </p>
         </section>
 
-        <section class="card" data-role="activation-new-page" data-caller-isp-id="@Model.CallerIspId">
+        <section class="card" data-role="activation-new-page" data-caller-isp-id="@callerIspId">
             <form id="activation-new-form" class="grid max-w-xl gap-4" novalidate>
                 <p id="activation-new-error" class="field-error" role="alert" hidden></p>
 

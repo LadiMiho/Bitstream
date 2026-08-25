@@ -1,7 +1,6 @@
-@page
-@model Bitstream.Web.Pages.ActivationRequests.IndexModel
 @{
-    ViewData["Title"] = "Activation Requests";
+    var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    var canRecordGis = (bool)(ViewBag.CanRecordGis ?? false);
 }
 
 <section class="card" aria-labelledby="page-heading">
@@ -11,7 +10,7 @@
     </p>
 
     <div class="mt-6 grid gap-4 sm:grid-cols-3">
-        @if (Model.CanCreate)
+        @if (canCreate)
         {
             <a href="/ActivationRequests/New" class="rounded-md border border-line p-4 hover:bg-surface-muted">
                 <div class="text-sm font-semibold">New request</div>
@@ -22,7 +21,7 @@
             <div class="text-sm font-semibold">Look up a request</div>
             <div class="mt-1 text-sm text-ink-muted">By its public ID — live status, including integration-pending states.</div>
         </a>
-        @if (Model.CanRecordGis)
+        @if (canRecordGis)
         {
             <a href="/ActivationRequests/GisVerification" class="rounded-md border border-line p-4 hover:bg-surface-muted">
                 <div class="text-sm font-semibold">GIS verification</div>

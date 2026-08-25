@@ -1,7 +1,5 @@
-@page
-@model Bitstream.Web.Pages.ActivationRequests.GisVerificationModel
 @{
-    ViewData["Title"] = "GIS Verification";
+    var canRecordGis = (bool)(ViewBag.CanRecordGis ?? false);
 }
 
 <div class="grid gap-6">
@@ -10,7 +8,7 @@
         <h1 class="mt-2 text-xl font-semibold">GIS Verification</h1>
     </div>
 
-    @if (!Model.CanRecordGis)
+    @if (!canRecordGis)
     {
         <section class="card">
             <p class="text-sm text-ink-muted">Your role does not hold <code class="rounded bg-surface-muted px-1">activation.gis.record</code>.</p>
