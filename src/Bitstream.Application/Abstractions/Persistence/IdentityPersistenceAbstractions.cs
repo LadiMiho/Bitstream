@@ -25,7 +25,7 @@ public interface IUserRepository
     /// first. <paramref name="ispId"/> restricts to one ISP's users — the ownership scoping
     /// <c>AdministrationService.SearchUsersAsync</c> applies before calling this, not a filter
     /// the caller opts into. <paramref name="roleName"/> and <paramref name="status"/>
-    /// ("Active"/"Locked", the same wire values <c>AdministrationEndpoints</c> exposes) narrow
+    /// ("Active"/"Locked", the same wire values <c>UsersController</c> exposes) narrow
     /// the grid further when given; either may be null/empty to leave that axis unfiltered.
     /// </summary>
     Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(

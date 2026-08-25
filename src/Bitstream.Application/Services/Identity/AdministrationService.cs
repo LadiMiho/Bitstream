@@ -328,7 +328,7 @@ public sealed partial class AdministrationService : IAdministrationService
             Mobile = request.Mobile,
             RoleId = role.Id,
             // Set explicitly rather than left to EF's change-tracker fixup: this is the entity
-            // CreateUserAsync hands back to the caller, and ToResponse (AdministrationEndpoints)
+            // CreateUserAsync hands back to the caller, and UsersController's ToResponseAsync
             // reads user.Role.Name from it before anything would trigger a reload.
             Role = role,
             Status = UserStatus.Active,
@@ -350,7 +350,7 @@ public sealed partial class AdministrationService : IAdministrationService
 
         // TR-SEC-04: every user goes through 2FA at every login, from their very first one — no
         // channel-specific pre-provisioning needed here. For the Totp channel, the authenticator
-        // key itself is generated lazily on that first login (AuthEndpoints.LoginAsync), the
+        // key itself is generated lazily on that first login (AuthController.Login), the
         // moment its absence is what signals "not yet enrolled."
         await _userManager.SetTwoFactorEnabledAsync(user, true).ConfigureAwait(false);
 

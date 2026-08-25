@@ -12,93 +12,51 @@ using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web.Contracts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using QRCoder;
 
-namespace Bitstream.Web.Endpoints;
+namespace Bitstream.Web.Controllers;
 
 /// <summary>
 /// TRD 4.1: authentication and 2FA, entirely ASP.NET Core Identity's own <c>SignInManager&lt;User&gt;</c>
 /// now — password check, lockout (TR-SEC-06/12) and second-factor verification (TR-SEC-04) all run
 /// through it, not a custom orchestration. Two calls per login (first factor, then second), plus
-/// logout and a "who am I" endpoint the frontend uses to decide what to render — a decision
+/// logout and a "who am I" action the frontend uses to decide what to render — a decision
 /// TR-SEC-20 requires is never trusted on its own, since every subsequent call is authorised
 /// again server-side regardless of what the interface shows.
+/// <para>
+/// Called from <c>wwwroot/js/pages/login.js</c> (login + verify only — <c>Pages/Logout.cshtml.cs</c>
+/// signs out directly via <c>SignInManager</c> without going through <see cref="Logout"/> at all,
+/// and nothing calls <see cref="Me"/> from the browser today; both stay here for symmetry and for
+/// the tests that exercise them).
+/// </para>
 /// </summary>
-public static class AuthEndpoints
+[Route("Auth")]
+[EnableRateLimiting(RateLimitPolicies.Authentication)] // TR-SEC-29: tighter than Administration — this is exactly where credential stuffing lands.
+public sealed class AuthController : Controller
 {
-    public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
-    {
-        ArgumentNullException.ThrowIfNull(app);
-
-        // TR-SEC-29: rate limiting on authentication endpoints specifically, tighter than the
-        // general administration limit — this is exactly where a credential-stuffing attempt
-        // would land.
-        var group = app.MapGroup("/api/v1/auth")
-            .WithTags("Authentication")
-            .RequireRateLimiting(RateLimitPolicies.Authentication);
-
-        group.MapPost("/login", LoginAsync)
-            .WithName("Login")
-            .WithSummary("First factor: email and password")
-            .WithDescription(
-                "TR-SEC-01, TR-SEC-02, TR-SEC-06, TR-SEC-12. A locked account is rejected " +
-                "without checking the password. On success, a second factor is required and " +
-                "must be completed at POST /login/verify.")
-            .Accepts<LoginRequest>("application/json")
-            .Produces<TwoFactorRequiredResponse>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status423Locked)
-            .AllowAnonymous();
-
-        group.MapPost("/login/verify", VerifyTwoFactorAsync)
-            .WithName("VerifyTwoFactor")
-            .WithSummary("Second factor: TOTP or one-time code")
-            .WithDescription(
-                "TR-SEC-04. On success, sets the session as an HttpOnly cookie (TR-SEC-07) and " +
-                "returns the caller's profile.")
-            .Accepts<TwoFactorVerifyRequest>("application/json")
-            .Produces<SessionResponse>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .AllowAnonymous();
-
-        group.MapPost("/logout", LogoutAsync)
-            .WithName("Logout")
-            .WithSummary("Invalidate the current session")
-            .WithDescription("TR-SEC-07: the session is invalidated immediately, not merely forgotten by the client. Idempotent.")
-            .Produces(StatusCodes.Status204NoContent)
-            .AllowAnonymous();
-
-        group.MapGet("/me", GetCurrentUser)
-            .WithName("GetCurrentUser")
-            .WithSummary("The authenticated caller's profile and permissions")
-            .Produces<CurrentUserResponse>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .RequireAuthorization();
-
-        return app;
-    }
-
-    private static async Task<IResult> LoginAsync(
+    [HttpPost("Login")]
+    public async Task<IActionResult> Login(
         [FromBody] LoginRequest request,
-        HttpContext httpContext,
-        UserManager<User> userManager,
-        SignInManager<User> signInManager,
-        IAuditWriter auditWriter,
-        IEmailGateway emailGateway,
-        ICorrelationContext correlationContext,
-        IClock clock,
-        IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
-        IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
-        ILogger<Program> logger,
+        [FromServices] UserManager<User> userManager,
+        [FromServices] SignInManager<User> signInManager,
+        [FromServices] IAuditWriter auditWriter,
+        [FromServices] IEmailGateway emailGateway,
+        [FromServices] ICorrelationContext correlationContext,
+        [FromServices] IClock clock,
+        [FromServices] IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
+        [FromServices] IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
+        [FromServices] ILogger<Program> logger,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Results.Problem(
+            return Problem(
                 title: "Invalid request",
                 detail: "Email and password are both required.",
                 statusCode: StatusCodes.Status400BadRequest);
@@ -190,8 +148,8 @@ public static class AuthEndpoints
             // Every user has TwoFactorEnabled = true (AdministrationService.CreateUserAsync) —
             // this branch is not the normal path, but PasswordSignInAsync already completed the
             // full sign-in (cookie set) if it is somehow reached, so just report success.
-            return Results.Ok(new SessionResponse(
-                await BuildCurrentUserResponseAsync(user, httpContext, cancellationToken).ConfigureAwait(false),
+            return Ok(new SessionResponse(
+                await BuildCurrentUserResponseAsync(user, cancellationToken).ConfigureAwait(false),
                 clock.UtcNow + sessionOptions.CurrentValue.IdleTimeout));
         }
 
@@ -222,14 +180,14 @@ public static class AuthEndpoints
                 catch (TwoFactorDeliveryException exception)
                 {
                     // The detail (which can name the failing relay and its raw error) is logged,
-                    // never returned: this endpoint is anonymous, and a login failure response is
+                    // never returned: this action is anonymous, and a login failure response is
                     // not the place to disclose infrastructure detail (TR-SEC-27).
                     logger.LogError(exception, "Second-factor code could not be dispatched for {Email}.", request.Email);
 
                     // Distinguished from an unrelated server fault: the password was correct, but
                     // the second factor could not be dispatched right now — a 503 tells the
                     // caller to retry rather than that something in the portal is broken.
-                    return Results.Problem(
+                    return Problem(
                         title: "Could not send verification code",
                         detail: "The password was correct, but the verification code could not be sent. Please try again shortly.",
                         statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -249,23 +207,23 @@ public static class AuthEndpoints
                 throw new NotSupportedException($"Unknown two-factor channel '{channel}'.");
         }
 
-        return Results.Ok(new TwoFactorRequiredResponse(channel.ToString(), provisioningUri is null ? null : BuildQrCodeDataUri(provisioningUri)));
+        return Ok(new TwoFactorRequiredResponse(channel.ToString(), provisioningUri is null ? null : BuildQrCodeDataUri(provisioningUri)));
     }
 
-    private static async Task<IResult> VerifyTwoFactorAsync(
+    [HttpPost("Login/Verify")]
+    public async Task<IActionResult> VerifyTwoFactor(
         [FromBody] TwoFactorVerifyRequest request,
-        HttpContext httpContext,
-        SignInManager<User> signInManager,
-        UserManager<User> userManager,
-        IAuditWriter auditWriter,
-        IClock clock,
-        IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
-        IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
+        [FromServices] SignInManager<User> signInManager,
+        [FromServices] UserManager<User> userManager,
+        [FromServices] IAuditWriter auditWriter,
+        [FromServices] IClock clock,
+        [FromServices] IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
+        [FromServices] IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Code))
         {
-            return Results.Problem(
+            return Problem(
                 title: "Invalid request",
                 detail: "code is required.",
                 statusCode: StatusCodes.Status400BadRequest);
@@ -277,7 +235,7 @@ public static class AuthEndpoints
 
         if (user is null)
         {
-            return Results.Problem(
+            return Problem(
                 title: "Verification failed",
                 detail: "This sign-in attempt has expired. Start again.",
                 statusCode: StatusCodes.Status401Unauthorized);
@@ -308,7 +266,7 @@ public static class AuthEndpoints
                         "{\"locked\":false}", "{\"locked\":true}", cancellationToken).ConfigureAwait(false);
                 }
 
-                return Results.Problem(
+                return Problem(
                     title: "Account locked",
                     detail: "This account is locked after too many failed sign-in attempts. Contact your administrator.",
                     statusCode: StatusCodes.Status423Locked);
@@ -318,7 +276,7 @@ public static class AuthEndpoints
                 "Security.TwoFactor.Failed", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, "{\"locked\":false}", cancellationToken).ConfigureAwait(false);
 
-            return Results.Problem(title: "Verification failed", detail: "The code is incorrect.", statusCode: StatusCodes.Status401Unauthorized);
+            return Problem(title: "Verification failed", detail: "The code is incorrect.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
         await auditWriter.WriteAsync(
@@ -328,19 +286,19 @@ public static class AuthEndpoints
         user.LastLoginAt = clock.UtcNow;
         await userManager.UpdateAsync(user).ConfigureAwait(false);
 
-        return Results.Ok(new SessionResponse(
-            await BuildCurrentUserResponseAsync(user, httpContext, cancellationToken).ConfigureAwait(false),
+        return Ok(new SessionResponse(
+            await BuildCurrentUserResponseAsync(user, cancellationToken).ConfigureAwait(false),
             clock.UtcNow + sessionOptions.CurrentValue.IdleTimeout));
     }
 
-    private static async Task<IResult> LogoutAsync(
-        HttpContext httpContext,
-        SignInManager<User> signInManager,
-        UserManager<User> userManager,
-        IAuditWriter auditWriter,
+    [HttpPost("Logout")]
+    public async Task<IActionResult> Logout(
+        [FromServices] SignInManager<User> signInManager,
+        [FromServices] UserManager<User> userManager,
+        [FromServices] IAuditWriter auditWriter,
         CancellationToken cancellationToken)
     {
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         await signInManager.SignOutAsync().ConfigureAwait(false);
 
@@ -360,27 +318,29 @@ public static class AuthEndpoints
             }
         }
 
-        return Results.NoContent();
+        return NoContent();
     }
 
-    private static IResult GetCurrentUser(ClaimsPrincipal user)
+    [HttpGet("Me")]
+    [Authorize]
+    public IActionResult Me()
     {
-        var userId = long.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!, CultureInfo.InvariantCulture);
-        var ispIdClaim = user.FindFirstValue(BitstreamClaimTypes.IspId);
-        var permissions = user.FindAll(BitstreamClaimTypes.Permission).Select(claim => claim.Value).ToArray();
+        var userId = long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!, CultureInfo.InvariantCulture);
+        var ispIdClaim = User.FindFirstValue(BitstreamClaimTypes.IspId);
+        var permissions = User.FindAll(BitstreamClaimTypes.Permission).Select(claim => claim.Value).ToArray();
 
-        return Results.Ok(new CurrentUserResponse(
+        return Ok(new CurrentUserResponse(
             userId,
-            user.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
-            user.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
-            user.FindFirstValue(ClaimTypes.Role) ?? string.Empty,
+            User.FindFirstValue(ClaimTypes.Name) ?? string.Empty,
+            User.FindFirstValue(ClaimTypes.Email) ?? string.Empty,
+            User.FindFirstValue(ClaimTypes.Role) ?? string.Empty,
             ispIdClaim is null ? null : long.Parse(ispIdClaim, CultureInfo.InvariantCulture),
             permissions));
     }
 
-    private static async Task<CurrentUserResponse> BuildCurrentUserResponseAsync(User user, HttpContext httpContext, CancellationToken cancellationToken)
+    private async Task<CurrentUserResponse> BuildCurrentUserResponseAsync(User user, CancellationToken cancellationToken)
     {
-        var dbContext = httpContext.RequestServices.GetRequiredService<BitstreamDbContext>();
+        var dbContext = HttpContext.RequestServices.GetRequiredService<BitstreamDbContext>();
 
         var role = await dbContext.Roles
             .Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
@@ -428,14 +388,14 @@ public static class AuthEndpoints
         }
     }
 
-    private static IResult InvalidCredentialsProblem() =>
-        Results.Problem(
+    private ObjectResult InvalidCredentialsProblem() =>
+        Problem(
             title: "Invalid credentials",
             detail: "The email or password is incorrect.",
             statusCode: StatusCodes.Status401Unauthorized);
 
-    private static IResult AccountLockedProblem() =>
-        Results.Problem(
+    private ObjectResult AccountLockedProblem() =>
+        Problem(
             title: "Account locked",
             // TR-NFR-12: specific and actionable. Disclosed deliberately — a closed wholesale
             // portal with no public self-registration, where a legitimate locked-out user needs

@@ -15,7 +15,7 @@ namespace Bitstream.Infrastructure.Persistence.Identity.Migrations;
 /// <para>
 /// Lockout (<c>LockoutEnd</c>/<c>LockoutEnabled</c>/<c>AccessFailedCount</c>) and two-factor
 /// (<c>TwoFactorEnabled</c>) are genuinely used, not vestigial — TR-SEC-06/12 and TR-SEC-04 run
-/// on Identity's own mechanisms end to end (<c>Bitstream.Web/Endpoints/AuthEndpoints.cs</c>'s
+/// on Identity's own mechanisms end to end (<c>Bitstream.Web/Controllers/AuthController.cs</c>'s
 /// <c>SignInManager</c>-driven login flow), so unlike the columns IdentityDbContext always
 /// creates whether or not an app uses them, these are load-bearing.
 /// </para>

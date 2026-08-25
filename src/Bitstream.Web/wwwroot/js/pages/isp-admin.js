@@ -1,9 +1,9 @@
 /**
- * ISP administration behaviour: create, search/browse, lock/unlock — each a direct call to the
- * existing /api/v1/isps endpoints (Bitstream.Web/Endpoints/AdministrationEndpoints.cs). No
- * backend logic is duplicated here; every validation message shown comes from the API's own
- * response, and the search results are exactly what GET /api/v1/isps returns — this script only
- * renders them and tracks paging offsets.
+ * ISP administration behaviour: create, search/browse, lock/unlock — each a direct call back to
+ * Controllers/IspsController.cs's JSON actions. No backend logic is duplicated here; every
+ * validation message shown comes from the server's own response, and the search results are
+ * exactly what the Search action returns — this script only renders them and tracks paging
+ * offsets.
  */
 import { api, ApiError } from '../api-client.js';
 
@@ -50,8 +50,8 @@ async function setStatus(ispId, status) {
   showError(statusError, '');
 
   try {
-    await api.patch(`/api/v1/isps/${ispId}/status`, { status });
-    const isp = await api.get(`/api/v1/isps/${ispId}`);
+    await api.patch(`/AccessManagement/Isps/${ispId}/status`, { status });
+    const isp = await api.get(`/AccessManagement/Isps/${ispId}`);
     renderIsp(isp);
     await search(currentSkip, currentSearch);
   } catch (error) {
@@ -94,7 +94,7 @@ async function search(skip, searchTerm) {
       params.set('search', searchTerm);
     }
 
-    const result = await api.get(`/api/v1/isps?${params}`);
+    const result = await api.get(`/AccessManagement/Isps/Search?${params}`);
     currentSkip = skip;
     currentSearch = searchTerm;
     currentTotalCount = result.totalCount;
@@ -135,7 +135,7 @@ function init() {
     };
 
     try {
-      const isp = await api.post('/api/v1/isps', body);
+      const isp = await api.post('/AccessManagement/Isps', body);
       createForm.reset();
       renderIsp(isp);
       await search(0, currentSearch);

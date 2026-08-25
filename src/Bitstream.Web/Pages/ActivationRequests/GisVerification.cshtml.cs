@@ -7,8 +7,8 @@ namespace Bitstream.Web.Pages.ActivationRequests;
 /// The GIS verification admin screen (TR-ACT-12 to TR-ACT-19): looks a request up by public ID
 /// (reusing the same read endpoint <see cref="DetailModel"/> does) to get its numeric
 /// <c>requestId</c>, then — only when its status is <c>AwaitingGisVerification</c> — records
-/// the outcome against the existing <c>PATCH /api/v1/activation-requests/{requestId}/gis-outcome</c>
-/// endpoint (<c>wwwroot/js/pages/activation-gis.js</c>). The line-exists/no-line decision and
+/// the outcome via <see cref="Controllers.ActivationRequestsController.RecordGisOutcome"/>
+/// (<c>wwwroot/js/pages/activation-gis.js</c>). The line-exists/no-line decision and
 /// the state transition it drives both happen entirely server-side.
 /// <para>
 /// There is no endpoint to list requests currently awaiting verification, so an administrator

@@ -57,7 +57,7 @@ public sealed class CrmClosureEndToEndTests
         await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, ispUserEmail);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
-            new Uri("/api/v1/activation-requests", UriKind.Relative),
+            new Uri("/ActivationRequests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, "Closure example"));
 
         Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
@@ -96,14 +96,14 @@ public sealed class CrmClosureEndToEndTests
         }
 
         // --- GIS verification admin screen (TR-ACT-12 to TR-ACT-19) -------------------------
-        using (var logoutResponse = await portalClient.PostAsync(new Uri("/api/v1/auth/logout", UriKind.Relative), content: null))
+        using (var logoutResponse = await portalClient.PostAsync(new Uri("/Auth/Logout", UriKind.Relative), content: null))
         {
             logoutResponse.EnsureSuccessStatusCode();
         }
         await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, adminEmail);
 
         using var gisResponse = await portalClient.PatchAsJsonAsync(
-            new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
+            new Uri($"/ActivationRequests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(true, null));
         Assert.Equal(HttpStatusCode.NoContent, gisResponse.StatusCode);
 
@@ -186,7 +186,7 @@ public sealed class CrmClosureEndToEndTests
         await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, email);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
-            new Uri("/api/v1/activation-requests", UriKind.Relative),
+            new Uri("/ActivationRequests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
 
@@ -220,7 +220,7 @@ public sealed class CrmClosureEndToEndTests
         await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, email);
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
-            new Uri("/api/v1/activation-requests", UriKind.Relative),
+            new Uri("/ActivationRequests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
 

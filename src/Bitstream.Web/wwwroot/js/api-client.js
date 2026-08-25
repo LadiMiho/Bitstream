@@ -1,10 +1,11 @@
 /**
- * Thin fetch wrapper for the Bitstream Portal JSON API.
- *
- * This is client-side behaviour only (TR-SEC-20 / the GUI-1 rule that JavaScript never owns
- * page-to-page navigation) — it calls the existing minimal-API endpoints under /api/v1 and
- * hands back a parsed result; every page decides for itself what to do with it, including any
- * full-page redirect. No routing, no view-swapping, nothing rendered by this file.
+ * Thin fetch wrapper shared by every page's JSON support calls back to the controller that owns
+ * it (e.g. Controllers/UsersController.cs, Controllers/AuthController.cs) — there is no separate
+ * "API" here; the only real API in this solution is Bitstream.Api (CRM integration, a different
+ * host entirely). This file is client-side behaviour only (TR-SEC-20 / the GUI-1 rule that
+ * JavaScript never owns page-to-page navigation) — it hands back a parsed result and every page
+ * decides for itself what to do with it, including any full-page redirect. No routing, no
+ * view-swapping, nothing rendered by this file.
  *
  * Every call carries a correlation ID (TR-ARC-04) and includes credentials so the session
  * cookie travels on same-origin requests (TR-SEC-07). ProblemDetails responses are turned into
@@ -31,7 +32,7 @@ export class ApiError extends Error {
 }
 
 /**
- * @param {string} path Path beginning with /api.
+ * @param {string} path
  * @param {{ method?: string, body?: unknown }} [options]
  * @returns {Promise<unknown>} Parsed JSON body, or null for a 204.
  */

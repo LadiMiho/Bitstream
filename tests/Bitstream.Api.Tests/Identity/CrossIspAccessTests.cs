@@ -35,7 +35,7 @@ public sealed class CrossIspAccessTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{otherIspId}", UriKind.Relative));
 
         // The requirement's exact wording: not-found, not forbidden. A 403 here would confirm
         // to the caller that ispId refers to a real record they simply may not see — 404 does not.
@@ -64,7 +64,7 @@ public sealed class CrossIspAccessTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{otherIspId}", UriKind.Relative));
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
         await using var assertScope = factory.CreateAsyncScope();
@@ -99,7 +99,7 @@ public sealed class CrossIspAccessTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/isps/{ownIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{ownIspId}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
@@ -128,7 +128,7 @@ public sealed class CrossIspAccessTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/isps/{otherIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{otherIspId}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -149,7 +149,7 @@ public sealed class CrossIspAccessTests
         using var client = factory.CreateClient();
         // No cookie set at all.
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/isps/{ispId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{ispId}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

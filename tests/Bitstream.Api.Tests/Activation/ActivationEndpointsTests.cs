@@ -37,7 +37,7 @@ public sealed class ActivationEndpointsTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/activation-requests", UriKind.Relative),
+            new Uri("/ActivationRequests", UriKind.Relative),
             new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -65,7 +65,7 @@ public sealed class ActivationEndpointsTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/activation-requests/{otherRequestPublicId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{otherRequestPublicId}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
@@ -92,7 +92,7 @@ public sealed class ActivationEndpointsTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/api/v1/activation-requests/{publicId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{publicId}", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<ActivationRequestResponse>();
@@ -121,7 +121,7 @@ public sealed class ActivationEndpointsTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
+            new Uri($"/ActivationRequests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(true, null));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -149,7 +149,7 @@ public sealed class ActivationEndpointsTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
+            new Uri($"/ActivationRequests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(false, null));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -177,7 +177,7 @@ public sealed class ActivationEndpointsTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
+            new Uri($"/ActivationRequests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(true, null));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -213,7 +213,7 @@ public sealed class ActivationEndpointsTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
         using var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/activation-requests/{requestId}/gis-outcome", UriKind.Relative),
+            new Uri($"/ActivationRequests/{requestId}/gis-outcome", UriKind.Relative),
             new GisOutcomeRequest(true, null));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);

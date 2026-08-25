@@ -1,7 +1,7 @@
 /**
  * GIS verification admin screen: looks a request up (GET .../{publicId}, same read endpoint
  * the detail page uses) to get its numeric requestId, then — only when eligible — records the
- * outcome against the existing PATCH /api/v1/activation-requests/{requestId}/gis-outcome
+ * outcome against the existing PATCH /ActivationRequests/{requestId}/gis-outcome
  * endpoint. The eligibility check here (status === 'AwaitingGisVerification') only decides
  * whether to show the form; the API is what actually enforces it and returns 409 otherwise.
  */
@@ -46,7 +46,7 @@ async function lookUp(publicId) {
   el('#gis-detail').hidden = true;
 
   try {
-    const request = await api.get(`/api/v1/activation-requests/${encodeURIComponent(publicId)}`);
+    const request = await api.get(`/ActivationRequests/${encodeURIComponent(publicId)}`);
     render(request);
   } catch (error) {
     showError(errorTarget, error instanceof ApiError && error.status === 404
@@ -89,8 +89,8 @@ function init() {
     submitButton.disabled = true;
 
     try {
-      await api.patch(`/api/v1/activation-requests/${currentRequest.requestId}/gis-outcome`, { lineAvailable, reason });
-      const refreshed = await api.get(`/api/v1/activation-requests/${encodeURIComponent(currentRequest.publicId)}`);
+      await api.patch(`/ActivationRequests/${currentRequest.requestId}/gis-outcome`, { lineAvailable, reason });
+      const refreshed = await api.get(`/ActivationRequests/${encodeURIComponent(currentRequest.publicId)}`);
       render(refreshed);
       el('#gis-outcome-form').reset();
     } catch (error) {

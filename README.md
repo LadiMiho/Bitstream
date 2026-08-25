@@ -177,7 +177,7 @@ anyway. Full write-up in [`docs/architecture.md`](docs/architecture.md#access-ma
 | TR-SEC-07 sessions | `sec.UserSession`; idle and absolute timeout, whichever is reached first |
 | TR-SEC-17/20 RBAC | `PermissionAuthorizationHandler`, checked server-side on every permission-gated endpoint |
 | TR-SEC-18/19 ownership scoping | `AdministrationService` decides from identity before the repository is touched — a request for another ISP's record is indistinguishable from one that doesn't exist |
-| TR-SEC-09 to TR-SEC-16 administration | `POST`/`GET`/`PATCH` under `/api/v1/isps` and `/api/v1/users` |
+| TR-SEC-09 to TR-SEC-16 administration | `POST`/`GET`/`PATCH` on `IspsController` (`/AccessManagement/Isps`) and `UsersController` (`/AccessManagement/Users`) |
 | TR-SEC-11 lock in place of delete | No delete endpoint anywhere in this module, or in the schema's grants |
 | TR-SEC-22 to TR-SEC-24 audit | `AuditWriter` — append-only, enforced by the database as well as by the application |
 
@@ -192,7 +192,7 @@ named anywhere in the TRD.
 shows an ISP user reading the other ISP's record gets 404 — never 403 — and that the attempt is
 logged as a security event, while the same user reading their own ISP and an Administrator
 reading any ISP both succeed. `LockoutAndSessionTests.cs` drives five wrong passwords through
-the real `/api/v1/auth/login` endpoint and confirms the account locks; two further tests isolate
+the real `AuthController.Login` action and confirms the account locks; two further tests isolate
 the idle and absolute session timeouts from each other. The lock-cascade logic
 (`SetIspStatusAsync`/`SetUserStatusAsync`) is unit-tested against hand-written fakes instead —
 it calls a bulk `ExecuteUpdateAsync`, which EF Core's InMemory provider (standing in for SQL
@@ -248,13 +248,13 @@ Full write-up in [`docs/architecture.md`](docs/architecture.md#post-activation-s
 
 | Requirement | Where |
 | --- | --- |
-| TR-PAS-01 to TR-PAS-07 BI active-lines sync | `ActiveLineSyncService`, scheduled by `ActiveLineSyncScheduler` (default hourly) and triggerable manually via `POST /api/v1/ops/bi/active-lines/sync`; upserts on `(IspId, ContractId)` so a repeated page is idempotent, and `ops.SyncState` tracks the change marker and consecutive-failure count for `TR-PAS-07`'s freshness reporting |
+| TR-PAS-01 to TR-PAS-07 BI active-lines sync | `ActiveLineSyncService`, scheduled by `ActiveLineSyncScheduler` (default hourly) and triggerable manually via `OperationsController.TriggerActiveLineSync` (`POST /Operations/bi/active-lines/sync`); upserts on `(IspId, ContractId)` so a repeated page is idempotent, and `ops.SyncState` tracks the change marker and consecutive-failure count for `TR-PAS-07`'s freshness reporting |
 | TR-PAS-08 to TR-PAS-12 complaint tickets | `ComplaintTicketService.CreateAsync` — three-level category validated against `CatalogueOptions.ComplaintCategories`, identifier issued, INT-CRM-04 enqueued on the outbox |
 | TR-PAS-13 to TR-PAS-17 status suppression | `InboundEventService.ApplyToComplaintTicketAsync` — a status update is applied always, but the ISP is notified only when the incoming status is `Technically Completed` or is in the configured `IspNotifiableStatuses` list; an internal forward (`ForwardingGroup` set) never notifies |
 | TRD §6.4 closure handshake | `TicketClosureService.ApplyClearingCodeAsync` (CRM-driven, sets the ticket `Pending ISP Confirmation` and the working-day-out `ConfirmationDueAt`) and `RecordIspDecisionAsync` (Confirm closes; No reopens) |
 | TR-PAS-21 to TR-PAS-21h auto-confirmation | `TicketClosureService.RunAutoConfirmationSweepAsync`, run by `AutoConfirmationSweepScheduler`: reminders at working day 2 and 4 (`Reminder2SentAt`/`Reminder4SentAt`), auto-confirm at working day 5 recorded as `ClosureDecision.AutoConfirmed` — distinct from `ClosureDecision.Confirmed` — and a 10-calendar-day challenge window (`RaiseFollowUpAsync`) off the closed date. Working-day arithmetic is `WorkingDayCalculator`, driven by `WorkingCalendarOptions` |
 | §6.6 comments | `ComplaintTicketService.AddCommentAsync`, replicated to CRM via INT-CRM-06 |
-| §6.7 complaints dashboard | `ComplaintTicketService.SearchAsync` behind `GET /api/v1/tickets`, ISP-scoped unless the caller holds `TicketReadAll` |
+| §6.7 complaints dashboard | `ComplaintTicketService.SearchAsync` behind `TicketsController.Search` (`GET /PostActivation/Tickets/Search`), ISP-scoped unless the caller holds `TicketReadAll` |
 | §6.8 service status management | `ServiceChangeRequestService` — Upgrade/Downgrade eligibility computed from `CatalogueOptions.Packages` tiers (as-is line package vs. eligible to-be packages), Termination validated against a future date with no to-be package; replicated via INT-CRM-09 |
 
 **The auto-confirmation timing is proven by advancing a fake clock, not by inspection.**

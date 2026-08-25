@@ -1,16 +1,16 @@
-@page
-@model Bitstream.Web.Pages.AccessManagement.IspsModel
 @{
     ViewData["Title"] = "ISP Administration";
+    var canCreate = (bool)(ViewBag.CanCreate ?? false);
+    var canLock = (bool)(ViewBag.CanLock ?? false);
 }
 
-<div class="grid gap-6" data-role="isp-admin-page" data-can-lock="@Model.CanLock.ToString().ToLowerInvariant()">
+<div class="grid gap-6" data-role="isp-admin-page" data-can-lock="@canLock.ToString().ToLowerInvariant()">
     <div>
         <a href="/AccessManagement" class="text-sm text-brand-600 underline">&larr; Access Management</a>
         <h1 class="mt-2 text-xl font-semibold">ISP Administration</h1>
     </div>
 
-    @if (Model.CanCreate)
+    @if (canCreate)
     {
         <section class="card" aria-labelledby="isp-create-heading">
             <h2 id="isp-create-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Create ISP</h2>
@@ -97,7 +97,7 @@
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">CRM BP reference</dt><dd id="isp-detail-crm-bp" class="mt-1 text-sm"></dd></div>
             </dl>
 
-            @if (Model.CanLock)
+            @if (canLock)
             {
                 <div class="mt-4 flex gap-2">
                     <button type="button" id="isp-lock-button" class="btn-secondary">Lock</button>

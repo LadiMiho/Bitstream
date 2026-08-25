@@ -168,10 +168,11 @@ decide what to *show* (TR-SEC-17), never what the API actually allows. Building 
 against the real endpoints surfaced three gaps in what TRD §4's backend currently exposes,
 reported here rather than compensated for in the frontend:
 
-- **No list or search endpoint for ISPs or users.** `GET /api/v1/isps/{id}` and
-  `GET /api/v1/users/{id}` are the only reads; there is nothing to browse. `Isps.cshtml` and
-  `Users.cshtml` are therefore "look up by ID" screens, not browsable tables — each says so
-  in-page. An administrator has to already know (or have just created) the ID.
+- **No list or search endpoint for ISPs or users.** `IspsController.Get`/`UsersController.Get`
+  (`GET /AccessManagement/Isps/{id}`, `GET /AccessManagement/Users/{id}`) are the only reads;
+  there is nothing to browse. `Isps.cshtml` and `Users.cshtml` are therefore "look up by ID"
+  screens, not browsable tables — each says so in-page. An administrator has to already know (or
+  have just created) the ID.
 - **No update endpoint for either record's own fields.** `isp.update` and `user.update` are
   seeded permission codes (`db/mssql/0007_seed_roles_permissions.sql`) but nothing checks them —
   only `SetIspStatusAsync`/`SetUserStatusAsync` (status, i.e. lock/unlock) exist. "Create/edit"
@@ -224,8 +225,8 @@ does not decide which status a request is in.
 Building these screens surfaced the same class of gap as GUI-3's Access Management screens,
 reported rather than compensated for:
 
-- **No list or search endpoint for activation requests.** `GET /api/v1/activation-requests/{publicId}`
-  is the only read — `IActivationRequestRepository` has no query beyond find-by-id or
+- **No list or search endpoint for activation requests.** `ActivationRequestsController.Get`
+  (`GET /ActivationRequests/{publicId}`) is the only read — `IActivationRequestRepository` has no query beyond find-by-id or
   find-by-public-id either. The ISP-facing "list" is therefore a look-up-by-public-ID detail
   view, not a browsable table, and the GIS verification screen has no queue of requests
   currently `AwaitingGisVerification` to work from — an administrator has to already have the
@@ -306,8 +307,9 @@ logged rather than failing the run, since one bad row should not block the rest 
 Upsert is keyed on `(IspId, ContractId)`, so a repeated page updates the one row instead of
 duplicating it — the idempotency TR-PAS-04 requires. `ActiveLineSyncScheduler` runs this on a
 configurable interval (`ActiveLineSyncOptions.SyncInterval`, default hourly); an administrator can
-also trigger it on demand via `POST /api/v1/ops/bi/active-lines/sync`, and read freshness back via
-`GET .../sync/status`, which is `ops.SyncState.LastSuccessfulSyncAt` and the consecutive-failure
+also trigger it on demand via `OperationsController.TriggerActiveLineSync`
+(`POST /Operations/bi/active-lines/sync`), and read freshness back via `GET .../sync/status`,
+which is `ops.SyncState.LastSuccessfulSyncAt` and the consecutive-failure
 count TR-PAS-07 asks be monitored. `ActiveLineSyncOptions` (Application) and `BiOptions`
 (Infrastructure.Integration) deliberately bind to the *same* `Integration:Bi` configuration
 section rather than one referencing the other's type — the Application layer cannot reference

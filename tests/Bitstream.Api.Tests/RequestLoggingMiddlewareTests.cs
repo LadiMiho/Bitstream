@@ -18,7 +18,7 @@ public sealed class RequestLoggingMiddlewareTests
     [Fact]
     public async Task Logs_one_entry_per_request_with_method_route_status_and_duration()
     {
-        var context = CreateContext("GET", "/api/v1/ops/reconciliation");
+        var context = CreateContext("GET", "/Operations/reconciliation");
 
         await InvokeAsync(context, ctx =>
         {
@@ -29,7 +29,7 @@ public sealed class RequestLoggingMiddlewareTests
         var entry = Assert.Single(_logger.Entries);
         Assert.Equal(LogLevel.Information, entry.Level);
         Assert.Equal("GET", entry.Field("RequestMethod"));
-        Assert.Equal("/api/v1/ops/reconciliation", entry.Field("RequestPath"));
+        Assert.Equal("/Operations/reconciliation", entry.Field("RequestPath"));
         Assert.Equal(200, entry.Field("StatusCode"));
         Assert.NotNull(entry.Field("ElapsedMilliseconds"));
     }
@@ -132,7 +132,7 @@ public sealed class RequestLoggingMiddlewareTests
     public async Task Does_not_log_the_query_string_or_request_headers()
     {
         // Either can carry personal data (TR-NFR-20) or a token (TR-SEC-28).
-        var context = CreateContext("GET", "/api/v1/ops/dead-letter");
+        var context = CreateContext("GET", "/Operations/integration/dead-letter");
         context.Request.QueryString = new QueryString("?email=isp.contact%40example.com");
         context.Request.Headers.Authorization = "Bearer super-secret-token";
 

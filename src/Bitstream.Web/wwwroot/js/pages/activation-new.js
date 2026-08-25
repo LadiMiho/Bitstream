@@ -1,8 +1,8 @@
 /**
- * Activation request submission: a single POST to the existing
- * /api/v1/activation-requests endpoint (Bitstream.Web/Endpoints/ActivationEndpoints.cs).
+ * Activation request submission: a single POST to
+ * Controllers/ActivationRequestsController.cs's Submit action.
  * All validation (package/classification/duration against the configured catalogue,
- * location parsing) happens server-side; this only shows whatever the API says back.
+ * location parsing) happens server-side; this only shows whatever the response says back.
  */
 import { api, ApiError } from '../api-client.js';
 import { presentStatus } from '../status-presentation.js';
@@ -60,7 +60,7 @@ function init() {
     submitButton.disabled = true;
 
     try {
-      const created = await api.post('/api/v1/activation-requests', body);
+      const created = await api.post('/ActivationRequests', body);
       form.hidden = true;
 
       const status = presentStatus(created.status);

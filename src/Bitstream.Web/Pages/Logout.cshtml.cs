@@ -10,8 +10,8 @@ namespace Bitstream.Web.Pages;
 /// Signs the current session out. A real page handler rather than client-side script, so
 /// sign-out is a normal form POST and never itself acts as page navigation from JavaScript
 /// (TR-SEC-07: the session is invalidated server-side immediately, not merely forgotten by the
-/// client — see <see cref="Endpoints.AuthEndpoints"/>'s own logout endpoint, which does the same
-/// thing for the JSON API). Idempotent.
+/// client — see <see cref="Controllers.AuthController.Logout"/>, which does the same thing for
+/// its JSON callers, though nothing calls it today). Idempotent.
 /// </summary>
 public sealed class LogoutModel : PageModel
 {

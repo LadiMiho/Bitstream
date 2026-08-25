@@ -14,9 +14,9 @@
         <h2 id="audit-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Not available — no backend endpoint</h2>
         <p class="mt-2 max-w-2xl text-sm text-ink-muted">
             Every write to the audit log goes through <code class="rounded bg-surface-muted px-1">IAuditWriter</code>,
-            so audit entries are being recorded. There is, however, no API to search or export
-            them: no <code class="rounded bg-surface-muted px-1">GET /api/v1/audit</code> (or
-            equivalent) endpoint exists, even though the <code class="rounded bg-surface-muted px-1">audit.read</code>
+            so audit entries are being recorded. There is, however, no way to search or export
+            them yet: no <code class="rounded bg-surface-muted px-1">GET /AccessManagement/AuditLog/Search</code> (or
+            equivalent) action exists, even though the <code class="rounded bg-surface-muted px-1">audit.read</code>
             permission is already seeded and granted to the Auditor and Administrator roles.
         </p>
         <p class="mt-3 max-w-2xl text-sm text-ink-muted">

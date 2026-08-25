@@ -39,7 +39,7 @@ public sealed class LockoutAndSessionTests
         for (var attempt = 1; attempt <= 4; attempt++)
         {
             using var response = await client.PostAsJsonAsync(
-                new Uri("/api/v1/auth/login", UriKind.Relative),
+                new Uri("/Auth/Login", UriKind.Relative),
                 new LoginRequest(email, "definitely-the-wrong-password"));
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -47,7 +47,7 @@ public sealed class LockoutAndSessionTests
 
         // The 5th reaches the threshold and locks the account within the same response.
         using (var fifthAttempt = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, "definitely-the-wrong-password")))
         {
             Assert.Equal(HttpStatusCode.Locked, fifthAttempt.StatusCode);
@@ -55,7 +55,7 @@ public sealed class LockoutAndSessionTests
 
         // TR-SEC-12: locked and denied even with the correct password, without a 6th failure being recorded.
         using (var afterLock = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText)))
         {
             Assert.Equal(HttpStatusCode.Locked, afterLock.StatusCode);
@@ -103,7 +103,7 @@ public sealed class LockoutAndSessionTests
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -127,7 +127,7 @@ public sealed class LockoutAndSessionTests
         }
 
         using var verifyResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login/verify", UriKind.Relative),
+            new Uri("/Auth/Login/Verify", UriKind.Relative),
             new TwoFactorVerifyRequest(code));
 
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
@@ -158,7 +158,7 @@ public sealed class LockoutAndSessionTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri("/api/v1/auth/me", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri("/Auth/Me", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var me = await response.Content.ReadFromJsonAsync<CurrentUserResponse>();
@@ -184,18 +184,18 @@ public sealed class LockoutAndSessionTests
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using (var beforeLogout = await client.GetAsync(new Uri("/api/v1/auth/me", UriKind.Relative)))
+        using (var beforeLogout = await client.GetAsync(new Uri("/Auth/Me", UriKind.Relative)))
         {
             Assert.Equal(HttpStatusCode.OK, beforeLogout.StatusCode);
         }
 
-        using (var logout = await client.PostAsync(new Uri("/api/v1/auth/logout", UriKind.Relative), content: null))
+        using (var logout = await client.PostAsync(new Uri("/Auth/Logout", UriKind.Relative), content: null))
         {
             Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         }
 
         // TR-SEC-07: invalidated immediately — the same cookie must not work again.
-        using var afterLogout = await client.GetAsync(new Uri("/api/v1/auth/me", UriKind.Relative));
+        using var afterLogout = await client.GetAsync(new Uri("/Auth/Me", UriKind.Relative));
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
     }
 }

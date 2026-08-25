@@ -38,7 +38,7 @@ public sealed class TwoFactorEnrollmentTests
         using var client = factory.CreateClient();
 
         using var loginResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
@@ -63,7 +63,7 @@ public sealed class TwoFactorEnrollmentTests
         }
 
         using var verifyResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login/verify", UriKind.Relative),
+            new Uri("/Auth/Login/Verify", UriKind.Relative),
             new TwoFactorVerifyRequest(code));
         Assert.Equal(HttpStatusCode.OK, verifyResponse.StatusCode);
     }
@@ -90,7 +90,7 @@ public sealed class TwoFactorEnrollmentTests
         using var client = factory.CreateClient();
 
         using var loginResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText));
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 

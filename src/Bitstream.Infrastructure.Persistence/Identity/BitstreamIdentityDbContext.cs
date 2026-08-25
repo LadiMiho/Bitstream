@@ -26,7 +26,7 @@ namespace Bitstream.Infrastructure.Persistence.Identity;
 /// Login, lockout (TR-SEC-06/12) and two-factor (TR-SEC-04) are all genuinely native now —
 /// <c>LockoutEnd</c>/<c>AccessFailedCount</c>/<c>TwoFactorEnabled</c> (inherited on <see cref="User"/>)
 /// and Identity's own token providers, driven by <c>SignInManager&lt;User&gt;</c> in
-/// <c>Bitstream.Web/Endpoints/AuthEndpoints.cs</c>. <c>UserRoles</c> exists (part of the standard
+/// <c>Bitstream.Web/Controllers/AuthController.cs</c>. <c>UserRoles</c> exists (part of the standard
 /// schema) but is never populated: this app keeps its single-role-per-user design — a direct
 /// <see cref="User.RoleId"/> foreign key — rather than adopting Identity's many-to-many role
 /// assignment.
@@ -88,7 +88,7 @@ public sealed class BitstreamIdentityDbContext : IdentityDbContext<User, Role, l
         builder.Entity<IdentityRoleClaim<long>>().ToTable("RoleClaims");
 
         // TR-SEC-04: this is where the TOTP authenticator key lands (UserManager's own
-        // GetAuthenticatorKeyAsync/ResetAuthenticatorKeyAsync — see AuthEndpoints.cs), plus
+        // GetAuthenticatorKeyAsync/ResetAuthenticatorKeyAsync — see AuthController.cs), plus
         // Identity's generated 2FA recovery codes and remember-this-browser tokens. Encrypted at
         // rest via ASP.NET Core's own Data Protection API — not a bespoke cipher — the same
         // building block Identity itself uses for its cookies and Default token provider.

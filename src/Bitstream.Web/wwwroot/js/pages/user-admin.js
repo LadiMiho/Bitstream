@@ -1,10 +1,10 @@
 /**
  * User administration behaviour: search/filter/browse grid, plus add/edit/view/change-password
  * (opened in the shared drawer, ../drawer.js, its form fetched from Controllers/UsersController.cs)
- * and delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call to
- * the existing /api/v1/users endpoints (Bitstream.Web/Endpoints/AdministrationEndpoints.cs) —
- * this script never validates or authorises anything itself, it only renders what the API and
- * the drawer partials return.
+ * and delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call
+ * back to that same controller's JSON actions (Controllers/UsersController.cs) — this script
+ * never validates or authorises anything itself, it only renders what the server and the drawer
+ * partials return.
  */
 import { api, ApiError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
@@ -23,8 +23,8 @@ function showError(target, message) {
 
 /**
  * TR-NFR-12: shows each server-reported violation next to the field it concerns — a
- * `[data-field-error="fieldName"]` element next to that field, matching the key the API used
- * (AdministrationEndpoints.ValidationProblem) — falling back to the form's general error banner
+ * `[data-field-error="fieldName"]` element next to that field, matching the key the server used
+ * (UsersController.ValidationProblemFor) — falling back to the form's general error banner
  * for anything that isn't (or can't be) tied to one field, e.g. a network failure.
  */
 function showFieldErrors(form, error) {
@@ -279,7 +279,7 @@ async function confirmAndSetStatus(user, status) {
   }
 
   try {
-    await api.patch(`/api/v1/users/${user.userId}/status`, { status });
+    await api.patch(`/AccessManagement/Users/${user.userId}/status`, { status });
     await search();
   } catch (error) {
     showError(el('#user-search-error'), describeError(error));
@@ -294,7 +294,7 @@ async function confirmAndDelete(user) {
   }
 
   try {
-    await api.delete(`/api/v1/users/${user.userId}`);
+    await api.delete(`/AccessManagement/Users/${user.userId}`);
     await search();
   } catch (error) {
     showError(el('#user-search-error'), describeError(error));
@@ -311,7 +311,7 @@ async function search() {
     if (currentRole) params.set('role', currentRole);
     if (currentStatus) params.set('status', currentStatus);
 
-    const result = await api.get(`/api/v1/users?${params}`);
+    const result = await api.get(`/AccessManagement/Users/Search?${params}`);
     currentTotalCount = result.totalCount;
 
     renderResults(result.items);
@@ -440,7 +440,7 @@ drawerBody.addEventListener('submit', async (event) => {
 
   try {
     if (action === 'create') {
-      await api.post('/api/v1/users', {
+      await api.post('/AccessManagement/Users', {
         ispId: ispIdOrNull(form.querySelector('[name=ispId]').value),
         fullName: form.querySelector('[name=fullName]').value.trim(),
         email: form.querySelector('[name=email]').value.trim(),
@@ -449,7 +449,7 @@ drawerBody.addEventListener('submit', async (event) => {
         initialPassword: form.querySelector('[name=initialPassword]').value
       });
     } else if (action === 'update') {
-      await api.put(`/api/v1/users/${form.dataset.userId}`, {
+      await api.put(`/AccessManagement/Users/${form.dataset.userId}`, {
         ispId: ispIdOrNull(form.querySelector('[name=ispId]').value),
         fullName: form.querySelector('[name=fullName]').value.trim(),
         email: form.querySelector('[name=email]').value.trim(),
@@ -457,7 +457,7 @@ drawerBody.addEventListener('submit', async (event) => {
         roleName: form.querySelector('[name=roleName]').value
       });
     } else if (action === 'change-password') {
-      await api.post(`/api/v1/users/${form.dataset.userId}/password`, {
+      await api.post(`/AccessManagement/Users/${form.dataset.userId}/password`, {
         newPassword: form.querySelector('[name=newPassword]').value
       });
     }

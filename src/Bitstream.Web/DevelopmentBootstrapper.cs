@@ -261,7 +261,7 @@ public static class DevelopmentBootstrapper
         await dbContext.SaveChangesAsync().ConfigureAwait(false);
 
         // No TOTP key seeded: exactly like every other user, the authenticator key is generated
-        // lazily on this account's first login (AuthEndpoints.LoginAsync sees
+        // lazily on this account's first login (AuthController.Login sees
         // GetAuthenticatorKeyAsync return null and shows the QR code then) — no special-cased dev
         // secret to keep working across re-seeds any more, since a real login is just as fast.
         logger.LogInformation(

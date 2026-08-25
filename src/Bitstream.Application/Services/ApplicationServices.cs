@@ -203,7 +203,7 @@ public sealed record ExportRequest(
 public sealed record ExportStatus(Guid ExportId, string State, int RowCount, string? DownloadToken);
 
 /// <summary>
-/// Login/2FA/session orchestration (TRD 4.1) moved to <c>Bitstream.Web.Endpoints.AuthEndpoints</c>:
+/// Login/2FA/session orchestration (TRD 4.1) moved to <c>Bitstream.Web.Controllers.AuthController</c>:
 /// it is now <c>SignInManager&lt;User&gt;</c>-driven, which needs <c>HttpContext</c> to read/write
 /// the authentication cookie — an HTTP concern this layer has stayed decoupled from all along
 /// (the same reason <c>HttpCurrentUserContext</c> lives in <c>Bitstream.Web</c>, not here).

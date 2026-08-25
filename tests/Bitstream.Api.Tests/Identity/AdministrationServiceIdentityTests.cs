@@ -10,9 +10,9 @@ namespace Bitstream.Api.Tests.Identity;
 
 /// <summary>
 /// Proves <c>UserManager&lt;User&gt;</c> is genuinely wired in, not just compiling: a user
-/// created through <c>POST /api/v1/users</c> (which now calls <c>UserManager.CreateAsync</c>,
+/// created through <c>POST /AccessManagement/Users</c> (which now calls <c>UserManager.CreateAsync</c>,
 /// not a hand-written repository) ends up with a real Argon2id hash that
-/// <c>POST /api/v1/auth/login</c> (via <c>SignInManager.PasswordSignInAsync</c>) can verify.
+/// <c>POST /Auth/Login</c> (via <c>SignInManager.PasswordSignInAsync</c>) can verify.
 /// </summary>
 public sealed class AdministrationServiceIdentityTests
 {
@@ -38,7 +38,7 @@ public sealed class AdministrationServiceIdentityTests
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, adminEmail);
 
         using var createResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/users", UriKind.Relative),
+            new Uri("/AccessManagement/Users", UriKind.Relative),
             new CreateUserHttpRequest(null, "New Employee", newUserEmail, "+355691234567", "IspUser", newUserPassword));
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
@@ -58,7 +58,7 @@ public sealed class AdministrationServiceIdentityTests
         using var loginClient = factory.CreateClient();
 
         using var loginResponse = await loginClient.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(newUserEmail, newUserPassword));
 
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);

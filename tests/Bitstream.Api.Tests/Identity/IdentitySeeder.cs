@@ -115,7 +115,7 @@ internal static class IdentitySeeder
     }
 
     /// <summary>
-    /// Drives the real two-step login (<c>POST /api/v1/auth/login</c>, <c>POST /api/v1/auth/login/verify</c>)
+    /// Drives the real two-step login (<c>POST /Auth/Login</c>, <c>POST /Auth/Login/Verify</c>)
     /// so <paramref name="client"/> ends up carrying a genuine ASP.NET Core Identity authentication
     /// cookie — <c>WebApplicationFactory</c>'s client handles cookies across requests automatically
     /// (<c>WebApplicationFactoryClientOptions.HandleCookies</c> defaults to true), so nothing here
@@ -141,7 +141,7 @@ internal static class IdentitySeeder
             throw new InvalidOperationException("ResetAuthenticatorKeyAsync did not persist a key.");
 
         using var loginResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login", UriKind.Relative),
+            new Uri("/Auth/Login", UriKind.Relative),
             new LoginRequest(email, TestPassword.PlainText)).ConfigureAwait(false);
 
         await EnsureSuccessAsync(loginResponse).ConfigureAwait(false);
@@ -152,7 +152,7 @@ internal static class IdentitySeeder
         var code = TotpCodeGenerator.GenerateCode(authenticatorKey);
 
         using var verifyResponse = await client.PostAsJsonAsync(
-            new Uri("/api/v1/auth/login/verify", UriKind.Relative),
+            new Uri("/Auth/Login/Verify", UriKind.Relative),
             new TwoFactorVerifyRequest(code)).ConfigureAwait(false);
 
         await EnsureSuccessAsync(verifyResponse).ConfigureAwait(false);

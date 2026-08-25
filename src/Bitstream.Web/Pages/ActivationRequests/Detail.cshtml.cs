@@ -4,14 +4,15 @@ namespace Bitstream.Web.Pages.ActivationRequests;
 
 /// <summary>
 /// The ISP-facing request detail view: looks up one activation request by its public ID
-/// against the existing <c>GET /api/v1/activation-requests/{publicId}</c> endpoint
+/// against <see cref="Controllers.ActivationRequestsController.Get"/>
 /// (<c>wwwroot/js/pages/activation-detail.js</c>) and shows its live status, including the
 /// integration-pending states (TR-ACT-11) — <c>PendingCrmSync</c> and <c>IntegrationFailed</c>
 /// render just like every other status; nothing here waits for CRM to be "live" before showing
 /// a newly submitted request.
 /// <para>
-/// There is no list endpoint for activation requests (no <c>GET /api/v1/activation-requests</c>,
-/// and <c>IActivationRequestRepository</c> has no query beyond find-by-id), so this is a
+/// There is no list endpoint for activation requests (no search/browse action on
+/// <see cref="Controllers.ActivationRequestsController"/>, and <c>IActivationRequestRepository</c>
+/// has no query beyond find-by-id), so this is a
 /// look-up-by-ID screen rather than a browsable list. Reported in docs/architecture.md.
 /// </para>
 /// </summary>

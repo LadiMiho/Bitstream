@@ -1,7 +1,6 @@
 /**
- * Login page behaviour: the two-factor sign-in flow against the existing
- * POST /api/v1/auth/login and POST /api/v1/auth/login/verify endpoints
- * (Bitstream.Web/Endpoints/AuthEndpoints.cs) — nothing here re-implements the credential
+ * Login page behaviour: the two-factor sign-in flow against
+ * Controllers/AuthController.cs's Login and VerifyTwoFactor actions — nothing here re-implements the credential
  * check, the lockout decision or the 2FA verification; both live entirely server-side, via
  * ASP.NET Core Identity's own SignInManager. There is no challenge token to hold between the
  * two requests any more: Identity tracks which account is mid-two-factor with its own
@@ -53,7 +52,7 @@ function init() {
     submitButton.disabled = true;
 
     try {
-      const challenge = await api.post('/api/v1/auth/login', { email, password });
+      const challenge = await api.post('/Auth/Login', { email, password });
       codeChannel.textContent = describeChannel(challenge.channel, Boolean(challenge.qrCodeDataUri));
 
       if (challenge.qrCodeDataUri) {
@@ -83,7 +82,7 @@ function init() {
     submitButton.disabled = true;
 
     try {
-      await api.post('/api/v1/auth/login/verify', { code });
+      await api.post('/Auth/Login/Verify', { code });
       window.location.href = returnUrl;
     } catch (error) {
       showError(codeError, describeVerifyError(error));

@@ -1,6 +1,6 @@
 /**
  * Activation request detail: looks a request up by public ID against the existing
- * GET /api/v1/activation-requests/{publicId} endpoint and renders it — including the
+ * GET /ActivationRequests/{publicId} endpoint and renders it — including the
  * integration-pending statuses (PendingCrmSync, IntegrationFailed) exactly as returned,
  * per TR-ACT-11. No status logic lives here; presentStatus only maps a label and colour.
  */
@@ -52,7 +52,7 @@ async function lookUp(publicId) {
   el('#activation-detail').hidden = true;
 
   try {
-    const request = await api.get(`/api/v1/activation-requests/${encodeURIComponent(publicId)}`);
+    const request = await api.get(`/ActivationRequests/${encodeURIComponent(publicId)}`);
     render(request);
   } catch (error) {
     showError(errorTarget, error instanceof ApiError && error.status === 404

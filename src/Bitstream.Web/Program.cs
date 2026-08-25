@@ -9,7 +9,6 @@ using Bitstream.Hosting.Middleware;
 using Bitstream.Infrastructure.Integration;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web;
-using Bitstream.Web.Endpoints;
 using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -71,9 +70,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.ExpireTimeSpan = sessionOptions.IdleTimeout;
     options.SlidingExpiration = true;
 
-    // JSON API, not a browser-redirect login flow (AuthEndpoints.cs handles 401/403 itself) —
-    // the default RedirectToLogin/AccessDenied behaviour would otherwise turn an API 401 into a
-    // 302 to a page.
+    // JSON-returning actions rely on this override globally (see RequireJsonPermissionAttribute
+    // and the plain [Authorize] usages in Controllers/*.cs) — without it, the default
+    // RedirectToLogin/AccessDenied behaviour would turn a 401 into a 302 to a page instead.
     options.Events.OnRedirectToLogin = context =>
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -222,11 +221,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthEndpoints();
-app.MapAuthEndpoints();
-app.MapAdministrationEndpoints();
-app.MapActivationEndpoints();
-app.MapPostActivationEndpoints();
-app.MapOperationsEndpoints();
 
 app.MapRazorPages();
 app.MapControllers();
