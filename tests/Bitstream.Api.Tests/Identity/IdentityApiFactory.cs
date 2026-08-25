@@ -73,7 +73,9 @@ public sealed class IdentityApiFactory : WebApplicationFactory<WebHostEntryPoint
     /// request would ever send it back. <c>TestServer</c> honours the URI scheme without needing
     /// a real certificate, so an https base address alone is enough to make it behave correctly.
     /// </summary>
-    public override HttpClient CreateClient(WebApplicationFactoryClientOptions options)
+    public new HttpClient CreateClient() => CreateClient(new WebApplicationFactoryClientOptions());
+
+    public new HttpClient CreateClient(WebApplicationFactoryClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 

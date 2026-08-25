@@ -75,4 +75,21 @@ public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
 
     /// <summary>Opens a scope for seeding data or asserting on state through the portal host's provider.</summary>
     public AsyncServiceScope CreateAsyncScope() => Services.CreateAsyncScope();
+
+    /// <summary>
+    /// TR-SEC-26: <c>ConfigureApplicationCookie</c> sets <c>Cookie.SecurePolicy = Always</c>, so
+    /// the auth cookie is silently dropped by the client on the default <c>http://localhost</c>
+    /// base address <c>WebApplicationFactory</c> uses — see <c>IdentityApiFactory</c>'s copy of
+    /// this same fix for the full explanation.
+    /// </summary>
+    public new HttpClient CreateClient() => CreateClient(new WebApplicationFactoryClientOptions());
+
+    public new HttpClient CreateClient(WebApplicationFactoryClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.BaseAddress = new Uri("https://localhost");
+
+        return base.CreateClient(options);
+    }
 }
