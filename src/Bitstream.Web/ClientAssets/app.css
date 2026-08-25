@@ -217,10 +217,14 @@
     @apply pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-muted;
   }
 
-  /* Dropdown menu opened from an icon-button (row actions) or anchored to a toolbar control. */
+  /*
+    Dropdown menu opened from an icon-button (row actions). Positioned via inline style
+    (position: fixed + left/top computed from the trigger's own rect, see openRowMenu in
+    wwwroot/js/pages/user-admin.js) rather than absolute-relative-to-trigger, so it never grows
+    the scrollable content box of an ancestor overflow-x-auto container (the grid table).
+  */
   .menu-panel {
-    @apply absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-lg border border-line
-           bg-surface py-1 shadow-lg;
+    @apply z-30 w-48 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-lg;
   }
 
   .menu-item {

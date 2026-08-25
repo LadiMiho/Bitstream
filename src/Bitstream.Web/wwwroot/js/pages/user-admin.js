@@ -128,11 +128,42 @@ function menuItem(label, icon, handler, { danger = false } = {}) {
   return button;
 }
 
+let openMenuTrigger = null;
+
 function closeAllMenus() {
   document.querySelectorAll('.menu-panel').forEach((panel) => panel.remove());
+  openMenuTrigger = null;
+}
+
+/**
+ * Row-actions dropdowns are appended to <body>, not the trigger's table cell — the grid sits in
+ * an overflow-x-auto container, and a menu-panel nested inside it would grow that container's
+ * scrollable content box, forcing a vertical scrollbar onto the whole grid card whenever a menu
+ * near the bottom of the (short, unscrolled) table opened. Fixed positioning keyed off the
+ * trigger's own viewport rect avoids that entirely and still tracks the row correctly.
+ */
+function openRowMenu(trigger, menu) {
+  menu.style.position = 'fixed';
+  menu.style.visibility = 'hidden';
+  document.body.appendChild(menu);
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const left = Math.min(triggerRect.right - menuRect.width, window.innerWidth - menuRect.width - 8);
+  const top = triggerRect.bottom + menuRect.height <= window.innerHeight
+    ? triggerRect.bottom + 4
+    : triggerRect.top - menuRect.height - 4;
+
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+  menu.style.visibility = '';
+
+  openMenuTrigger = trigger;
 }
 
 document.addEventListener('click', closeAllMenus);
+window.addEventListener('scroll', closeAllMenus, true);
+window.addEventListener('resize', closeAllMenus);
 
 // --- Grid ------------------------------------------------------------------------------
 function initials(fullName) {
@@ -193,7 +224,7 @@ function renderResults(items) {
     row.appendChild(lastLoginCell);
 
     const actionsCell = document.createElement('td');
-    actionsCell.className = 'table-cell relative w-10 text-right';
+    actionsCell.className = 'table-cell w-10 text-right';
 
     const trigger = document.createElement('button');
     trigger.type = 'button';
@@ -202,7 +233,7 @@ function renderResults(items) {
     trigger.innerHTML = ICONS.kebab;
     trigger.addEventListener('click', (event) => {
       event.stopPropagation();
-      const alreadyOpen = trigger.nextElementSibling?.classList.contains('menu-panel');
+      const alreadyOpen = openMenuTrigger === trigger;
       closeAllMenus();
       if (alreadyOpen) {
         return;
@@ -230,7 +261,7 @@ function renderResults(items) {
         menu.appendChild(menuItem('Delete', ICONS.delete, () => confirmAndDelete(user), { danger: true }));
       }
 
-      actionsCell.appendChild(menu);
+      openRowMenu(trigger, menu);
     });
 
     actionsCell.appendChild(trigger);
