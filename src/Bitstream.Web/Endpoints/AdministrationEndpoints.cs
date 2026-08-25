@@ -258,6 +258,8 @@ public static class AdministrationEndpoints
 
     private static async Task<IResult> SearchUsersAsync(
         [FromQuery] string? search,
+        [FromQuery] string? role,
+        [FromQuery] string? status,
         [FromQuery] int? skip,
         [FromQuery] int? take,
         IAdministrationService administrationService,
@@ -265,7 +267,7 @@ public static class AdministrationEndpoints
         CancellationToken cancellationToken)
     {
         var result = await administrationService.SearchUsersAsync(
-            search, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+            search, role, status, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
 
         var items = await Task.WhenAll(result.Items.Select(user => ToResponseAsync(user, userManager))).ConfigureAwait(false);
 

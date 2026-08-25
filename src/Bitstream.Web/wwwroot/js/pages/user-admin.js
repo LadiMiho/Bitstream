@@ -1,5 +1,5 @@
 /**
- * User administration behaviour: search/browse grid, plus add/edit/view/change-password
+ * User administration behaviour: search/filter/browse grid, plus add/edit/view/change-password
  * (opened in the shared drawer, ../drawer.js, its form fetched from Controllers/UsersController.cs)
  * and delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call to
  * the existing /api/v1/users endpoints (Bitstream.Web/Endpoints/AdministrationEndpoints.cs) —
@@ -8,8 +8,6 @@
  */
 import { api, ApiError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
-
-const PAGE_SIZE = 20;
 
 function el(selector) {
   return document.querySelector(selector);
@@ -71,6 +69,9 @@ function describeError(error) {
 
 let currentSkip = 0;
 let currentSearch = '';
+let currentRole = '';
+let currentStatus = '';
+let currentPageSize = 20;
 let currentTotalCount = 0;
 
 // --- Confirmation popup (delete / lock / unlock) ----------------------------------------
@@ -103,14 +104,50 @@ function confirmAction(message) {
   });
 }
 
-// --- Grid ------------------------------------------------------------------------------
-function actionButton(label, handler) {
+// --- Icons (inline, no icon font/library) -----------------------------------------------
+const ICONS = {
+  view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
+  edit: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 3.5 16.5 6.5 7 16H4v-3L13.5 3.5Z"/></svg>',
+  key: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><circle cx="7" cy="13" r="3.5"/><path d="M9.5 10.5 16 4M13.5 6.5 16 4M16 4l1.5 1.5"/></svg>',
+  lock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"/></svg>',
+  unlock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 6.6-1.5"/></svg>',
+  delete: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M6 5.5 6.7 16a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-10.5"/></svg>',
+  kebab: '<svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
+};
+
+function menuItem(label, icon, handler, { danger = false } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'mr-3 text-sm text-brand-600 underline last:mr-0';
-  button.textContent = label;
-  button.addEventListener('click', handler);
+  button.className = danger ? 'menu-item menu-item-danger' : 'menu-item';
+  button.innerHTML = `${icon}<span>${label}</span>`;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeAllMenus();
+    handler();
+  });
   return button;
+}
+
+function closeAllMenus() {
+  document.querySelectorAll('.menu-panel').forEach((panel) => panel.remove());
+}
+
+document.addEventListener('click', closeAllMenus);
+
+// --- Grid ------------------------------------------------------------------------------
+function initials(fullName) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+
+function statusPill(status) {
+  const tone = status === 'Locked' ? 'text-ink-muted bg-ink-muted/10' : 'text-state-done bg-state-done/15';
+  const span = document.createElement('span');
+  span.className = `status-pill status-dot ${tone}`;
+  span.textContent = status;
+  return span;
 }
 
 function renderResults(items) {
@@ -123,38 +160,80 @@ function renderResults(items) {
 
   for (const user of items) {
     const row = document.createElement('tr');
+    row.className = 'border-t border-line';
 
-    for (const value of [user.fullName, user.email, user.role, user.status]) {
-      const cell = document.createElement('td');
-      cell.className = 'table-cell';
-      cell.textContent = value;
-      row.appendChild(cell);
-    }
+    const nameCell = document.createElement('td');
+    nameCell.className = 'table-cell';
+    nameCell.innerHTML = `
+      <div class="flex items-center gap-3">
+        <span class="avatar-circle" aria-hidden="true">${initials(user.fullName)}</span>
+        <div>
+          <div class="font-medium text-ink">${user.fullName}</div>
+          <div class="text-xs text-ink-muted">${user.email}</div>
+        </div>
+      </div>`;
+    row.appendChild(nameCell);
+
+    const roleCell = document.createElement('td');
+    roleCell.className = 'table-cell';
+    const roleBadge = document.createElement('span');
+    roleBadge.className = 'badge';
+    roleBadge.textContent = user.role;
+    roleCell.appendChild(roleBadge);
+    row.appendChild(roleCell);
+
+    const statusCell = document.createElement('td');
+    statusCell.className = 'table-cell';
+    statusCell.appendChild(statusPill(user.status));
+    row.appendChild(statusCell);
+
+    const lastLoginCell = document.createElement('td');
+    lastLoginCell.className = 'table-cell text-ink-muted';
+    lastLoginCell.textContent = user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never';
+    row.appendChild(lastLoginCell);
 
     const actionsCell = document.createElement('td');
-    actionsCell.className = 'table-cell whitespace-nowrap';
+    actionsCell.className = 'table-cell relative w-10 text-right';
 
-    actionsCell.appendChild(
-      actionButton('View', () => openDrawer(`${user.fullName} — details`, `/AccessManagement/Users/${user.userId}/ViewDrawer`))
-    );
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'icon-button';
+    trigger.setAttribute('aria-label', `Actions for ${user.fullName}`);
+    trigger.innerHTML = ICONS.kebab;
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const alreadyOpen = trigger.nextElementSibling?.classList.contains('menu-panel');
+      closeAllMenus();
+      if (alreadyOpen) {
+        return;
+      }
 
-    if (canEdit) {
-      actionsCell.appendChild(
-        actionButton('Edit', () => openDrawer(`Edit ${user.fullName}`, `/AccessManagement/Users/${user.userId}/EditDrawer`))
-      );
-      actionsCell.appendChild(
-        actionButton('Change password', () => openDrawer(`Change password — ${user.fullName}`, `/AccessManagement/Users/${user.userId}/ChangePasswordDrawer`))
-      );
-    }
+      const menu = document.createElement('div');
+      menu.className = 'menu-panel';
+      menu.appendChild(menuItem('View', ICONS.view, () =>
+        openDrawer(`${user.fullName} — details`, `/AccessManagement/Users/${user.userId}/ViewDrawer`)));
 
-    if (canLock) {
-      const nextStatus = user.status === 'Locked' ? 'Active' : 'Locked';
-      actionsCell.appendChild(
-        actionButton(nextStatus === 'Locked' ? 'Lock' : 'Unlock', () => confirmAndSetStatus(user, nextStatus))
-      );
-      actionsCell.appendChild(actionButton('Delete', () => confirmAndDelete(user)));
-    }
+      if (canEdit) {
+        menu.appendChild(menuItem('Edit', ICONS.edit, () =>
+          openDrawer(`Edit ${user.fullName}`, `/AccessManagement/Users/${user.userId}/EditDrawer`)));
+        menu.appendChild(menuItem('New password', ICONS.key, () =>
+          openDrawer(`Change password — ${user.fullName}`, `/AccessManagement/Users/${user.userId}/ChangePasswordDrawer`)));
+      }
 
+      if (canLock) {
+        const nextStatus = user.status === 'Locked' ? 'Active' : 'Locked';
+        menu.appendChild(menuItem(
+          nextStatus === 'Locked' ? 'Lock' : 'Unlock',
+          nextStatus === 'Locked' ? ICONS.lock : ICONS.unlock,
+          () => confirmAndSetStatus(user, nextStatus)
+        ));
+        menu.appendChild(menuItem('Delete', ICONS.delete, () => confirmAndDelete(user), { danger: true }));
+      }
+
+      actionsCell.appendChild(menu);
+    });
+
+    actionsCell.appendChild(trigger);
     row.appendChild(actionsCell);
     body.appendChild(row);
   }
@@ -170,7 +249,7 @@ async function confirmAndSetStatus(user, status) {
 
   try {
     await api.patch(`/api/v1/users/${user.userId}/status`, { status });
-    await search(currentSkip, currentSearch);
+    await search();
   } catch (error) {
     showError(el('#user-search-error'), describeError(error));
   }
@@ -185,39 +264,129 @@ async function confirmAndDelete(user) {
 
   try {
     await api.delete(`/api/v1/users/${user.userId}`);
-    await search(currentSkip, currentSearch);
+    await search();
   } catch (error) {
     showError(el('#user-search-error'), describeError(error));
   }
 }
 
-async function search(skip, searchTerm) {
+async function search() {
   const searchError = el('#user-search-error');
   showError(searchError, '');
 
   try {
-    const params = new URLSearchParams({ skip: String(skip), take: String(PAGE_SIZE) });
-    if (searchTerm) {
-      params.set('search', searchTerm);
-    }
+    const params = new URLSearchParams({ skip: String(currentSkip), take: String(currentPageSize) });
+    if (currentSearch) params.set('search', currentSearch);
+    if (currentRole) params.set('role', currentRole);
+    if (currentStatus) params.set('status', currentStatus);
 
     const result = await api.get(`/api/v1/users?${params}`);
-    currentSkip = skip;
-    currentSearch = searchTerm;
     currentTotalCount = result.totalCount;
 
     renderResults(result.items);
     el('#user-search-empty').hidden = result.items.length > 0;
 
-    const shown = result.items.length === 0 ? 0 : skip + 1;
-    const shownTo = skip + result.items.length;
+    const shown = result.items.length === 0 ? 0 : currentSkip + 1;
+    const shownTo = currentSkip + result.items.length;
     el('#user-search-summary').textContent =
-      result.totalCount === 0 ? 'No results' : `${shown}–${shownTo} of ${result.totalCount}`;
-    el('#user-search-prev').disabled = skip === 0;
-    el('#user-search-next').disabled = skip + PAGE_SIZE >= result.totalCount;
+      result.totalCount === 0 ? 'No results' : `Showing ${shown}–${shownTo} of ${result.totalCount}`;
+    el('#user-search-prev').disabled = currentSkip === 0;
+    el('#user-search-next').disabled = currentSkip + currentPageSize >= result.totalCount;
+    el('#user-page-number').textContent = String(Math.floor(currentSkip / currentPageSize) + 1);
   } catch (error) {
     showError(searchError, describeError(error));
   }
+}
+
+// --- Filters popover ---------------------------------------------------------------------
+function renderFilterChips() {
+  const container = el('#user-filter-chips');
+  container.replaceChildren();
+
+  const active = [
+    currentRole && { key: 'role', label: `Role: ${currentRole}` },
+    currentStatus && { key: 'status', label: `Status: ${currentStatus}` }
+  ].filter(Boolean);
+
+  const countBadge = el('#user-filters-count');
+  countBadge.hidden = active.length === 0;
+  countBadge.textContent = String(active.length);
+
+  for (const filter of active) {
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    chip.innerHTML = `<span>${filter.label}</span>`;
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.setAttribute('aria-label', `Clear ${filter.label}`);
+    clear.textContent = '×';
+    clear.addEventListener('click', () => {
+      if (filter.key === 'role') {
+        currentRole = '';
+        el('#user-filter-role').value = '';
+      } else {
+        currentStatus = '';
+        el('#user-filter-status').value = '';
+      }
+      currentSkip = 0;
+      renderFilterChips();
+      search();
+    });
+    chip.appendChild(clear);
+    container.appendChild(chip);
+  }
+
+  if (active.length > 0) {
+    const clearAll = document.createElement('button');
+    clearAll.type = 'button';
+    clearAll.className = 'text-sm text-brand-600 underline';
+    clearAll.textContent = 'Clear';
+    clearAll.addEventListener('click', () => {
+      currentRole = '';
+      currentStatus = '';
+      el('#user-filter-role').value = '';
+      el('#user-filter-status').value = '';
+      currentSkip = 0;
+      renderFilterChips();
+      search();
+    });
+    container.appendChild(clearAll);
+  }
+}
+
+function initFilters() {
+  const button = el('#user-filters-button');
+  const panel = el('#user-filters-panel');
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const isHidden = panel.hidden;
+    panel.hidden = !isHidden;
+    button.setAttribute('aria-expanded', String(isHidden));
+  });
+
+  panel.addEventListener('click', (event) => event.stopPropagation());
+
+  document.addEventListener('click', () => {
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+  });
+
+  el('#user-filters-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    currentRole = el('#user-filter-role').value;
+    currentStatus = el('#user-filter-status').value;
+    currentSkip = 0;
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    renderFilterChips();
+    search();
+  });
+
+  el('#user-filters-reset').addEventListener('click', () => {
+    el('#user-filter-role').value = '';
+    el('#user-filter-status').value = '';
+  });
 }
 
 // --- Drawer form submission (delegated: forms are injected dynamically) ----------------
@@ -263,7 +432,7 @@ drawerBody.addEventListener('submit', async (event) => {
     }
 
     closeDrawer();
-    await search(currentSkip, currentSearch);
+    await search();
   } catch (error) {
     showFieldErrors(form, error);
   }
@@ -279,17 +448,30 @@ function init() {
 
   el('#user-search-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    search(0, el('#user-search-query').value.trim());
+    currentSearch = el('#user-search-query').value.trim();
+    currentSkip = 0;
+    search();
   });
 
-  el('#user-search-prev').addEventListener('click', () => search(Math.max(0, currentSkip - PAGE_SIZE), currentSearch));
+  el('#user-page-size').addEventListener('change', (event) => {
+    currentPageSize = Number(event.target.value);
+    currentSkip = 0;
+    search();
+  });
+
+  el('#user-search-prev').addEventListener('click', () => {
+    currentSkip = Math.max(0, currentSkip - currentPageSize);
+    search();
+  });
   el('#user-search-next').addEventListener('click', () => {
-    if (currentSkip + PAGE_SIZE < currentTotalCount) {
-      search(currentSkip + PAGE_SIZE, currentSearch);
+    if (currentSkip + currentPageSize < currentTotalCount) {
+      currentSkip += currentPageSize;
+      search();
     }
   });
 
-  search(0, '');
+  initFilters();
+  search();
 }
 
 if (document.readyState === 'loading') {

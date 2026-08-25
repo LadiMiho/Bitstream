@@ -394,11 +394,11 @@ public sealed partial class AdministrationService : IAdministrationService
         return user;
     }
 
-    public async Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<User>> SearchUsersAsync(string? search, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         if (_currentUser.HasPermission(PermissionCodes.IspReadAll))
         {
-            var (items, totalCount) = await _userRepository.SearchAsync(search, ispId: null, skip, take, cancellationToken).ConfigureAwait(false);
+            var (items, totalCount) = await _userRepository.SearchAsync(search, ispId: null, roleName, status, skip, take, cancellationToken).ConfigureAwait(false);
             return new PagedResult<User>(items, totalCount);
         }
 
@@ -410,7 +410,15 @@ public sealed partial class AdministrationService : IAdministrationService
         }
 
         var user = await _userManager.FindByIdAsync(ownUserId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
-        var matches = user is not null && MatchesSearch(search, user.FullName, user.Email!);
+        if (user is not null)
+        {
+            user.Role = await _roleManager.FindByIdAsync(user.RoleId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+        }
+
+        var isLockedOut = user is not null && await _userManager.IsLockedOutAsync(user).ConfigureAwait(false);
+        var matchesStatus = string.IsNullOrEmpty(status) || string.Equals(status, isLockedOut ? "Locked" : "Active", StringComparison.Ordinal);
+        var matchesRole = string.IsNullOrEmpty(roleName) || string.Equals(user?.Role?.Name, roleName, StringComparison.Ordinal);
+        var matches = user is not null && matchesRole && matchesStatus && MatchesSearch(search, user.FullName, user.Email!);
 
         return matches ? new PagedResult<User>([user!], 1) : new PagedResult<User>([], 0);
     }

@@ -24,10 +24,12 @@ public interface IUserRepository
     /// Case-insensitive substring match against full name and email, most recently created
     /// first. <paramref name="ispId"/> restricts to one ISP's users — the ownership scoping
     /// <c>AdministrationService.SearchUsersAsync</c> applies before calling this, not a filter
-    /// the caller opts into.
+    /// the caller opts into. <paramref name="roleName"/> and <paramref name="status"/>
+    /// ("Active"/"Locked", the same wire values <c>AdministrationEndpoints</c> exposes) narrow
+    /// the grid further when given; either may be null/empty to leave that axis unfiltered.
     /// </summary>
     Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
-        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default);
+        string? search, long? ispId, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
     /// <summary>Most recent password hashes first, for the no-reuse rule (TR-SEC-03).</summary>
     Task<IReadOnlyList<string>> GetRecentPasswordHashesAsync(long userId, int count, CancellationToken cancellationToken = default);

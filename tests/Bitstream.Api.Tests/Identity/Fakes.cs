@@ -131,7 +131,7 @@ public sealed class FakeUserStore :
         Task.FromResult<IReadOnlyList<User>>([.. Users.Values.Where(user => user.IspId == ispId)]);
 
     public Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
-        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+        string? search, long? ispId, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         var matches = Users.Values
             .Where(user => user.Status != UserStatus.Deleted)
@@ -139,6 +139,9 @@ public sealed class FakeUserStore :
             .Where(user => string.IsNullOrWhiteSpace(search)
                 || user.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || user.Email!.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(user => string.IsNullOrEmpty(roleName) || user.Role?.Name == roleName)
+            .Where(user => string.IsNullOrEmpty(status)
+                || status == (user.LockoutEnd is { } lockoutEnd && lockoutEnd > DateTimeOffset.UtcNow ? "Locked" : "Active"))
             .OrderByDescending(user => user.CreatedAt)
             .ToList();
 

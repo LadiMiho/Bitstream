@@ -41,6 +41,7 @@ public sealed class UsersController : Controller
         ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.UserCreate);
         ViewBag.CanEdit = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.UserUpdate);
         ViewBag.CanLock = User.HasClaim(BitstreamClaimTypes.Permission, PermissionCodes.UserLock);
+        ViewBag.Roles = Roles;
 
         return View();
     }

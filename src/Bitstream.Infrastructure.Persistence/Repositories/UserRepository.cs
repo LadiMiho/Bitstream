@@ -19,7 +19,7 @@ public sealed class UserRepository : IUserRepository
             .ConfigureAwait(false);
 
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
-        string? search, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+        string? search, long? ispId, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.Users.Include(user => user.Role)
             .Where(user => user.Status != UserStatus.Deleted)
@@ -34,6 +34,20 @@ public sealed class UserRepository : IUserRepository
         {
             var pattern = search.ToUpper();
             query = query.Where(user => user.FullName.ToUpper().Contains(pattern) || user.Email!.ToUpper().Contains(pattern));
+        }
+
+        if (!string.IsNullOrWhiteSpace(roleName))
+        {
+            query = query.Where(user => user.Role!.Name == roleName);
+        }
+
+        if (string.Equals(status, "Locked", StringComparison.Ordinal))
+        {
+            query = query.Where(user => user.LockoutEnd != null && user.LockoutEnd > DateTimeOffset.UtcNow);
+        }
+        else if (string.Equals(status, "Active", StringComparison.Ordinal))
+        {
+            query = query.Where(user => user.LockoutEnd == null || user.LockoutEnd <= DateTimeOffset.UtcNow);
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);

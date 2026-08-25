@@ -247,8 +247,12 @@ public interface IAdministrationService
     /// <summary>Null when the user does not exist, or when the caller is not entitled to see it. Self and Administrator/Auditor only.</summary>
     Task<User?> GetUserAsync(long userId, CancellationToken cancellationToken = default);
 
-    /// <summary>Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs. Excludes soft-deleted users.</summary>
-    Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs. Excludes
+    /// soft-deleted users. <paramref name="roleName"/> and <paramref name="status"/> ("Active"/"Locked")
+    /// narrow the grid further when given.
+    /// </summary>
+    Task<PagedResult<User>> SearchUsersAsync(string? search, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
     /// <summary>Edits a user's profile fields (not the password or the status). Same validation as <see cref="CreateUserAsync"/>.</summary>
     Task<User> UpdateUserAsync(long userId, UpdateUserRequest request, CancellationToken cancellationToken = default);

@@ -170,4 +170,84 @@
     @apply fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2
            rounded-lg border border-line bg-surface p-6 shadow-xl;
   }
+
+  /*
+    Grid components shared by any admin screen with a searchable, filterable table of records
+    (currently User Administration) — a labelled circle for a record's initials, a neutral
+    outlined pill for a category (role), a dotted pill for state (status), an icon-only button
+    for a toolbar/row trigger, and the dropdown/popover panels those triggers open.
+  */
+  .avatar-circle {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100
+           text-xs font-semibold text-brand-700;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-xs font-medium text-ink;
+  }
+
+  .status-dot {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .status-dot::before {
+    content: "";
+    @apply h-1.5 w-1.5 rounded-full bg-current;
+  }
+
+  .icon-button {
+    @apply inline-flex items-center justify-center rounded-md p-2 text-ink-muted transition-colors
+           hover:bg-surface-muted hover:text-ink focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+  }
+
+  .search-input-group {
+    @apply relative;
+  }
+
+  .search-input-group .field-input {
+    @apply pl-9;
+  }
+
+  .search-input-icon {
+    @apply pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-muted;
+  }
+
+  /* Dropdown menu opened from an icon-button (row actions) or anchored to a toolbar control. */
+  .menu-panel {
+    @apply absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-lg border border-line
+           bg-surface py-1 shadow-lg;
+  }
+
+  .menu-item {
+    @apply flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink transition-colors
+           hover:bg-surface-muted;
+  }
+
+  .menu-item-danger {
+    @apply text-state-blocked;
+  }
+
+  .menu-item svg {
+    @apply h-4 w-4 shrink-0 text-ink-muted;
+  }
+
+  .menu-item-danger svg {
+    @apply text-state-blocked;
+  }
+
+  /* Filters popover, opened from the toolbar's Filters button. */
+  .popover-panel {
+    @apply absolute left-0 top-full z-30 mt-2 w-[min(90vw,28rem)] rounded-lg border border-line
+           bg-surface p-4 shadow-lg;
+  }
+
+  .filter-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-muted
+           px-3 py-1 text-xs font-medium text-ink;
+  }
+
+  .filter-chip button {
+    @apply text-ink-muted transition-colors hover:text-ink;
+  }
 }
