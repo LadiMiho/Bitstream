@@ -16,6 +16,22 @@ namespace Bitstream.Api.Tests.Activation;
 /// </summary>
 internal static class ActivationSeeder
 {
+    /// <summary>
+    /// Seeds the DB-backed catalogue tables (db/mssql/0017_activation_catalogues.sql) that
+    /// <c>IActivationRequestService.SubmitAsync</c> validates package/classification/contract
+    /// duration against — the InMemory provider these tests run against never executes the SQL
+    /// seed scripts, so a real submission through the HTTP pipeline needs this called first.
+    /// </summary>
+    public static async Task SeedCatalogueAsync(BitstreamDbContext db)
+    {
+        db.Packages.Add(new Package { Code = "BITSTREAM_STD", Name = "Standard", Tier = 20, IsActive = true });
+        db.ActivationClassifications.Add(new ActivationClassification { Code = "REQUEST_FOR_ACTIVATION", Name = "Request for Activation", IsDefault = true, IsActive = true });
+        db.ContractDurations.Add(new ContractDuration { Months = 12, Label = "12 months", IsActive = true });
+        db.ContractDurations.Add(new ContractDuration { Months = 24, Label = "24 months", IsActive = true });
+
+        await db.SaveChangesAsync();
+    }
+
     public static async Task<ActivationRequest> AddRequestAsync(
         BitstreamDbContext db,
         long ispId,

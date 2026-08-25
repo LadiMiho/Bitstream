@@ -46,6 +46,7 @@ public sealed class CrmClosureEndToEndTests
             var isp = await IdentitySeeder.AddIspAsync(db, "Closure Example ISP", "L00000900");
             await IdentitySeeder.AddUserAsync(db, ispRole, isp.IspId, ispUserEmail);
             await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, adminEmail);
+            await Bitstream.Api.Tests.Activation.ActivationSeeder.SeedCatalogueAsync(db);
 
             ispId = isp.IspId;
         }
