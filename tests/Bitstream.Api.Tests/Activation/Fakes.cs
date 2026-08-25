@@ -52,6 +52,24 @@ public sealed class FakeActivationRequestRepository : IActivationRequestReposito
     }
 }
 
+public sealed class FakeActivationCatalogueRepository : IActivationCatalogueRepository
+{
+    public List<Package> Packages { get; } = [];
+
+    public List<ActivationClassification> Classifications { get; } = [];
+
+    public List<ContractDuration> ContractDurations { get; } = [];
+
+    public Task<IReadOnlyList<Package>> GetPackagesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Package>>([.. Packages]);
+
+    public Task<IReadOnlyList<ActivationClassification>> GetClassificationsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ActivationClassification>>([.. Classifications]);
+
+    public Task<IReadOnlyList<ContractDuration>> GetContractDurationsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ContractDuration>>([.. ContractDurations]);
+}
+
 /// <summary>Deterministic, in-memory stand-in for <see cref="IPublicIdentifierGenerator"/> — no stored procedure, no database.</summary>
 public sealed class FakePublicIdentifierGenerator : IPublicIdentifierGenerator
 {

@@ -220,24 +220,15 @@ all. The grid and its view drawer surface every status verbatim, integration-pen
 included (TR-ACT-11) — `wwwroot/js/status-presentation.js` only maps a label and a colour, it
 does not decide which status a request is in.
 
-Building these screens surfaced the same class of gap as GUI-3's Access Management screens,
-reported rather than compensated for:
-
-- **No list or search endpoint for activation requests.** `ActivationRequestsController.Get`
-  (`GET /ActivationRequests/{publicId}`) is the only read — `IActivationRequestRepository` has no query beyond find-by-id or
-  find-by-public-id either. The ISP-facing "list" is therefore a look-up-by-public-ID detail
-  view, not a browsable table, and the GIS verification screen has no queue of requests
-  currently `AwaitingGisVerification` to work from — an administrator has to already have the
-  public ID in hand. The GIS screen still works end to end (the read endpoint's response
-  includes the numeric `requestId` the write endpoint needs), it just cannot be discovered from
-  a list.
-- **No API exposes the package/classification/contract-duration catalogue.** These are
-  `appsettings.json:Catalogues` values, deliberately "extensible without a release" (TR-ACT-01,
-  TR-ACT-04) — but nothing serves that configuration to the frontend. Hard-coding a copy of the
-  current values into the form would silently drift the first time an administrator changed the
-  catalogue without a redeploy, so the submission form uses plain text fields for those three
-  instead of a dropdown; the server's own validation message is what tells the caller a value
-  is not currently offered.
+Activation Requests has the same searchable/filterable/paged grid as Access Management
+(`ActivationRequestsController.Search`, `IActivationRequestRepository.SearchAsync`), so the GIS
+verification screen has a queue of requests currently `AwaitingGisVerification` to work from
+rather than requiring the public ID in hand. The submission form's package, classification and
+contract duration fields are dropdowns sourced from `IActivationCatalogueRepository`
+(`db/mssql/0017_activation_catalogues.sql`, tables `portal.Package`/`ActivationClassification`/
+`ContractDuration`) rather than `appsettings.json:Catalogues` — TR-ACT-01/TR-ACT-04's
+"extensible without a release" is satisfied by editing the tables directly, with no redeploy or
+process restart needed.
 
 ## CRM integration (TRD 7.3)
 

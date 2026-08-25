@@ -342,15 +342,12 @@ drawerBody.addEventListener('submit', async (event) => {
 
   try {
     if (action === 'create') {
-      const durationRaw = form.querySelector('[name=contractDurationMonths]').value;
-      const classification = form.querySelector('[name=classification]').value.trim();
-
       await api.post('/ActivationRequests', {
         ispId: Number(form.querySelector('[name=ispId]').value),
-        packageCode: form.querySelector('[name=packageCode]').value.trim(),
+        packageCode: form.querySelector('[name=packageCode]').value,
         locationRaw: form.querySelector('[name=locationRaw]').value.trim(),
-        classification: classification === '' ? null : classification,
-        contractDurationMonths: Number(durationRaw),
+        classification: form.querySelector('[name=classification]').value,
+        contractDurationMonths: Number(form.querySelector('[name=contractDurationMonths]').value),
         comments: form.querySelector('[name=comments]').value.trim() || null
       });
     } else if (action === 'gis-outcome') {

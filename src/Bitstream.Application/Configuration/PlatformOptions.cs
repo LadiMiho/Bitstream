@@ -30,25 +30,16 @@ public sealed class IdentifierOptions
 }
 
 /// <summary>
-/// Reference lists that must be extensible without a code release: packages (TR-ACT-01),
-/// classifications (TR-ACT-04), contract durations (TRD 5.1), line technologies (TR-PAS-02)
-/// and the ISP-notifiable status set (TR-PAS-16).
+/// Reference lists that must be extensible without a code release: line technologies (TR-PAS-02)
+/// and the ISP-notifiable status set (TR-PAS-16). Packages (TR-ACT-01), classifications
+/// (TR-ACT-04) and contract durations (TRD 5.1) used to live here too — they are now DB-backed
+/// (db/mssql/0017_activation_catalogues.sql, <c>IActivationCatalogueRepository</c>) so an
+/// administrator can maintain them without either a release or restarting the process, which a
+/// configuration list can never offer.
 /// </summary>
 public sealed class CatalogueOptions
 {
     public const string SectionName = "Catalogues";
-
-    /// <summary>Bitstream packages offered to ISPs. Identical for all ISPs (TRD 11.1).</summary>
-    public IList<PackageDefinition> Packages { get; set; } = [];
-
-    /// <summary>Ticket classification codes, synchronised with CRM.</summary>
-    public IList<string> Classifications { get; set; } = [];
-
-    /// <summary>Pre-selected classification on the activation form (TR-ACT-04).</summary>
-    public string DefaultClassification { get; set; } = "REQUEST_FOR_ACTIVATION";
-
-    /// <summary>Selectable contract durations in months.</summary>
-    public IList<int> ContractDurationsMonths { get; set; } = [];
 
     /// <summary>Technology codes presented in the active-lines dropdown (TR-PAS-02).</summary>
     public IList<string> LineTechnologies { get; set; } = [];
@@ -77,25 +68,6 @@ public sealed class ComplaintCategoryDefinition
     public string L2 { get; set; } = string.Empty;
 
     public string L3 { get; set; } = string.Empty;
-}
-
-/// <summary>A package in the catalogue.</summary>
-public sealed class PackageDefinition
-{
-    /// <summary>Code transmitted to CRM and BI, e.g. BITSTREAM_STD.</summary>
-    public string Code { get; set; } = string.Empty;
-
-    /// <summary>Label shown in the interface.</summary>
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Relative rank. Decides which packages are offered for an upgrade and which for a
-    /// downgrade (TR-PAS-35), so ordering is data rather than a hard-coded table.
-    /// </summary>
-    public int Tier { get; set; }
-
-    /// <summary>Only active packages may be selected at submission time (TRD 5.1).</summary>
-    public bool Active { get; set; } = true;
 }
 
 /// <summary>

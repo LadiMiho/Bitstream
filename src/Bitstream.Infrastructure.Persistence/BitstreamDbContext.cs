@@ -37,9 +37,11 @@ public sealed class BitstreamDbContext : DbContext
     /// run after 0014 has re-pointed sec.RolePermission at dbo.Roles) was added, and from 8 to 9
     /// when db/mssql/0016_drop_session_and_twofactor_tables.sql (sec.UserSession/TwoFactorChallenge
     /// dropped — both fully superseded by ASP.NET Core Identity's own cookie auth and 2FA token
-    /// providers) was added.
+    /// providers) was added, and from 9 to 10 when db/mssql/0017_activation_catalogues.sql
+    /// (portal.Package/ActivationClassification/ContractDuration, replacing the
+    /// Catalogues:Packages/Classifications/ContractDurationsMonths configuration lists) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 9;
+    public const int ExpectedSchemaVersion = 10;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -67,6 +69,12 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<TicketComment> TicketComments => Set<TicketComment>();
 
     public DbSet<ServiceChangeRequest> ServiceChangeRequests => Set<ServiceChangeRequest>();
+
+    public DbSet<Package> Packages => Set<Package>();
+
+    public DbSet<ActivationClassification> ActivationClassifications => Set<ActivationClassification>();
+
+    public DbSet<ContractDuration> ContractDurations => Set<ContractDuration>();
 
     public DbSet<Notification> Notifications => Set<Notification>();
 

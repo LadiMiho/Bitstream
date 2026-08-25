@@ -4,10 +4,8 @@ using System.Text.RegularExpressions;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Time;
-using Bitstream.Application.Configuration;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
-using Microsoft.Extensions.Options;
 
 namespace Bitstream.Application.Services.Activation;
 
@@ -75,34 +73,46 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 {
     private readonly IActivationRequestRepository _requestRepository;
     private readonly IIspRepository _ispRepository;
+    private readonly IActivationCatalogueRepository _catalogueRepository;
     private readonly IPublicIdentifierGenerator _identifierGenerator;
     private readonly IIntegrationOutbox _outbox;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ICurrentUserContext _currentUser;
-    private readonly IOptionsMonitor<CatalogueOptions> _catalogueOptions;
 
     public ActivationRequestService(
         IActivationRequestRepository requestRepository,
         IIspRepository ispRepository,
+        IActivationCatalogueRepository catalogueRepository,
         IPublicIdentifierGenerator identifierGenerator,
         IIntegrationOutbox outbox,
         IUnitOfWork unitOfWork,
         IAuditWriter auditWriter,
         IClock clock,
-        ICurrentUserContext currentUser,
-        IOptionsMonitor<CatalogueOptions> catalogueOptions)
+        ICurrentUserContext currentUser)
     {
         _requestRepository = requestRepository;
         _ispRepository = ispRepository;
+        _catalogueRepository = catalogueRepository;
         _identifierGenerator = identifierGenerator;
         _outbox = outbox;
         _unitOfWork = unitOfWork;
         _auditWriter = auditWriter;
         _clock = clock;
         _currentUser = currentUser;
-        _catalogueOptions = catalogueOptions;
+    }
+
+    public async Task<ActivationCatalogue> GetCatalogueAsync(CancellationToken cancellationToken = default)
+    {
+        var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
+        var classifications = await _catalogueRepository.GetClassificationsAsync(cancellationToken).ConfigureAwait(false);
+        var contractDurations = await _catalogueRepository.GetContractDurationsAsync(cancellationToken).ConfigureAwait(false);
+
+        return new ActivationCatalogue(
+            [.. packages.Where(package => package.IsActive)],
+            [.. classifications.Where(classification => classification.IsActive)],
+            [.. contractDurations.Where(duration => duration.IsActive)]);
     }
 
     public async Task<ActivationRequest> SubmitAsync(SubmitActivationRequest request, CancellationToken cancellationToken = default)
@@ -116,7 +126,6 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             throw new ActivationRequestValidationException("You may only submit activation requests for your own ISP.");
         }
 
-        var catalogue = _catalogueOptions.CurrentValue;
         var violations = new List<string>();
 
         var isp = await _ispRepository.FindByIdAsync(request.IspId, cancellationToken).ConfigureAwait(false);
@@ -130,14 +139,15 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             violations.Add("The ISP is locked and cannot submit activation requests.");
         }
 
-        // TR-ACT-01: package code from the configured catalogue, active offers only.
-        var package = catalogue.Packages.FirstOrDefault(p => string.Equals(p.Code, request.PackageCode, StringComparison.Ordinal));
+        // TR-ACT-01: package code from the DB-backed catalogue (portal.Package), active offers only.
+        var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
+        var package = packages.FirstOrDefault(p => string.Equals(p.Code, request.PackageCode, StringComparison.Ordinal));
 
         if (package is null)
         {
             violations.Add($"Package '{request.PackageCode}' is not in the configured catalogue.");
         }
-        else if (!package.Active)
+        else if (!package.IsActive)
         {
             violations.Add($"Package '{request.PackageCode}' is no longer offered.");
         }
@@ -154,22 +164,26 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             violations.Add("Location must be a map URL or a 'latitude,longitude' pair; it could not be parsed.");
         }
 
-        // TR-ACT-04: classification from the configured list; defaults when not supplied.
+        // TR-ACT-04: classification from the DB-backed catalogue (portal.ActivationClassification);
+        // defaults to whichever row is flagged IsDefault when not supplied.
+        var classifications = await _catalogueRepository.GetClassificationsAsync(cancellationToken).ConfigureAwait(false);
         var classification = string.IsNullOrWhiteSpace(request.Classification)
-            ? catalogue.DefaultClassification
+            ? classifications.FirstOrDefault(c => c.IsDefault)?.Code ?? string.Empty
             : request.Classification;
 
-        if (catalogue.Classifications.Count > 0 && !catalogue.Classifications.Contains(classification, StringComparer.Ordinal))
+        if (classifications.Count > 0 && !classifications.Any(c => string.Equals(c.Code, classification, StringComparison.Ordinal) && c.IsActive))
         {
             violations.Add($"Classification '{classification}' is not in the configured list.");
         }
 
-        // TRD 5.1: contract duration is one of the configured selectable values.
-        if (catalogue.ContractDurationsMonths.Count > 0 && !catalogue.ContractDurationsMonths.Contains(request.ContractDurationMonths))
+        // TRD 5.1: contract duration is one of the DB-backed catalogue's selectable values (portal.ContractDuration).
+        var contractDurations = await _catalogueRepository.GetContractDurationsAsync(cancellationToken).ConfigureAwait(false);
+
+        if (contractDurations.Count > 0 && !contractDurations.Any(d => d.Months == request.ContractDurationMonths && d.IsActive))
         {
             violations.Add(
                 $"Contract duration {request.ContractDurationMonths} months is not offered. Configured durations: " +
-                $"{string.Join(", ", catalogue.ContractDurationsMonths)}.");
+                $"{string.Join(", ", contractDurations.Where(d => d.IsActive).Select(d => d.Months))}.");
         }
 
         // TR-ACT-05: free text, max 2000 characters, HTML stripped before it is stored or ever

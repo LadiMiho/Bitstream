@@ -169,6 +169,42 @@ internal sealed class TicketCommentConfiguration : IEntityTypeConfiguration<Tick
     }
 }
 
+internal sealed class PackageConfiguration : IEntityTypeConfiguration<Package>
+{
+    public void Configure(EntityTypeBuilder<Package> builder)
+    {
+        builder.ToTable("Package", Schemas.Portal);
+        builder.HasKey(x => x.Code);
+
+        builder.Property(x => x.Code).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+    }
+}
+
+internal sealed class ActivationClassificationConfiguration : IEntityTypeConfiguration<ActivationClassification>
+{
+    public void Configure(EntityTypeBuilder<ActivationClassification> builder)
+    {
+        builder.ToTable("ActivationClassification", Schemas.Portal);
+        builder.HasKey(x => x.Code);
+
+        builder.Property(x => x.Code).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+    }
+}
+
+internal sealed class ContractDurationConfiguration : IEntityTypeConfiguration<ContractDuration>
+{
+    public void Configure(EntityTypeBuilder<ContractDuration> builder)
+    {
+        builder.ToTable("ContractDuration", Schemas.Portal);
+        builder.HasKey(x => x.Months);
+
+        builder.Property(x => x.Months).ValueGeneratedNever();
+        builder.Property(x => x.Label).HasMaxLength(50).IsRequired();
+    }
+}
+
 internal sealed class ServiceChangeRequestConfiguration : IEntityTypeConfiguration<ServiceChangeRequest>
 {
     public void Configure(EntityTypeBuilder<ServiceChangeRequest> builder)

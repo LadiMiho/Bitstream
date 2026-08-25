@@ -1,5 +1,4 @@
 using Bitstream.Api.Tests.Identity;
-using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Domain.Entities;
@@ -18,35 +17,40 @@ public sealed class ActivationRequestServiceTests
 {
     private readonly FakeActivationRequestRepository _requestRepository = new();
     private readonly FakeIspRepository _ispRepository = new();
+    private readonly FakeActivationCatalogueRepository _catalogueRepository = new();
     private readonly FakePublicIdentifierGenerator _identifierGenerator = new();
     private readonly FakeIntegrationOutbox _outbox = new();
     private readonly FakeAuditWriter _auditWriter = new();
     private readonly FakeCurrentUserContext _currentUser = new() { UserId = 1, RoleName = "IspUser", IspId = 1 };
     private readonly FakeClock _clock = new();
 
-    private static readonly CatalogueOptions DefaultCatalogue = new()
+    public ActivationRequestServiceTests()
     {
-        Packages =
+        _catalogueRepository.Packages.AddRange(
         [
-            new PackageDefinition { Code = "BITSTREAM_STD", Name = "Standard", Tier = 20, Active = true },
-            new PackageDefinition { Code = "BITSTREAM_OLD", Name = "Retired", Tier = 5, Active = false }
-        ],
-        Classifications = ["REQUEST_FOR_ACTIVATION"],
-        DefaultClassification = "REQUEST_FOR_ACTIVATION",
-        ContractDurationsMonths = [12, 24]
-    };
+            new Package { Code = "BITSTREAM_STD", Name = "Standard", Tier = 20, IsActive = true },
+            new Package { Code = "BITSTREAM_OLD", Name = "Retired", Tier = 5, IsActive = false }
+        ]);
+        _catalogueRepository.Classifications.Add(
+            new ActivationClassification { Code = "REQUEST_FOR_ACTIVATION", Name = "Request for Activation", IsDefault = true, IsActive = true });
+        _catalogueRepository.ContractDurations.AddRange(
+        [
+            new ContractDuration { Months = 12, Label = "12 months", IsActive = true },
+            new ContractDuration { Months = 24, Label = "24 months", IsActive = true }
+        ]);
+    }
 
-    private ActivationRequestService CreateService(CatalogueOptions? catalogue = null) =>
+    private ActivationRequestService CreateService() =>
         new(
             _requestRepository,
             _ispRepository,
+            _catalogueRepository,
             _identifierGenerator,
             _outbox,
             new FakeUnitOfWork(),
             _auditWriter,
             _clock,
-            _currentUser,
-            new TestOptionsMonitor<CatalogueOptions>(catalogue ?? DefaultCatalogue));
+            _currentUser);
 
     private Isp AddActiveIsp(long ispId = 1)
     {

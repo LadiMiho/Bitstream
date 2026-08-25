@@ -132,6 +132,7 @@ public static class DependencyInjection
         // procedure, the latter only stores and claims rows for a dispatcher that does not exist
         // yet (Phase 4).
         services.AddScoped<IActivationRequestRepository, ActivationRequestRepository>();
+        services.AddScoped<IActivationCatalogueRepository, ActivationCatalogueRepository>();
         services.AddScoped<IPublicIdentifierGenerator, SqlPublicIdentifierGenerator>();
         services.AddScoped<IIntegrationOutbox, IntegrationOutbox>();
 

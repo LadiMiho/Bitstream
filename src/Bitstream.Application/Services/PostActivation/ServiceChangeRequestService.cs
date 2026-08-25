@@ -3,10 +3,8 @@ using System.Text.Json;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Abstractions.Time;
-using Bitstream.Application.Configuration;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
-using Microsoft.Extensions.Options;
 
 namespace Bitstream.Application.Services.PostActivation;
 
@@ -27,43 +25,43 @@ public sealed class ServiceChangeValidationException : Exception
 
 /// <summary>
 /// Implements <see cref="IServiceChangeRequestService"/>: TRD 6.8. Eligible upgrade/downgrade
-/// targets are read from <see cref="CatalogueOptions.Packages"/>' <c>Tier</c> — an upgrade is any
-/// active package ranked above the line's current one, a downgrade any ranked below (TR-PAS-35);
-/// a termination takes neither a target package nor anything from the catalogue, only a date
-/// (TR-PAS-36).
+/// targets are read from the DB-backed package catalogue's (<c>portal.Package</c>) <c>Tier</c> —
+/// an upgrade is any active package ranked above the line's current one, a downgrade any ranked
+/// below (TR-PAS-35); a termination takes neither a target package nor anything from the
+/// catalogue, only a date (TR-PAS-36).
 /// </summary>
 public sealed class ServiceChangeRequestService : IServiceChangeRequestService
 {
     private readonly IServiceChangeRequestRepository _requestRepository;
     private readonly IActiveLineRepository _lineRepository;
+    private readonly IActivationCatalogueRepository _catalogueRepository;
     private readonly IPublicIdentifierGenerator _identifierGenerator;
     private readonly IIntegrationOutbox _outbox;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ICurrentUserContext _currentUser;
-    private readonly IOptionsMonitor<CatalogueOptions> _catalogueOptions;
 
     public ServiceChangeRequestService(
         IServiceChangeRequestRepository requestRepository,
         IActiveLineRepository lineRepository,
+        IActivationCatalogueRepository catalogueRepository,
         IPublicIdentifierGenerator identifierGenerator,
         IIntegrationOutbox outbox,
         IUnitOfWork unitOfWork,
         IAuditWriter auditWriter,
         IClock clock,
-        ICurrentUserContext currentUser,
-        IOptionsMonitor<CatalogueOptions> catalogueOptions)
+        ICurrentUserContext currentUser)
     {
         _requestRepository = requestRepository;
         _lineRepository = lineRepository;
+        _catalogueRepository = catalogueRepository;
         _identifierGenerator = identifierGenerator;
         _outbox = outbox;
         _unitOfWork = unitOfWork;
         _auditWriter = auditWriter;
         _clock = clock;
         _currentUser = currentUser;
-        _catalogueOptions = catalogueOptions;
     }
 
     public async Task<IReadOnlyList<string>> GetEligibleTargetPackagesAsync(
@@ -81,13 +79,14 @@ public sealed class ServiceChangeRequestService : IServiceChangeRequestService
             return [];
         }
 
-        return GetEligibleTargetPackages(line.PackageCode, changeType);
+        return await ResolveEligibleTargetPackagesAsync(line.PackageCode, changeType, cancellationToken).ConfigureAwait(false);
     }
 
-    private IReadOnlyList<string> GetEligibleTargetPackages(string currentPackageCode, ServiceChangeType changeType)
+    private async Task<IReadOnlyList<string>> ResolveEligibleTargetPackagesAsync(
+        string currentPackageCode, ServiceChangeType changeType, CancellationToken cancellationToken)
     {
-        var catalogue = _catalogueOptions.CurrentValue;
-        var current = catalogue.Packages.FirstOrDefault(p => string.Equals(p.Code, currentPackageCode, StringComparison.Ordinal));
+        var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
+        var current = packages.FirstOrDefault(p => string.Equals(p.Code, currentPackageCode, StringComparison.Ordinal));
 
         if (current is null)
         {
@@ -98,12 +97,12 @@ public sealed class ServiceChangeRequestService : IServiceChangeRequestService
         // never equal.
         return changeType switch
         {
-            ServiceChangeType.Upgrade => [.. catalogue.Packages
-                .Where(p => p.Active && p.Tier > current.Tier)
+            ServiceChangeType.Upgrade => [.. packages
+                .Where(p => p.IsActive && p.Tier > current.Tier)
                 .OrderBy(p => p.Tier)
                 .Select(p => p.Code)],
-            ServiceChangeType.Downgrade => [.. catalogue.Packages
-                .Where(p => p.Active && p.Tier < current.Tier)
+            ServiceChangeType.Downgrade => [.. packages
+                .Where(p => p.IsActive && p.Tier < current.Tier)
                 .OrderByDescending(p => p.Tier)
                 .Select(p => p.Code)],
             _ => []
@@ -158,7 +157,9 @@ public sealed class ServiceChangeRequestService : IServiceChangeRequestService
             {
                 violations.Add($"A target package is required for a {changeType}.");
             }
-            else if (line is not null && !GetEligibleTargetPackages(line.PackageCode, changeType).Contains(packageToBe, StringComparer.Ordinal))
+            else if (line is not null
+                && !(await ResolveEligibleTargetPackagesAsync(line.PackageCode, changeType, cancellationToken).ConfigureAwait(false))
+                    .Contains(packageToBe, StringComparer.Ordinal))
             {
                 violations.Add($"'{packageToBe}' is not an eligible {changeType} target for this line's current package.");
             }

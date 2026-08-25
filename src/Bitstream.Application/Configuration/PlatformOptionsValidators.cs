@@ -94,36 +94,6 @@ public sealed class CatalogueOptionsValidator : IValidateOptions<CatalogueOption
 
         var failures = new List<string>();
 
-        var duplicatePackages = options.Packages
-            .GroupBy(package => package.Code, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .ToList();
-
-        if (duplicatePackages.Count > 0)
-        {
-            failures.Add($"Catalogues:Packages contains duplicate codes: {string.Join(", ", duplicatePackages)}.");
-        }
-
-        foreach (var package in options.Packages.Where(p => string.IsNullOrWhiteSpace(p.Code)))
-        {
-            failures.Add($"Catalogues:Packages contains an entry with no Code (Name: '{package.Name}').");
-        }
-
-        // TR-ACT-04: the form defaults to a classification, which therefore has to exist.
-        if (options.Classifications.Count > 0 &&
-            !options.Classifications.Contains(options.DefaultClassification, StringComparer.Ordinal))
-        {
-            failures.Add(
-                $"Catalogues:DefaultClassification '{options.DefaultClassification}' is not present in " +
-                "Catalogues:Classifications (TR-ACT-04).");
-        }
-
-        if (options.ContractDurationsMonths.Any(months => months <= 0))
-        {
-            failures.Add("Catalogues:ContractDurationsMonths must contain positive values only.");
-        }
-
         foreach (var category in options.ComplaintCategories)
         {
             if (string.IsNullOrWhiteSpace(category.L1) || string.IsNullOrWhiteSpace(category.L2) || string.IsNullOrWhiteSpace(category.L3))

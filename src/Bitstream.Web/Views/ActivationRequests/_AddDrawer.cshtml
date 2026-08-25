@@ -1,24 +1,34 @@
+@using Bitstream.Application.Services
+@using Bitstream.Domain.Entities
 @{
     var callerIspId = (string?)ViewBag.CallerIspId;
+    var isps = (IReadOnlyList<Isp>)(ViewBag.Isps ?? Array.Empty<Isp>());
+    var catalogue = (ActivationCatalogue)ViewBag.Catalogue;
 }
 <form id="activation-add-form" class="grid gap-4" novalidate data-action="create">
     <p class="field-error" role="alert" data-field-error="request" hidden></p>
 
-    <p class="text-xs text-ink-muted">
-        Package, classification and contract duration are configured, changeable lists (TR-ACT-01,
-        TR-ACT-04) with no API to read them from — entering a value not currently offered is
-        rejected by the server with a specific message rather than prevented here.
-    </p>
-
     <div>
-        <label class="field-label" for="activation-add-isp-id">ISP ID</label>
-        <input class="field-input" id="activation-add-isp-id" name="ispId" type="number" min="1" value="@callerIspId" readonly="@(!string.IsNullOrEmpty(callerIspId))" required />
+        <label class="field-label" for="activation-add-isp-id">ISP</label>
+        <select class="field-input" id="activation-add-isp-id" name="ispId" required disabled="@(!string.IsNullOrEmpty(callerIspId))">
+            <option value="">— Select an ISP —</option>
+            @foreach (var isp in isps)
+            {
+                <option value="@isp.IspId" selected="@(string.Equals(isp.IspId.ToString(), callerIspId, StringComparison.Ordinal))">@isp.Name — @isp.Nipt</option>
+            }
+        </select>
         <p class="field-error" role="alert" data-field-error="ispId" hidden></p>
     </div>
 
     <div>
-        <label class="field-label" for="activation-add-package">Package code</label>
-        <input class="field-input" id="activation-add-package" name="packageCode" type="text" placeholder="e.g. BITSTREAM_STD" required />
+        <label class="field-label" for="activation-add-package">Package</label>
+        <select class="field-input" id="activation-add-package" name="packageCode" required>
+            <option value="">— Select a package —</option>
+            @foreach (var package in catalogue.Packages)
+            {
+                <option value="@package.Code">@package.Name</option>
+            }
+        </select>
         <p class="field-error" role="alert" data-field-error="packageCode" hidden></p>
     </div>
 
@@ -30,13 +40,24 @@
 
     <div>
         <label class="field-label" for="activation-add-classification">Ticket classification</label>
-        <input class="field-input" id="activation-add-classification" name="classification" type="text" placeholder="Leave blank for the default" />
+        <select class="field-input" id="activation-add-classification" name="classification">
+            @foreach (var classification in catalogue.Classifications)
+            {
+                <option value="@classification.Code" selected="@classification.IsDefault">@classification.Name</option>
+            }
+        </select>
         <p class="field-error" role="alert" data-field-error="classification" hidden></p>
     </div>
 
     <div>
-        <label class="field-label" for="activation-add-duration">Contract duration (months)</label>
-        <input class="field-input" id="activation-add-duration" name="contractDurationMonths" type="number" placeholder="e.g. 12 or 24" required />
+        <label class="field-label" for="activation-add-duration">Contract duration</label>
+        <select class="field-input" id="activation-add-duration" name="contractDurationMonths" required>
+            <option value="">— Select a duration —</option>
+            @foreach (var duration in catalogue.ContractDurations)
+            {
+                <option value="@duration.Months">@duration.Label</option>
+            }
+        </select>
         <p class="field-error" role="alert" data-field-error="contractDurationMonths" hidden></p>
     </div>
 

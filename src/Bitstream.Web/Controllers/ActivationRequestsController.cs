@@ -27,9 +27,13 @@ namespace Bitstream.Web.Controllers;
 public sealed class ActivationRequestsController : Controller
 {
     private readonly IActivationRequestService _activationRequestService;
+    private readonly IAdministrationService _administrationService;
 
-    public ActivationRequestsController(IActivationRequestService activationRequestService) =>
+    public ActivationRequestsController(IActivationRequestService activationRequestService, IAdministrationService administrationService)
+    {
         _activationRequestService = activationRequestService;
+        _administrationService = administrationService;
+    }
 
     [HttpGet("")]
     [RequireSession]
@@ -45,22 +49,24 @@ public sealed class ActivationRequestsController : Controller
     /// <summary>
     /// The activation request submission form (TRD §5.1), posted from client-side script to
     /// <see cref="Submit"/> — nothing here re-implements validation or identifier issuance; both
-    /// happen entirely server-side.
-    /// <para>
-    /// Package, classification and contract duration are configured lists (TR-ACT-01, TR-ACT-04 —
-    /// "extensible without a release"), but there is no API that exposes that configuration to the
-    /// frontend. Rather than hard-code a copy of <c>appsettings.json:Catalogues</c> here — which
-    /// would silently drift the moment an administrator changed it without a redeploy — these are
-    /// plain text fields; the server's own validation messages are what tell the caller a value is
-    /// not in the current catalogue. Reported in docs/architecture.md.
-    /// </para>
+    /// happen entirely server-side. ISP, package, classification and contract duration are all
+    /// dropdowns populated from the current data (TR-ACT-01, TR-ACT-04 — "extensible without a
+    /// release"): the ISP list from <see cref="IAdministrationService.SearchIspsAsync"/>, the
+    /// other three from <see cref="IActivationRequestService.GetCatalogueAsync"/>, which is
+    /// DB-backed (db/mssql/0017_activation_catalogues.sql) rather than configuration.
     /// </summary>
     [HttpGet("AddDrawer")]
     [RequirePermission(ActivationPermissionCodes.ActivationCreate)]
-    public IActionResult AddDrawer()
+    public async Task<IActionResult> AddDrawer(CancellationToken cancellationToken)
     {
-        // Pre-fills the ISP ID field for an ISP user, who may only submit for their own ISP.
+        // Pre-fills the ISP field for an ISP user, who may only submit for their own ISP.
         ViewBag.CallerIspId = User.FindFirst(BitstreamClaimTypes.IspId)?.Value;
+
+        var isps = await _administrationService.SearchIspsAsync(
+            search: null, status: null, skip: 0, take: 1000, cancellationToken).ConfigureAwait(false);
+        ViewBag.Isps = isps.Items;
+        ViewBag.Catalogue = await _activationRequestService.GetCatalogueAsync(cancellationToken).ConfigureAwait(false);
+
         return PartialView("_AddDrawer");
     }
 

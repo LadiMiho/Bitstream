@@ -62,7 +62,23 @@ public interface IActivationRequestService
 
     /// <summary>Applies a TECHNICALLY_COMPLETED inbound event (TRD 5.3: InProvisioning to Completed).</summary>
     Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The active packages, classifications and contract durations offered on the submission
+    /// form right now (TR-ACT-01, TR-ACT-04, TRD 5.1) — an inactive/retired row is excluded here
+    /// even though <see cref="Abstractions.Persistence.IActivationCatalogueRepository"/> itself
+    /// returns every row; this is "what may be selected today", not the full history.
+    /// </summary>
+    Task<ActivationCatalogue> GetCatalogueAsync(CancellationToken cancellationToken = default);
 }
+
+/// <param name="Packages">Active packages only, ordered by <see cref="Package.Tier"/>.</param>
+/// <param name="Classifications">Active classifications only, ordered by name.</param>
+/// <param name="ContractDurations">Active contract durations only, ordered by months.</param>
+public sealed record ActivationCatalogue(
+    IReadOnlyList<Package> Packages,
+    IReadOnlyList<ActivationClassification> Classifications,
+    IReadOnlyList<ContractDuration> ContractDurations);
 
 /// <param name="IspId">Owning ISP.</param>
 /// <param name="PackageCode">From the configured catalogue (TR-ACT-01).</param>
