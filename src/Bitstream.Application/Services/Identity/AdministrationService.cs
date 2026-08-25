@@ -332,7 +332,18 @@ public sealed partial class AdministrationService : IAdministrationService
             return null;
         }
 
-        return await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
+
+        if (user is not null)
+        {
+            // UserManager's own store never loads the Role navigation (Identity has no concept
+            // of it — this app's single-role-per-user design, see BitstreamIdentityDbContext) —
+            // every caller of GetUserAsync (the three drawer views, ToResponse) reads user.Role.
+            user.Role = await _roleManager.FindByIdAsync(user.RoleId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+                throw new InvalidOperationException($"User {userId} references role {user.RoleId}, which does not exist.");
+        }
+
+        return user;
     }
 
     public async Task<PagedResult<User>> SearchUsersAsync(string? search, int skip, int take, CancellationToken cancellationToken = default)
