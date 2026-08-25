@@ -65,4 +65,20 @@ public sealed class IdentityApiFactory : WebApplicationFactory<WebHostEntryPoint
 
     /// <summary>Opens a scope for seeding data before a test issues requests, or for asserting on state afterwards.</summary>
     public AsyncServiceScope CreateAsyncScope() => Services.CreateAsyncScope();
+
+    /// <summary>
+    /// TR-SEC-26: <c>ConfigureApplicationCookie</c> sets <c>Cookie.SecurePolicy = Always</c>, so
+    /// the auth cookie is silently dropped by the client on the default <c>http://localhost</c>
+    /// base address <c>WebApplicationFactory</c> uses — login/verify would set it, but no later
+    /// request would ever send it back. <c>TestServer</c> honours the URI scheme without needing
+    /// a real certificate, so an https base address alone is enough to make it behave correctly.
+    /// </summary>
+    public override HttpClient CreateClient(WebApplicationFactoryClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.BaseAddress = new Uri("https://localhost");
+
+        return base.CreateClient(options);
+    }
 }
