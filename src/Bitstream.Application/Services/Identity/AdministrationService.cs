@@ -45,46 +45,46 @@ public sealed class AdministrationValidationException : Exception
     public IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors { get; } = new Dictionary<string, IReadOnlyList<string>>();
 }
 
-/// <summary>
-/// Accumulates a request's validation violations both as a flat, human-readable list (what
-/// <see cref="AdministrationValidationException.Violations"/> has always been) and keyed by the
-/// request field each one concerns, so <see cref="ToException"/> can carry both.
-/// </summary>
-file sealed class ValidationCollector
-{
-    private readonly List<string> _messages = [];
-    private readonly Dictionary<string, List<string>> _fieldErrors = [];
-
-    public int Count => _messages.Count;
-
-    public void Add(string fieldKey, string message)
-    {
-        _messages.Add(message);
-
-        if (!_fieldErrors.TryGetValue(fieldKey, out var fieldMessages))
-        {
-            fieldMessages = [];
-            _fieldErrors[fieldKey] = fieldMessages;
-        }
-
-        fieldMessages.Add(message);
-    }
-
-    public void AddRange(string fieldKey, IEnumerable<string> messages)
-    {
-        foreach (var message in messages)
-        {
-            Add(fieldKey, message);
-        }
-    }
-
-    public AdministrationValidationException ToException() =>
-        new(_messages, _fieldErrors.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value));
-}
-
 /// <summary>Implements <see cref="IAdministrationService"/>: TRD 4.2, TR-SEC-09 to TR-SEC-16.</summary>
 public sealed partial class AdministrationService : IAdministrationService
 {
+    /// <summary>
+    /// Accumulates a request's validation violations both as a flat, human-readable list (what
+    /// <see cref="AdministrationValidationException.Violations"/> has always been) and keyed by
+    /// the request field each one concerns, so <see cref="ToException"/> can carry both.
+    /// </summary>
+    private sealed class ValidationCollector
+    {
+        private readonly List<string> _messages = [];
+        private readonly Dictionary<string, List<string>> _fieldErrors = [];
+
+        public int Count => _messages.Count;
+
+        public void Add(string fieldKey, string message)
+        {
+            _messages.Add(message);
+
+            if (!_fieldErrors.TryGetValue(fieldKey, out var fieldMessages))
+            {
+                fieldMessages = [];
+                _fieldErrors[fieldKey] = fieldMessages;
+            }
+
+            fieldMessages.Add(message);
+        }
+
+        public void AddRange(string fieldKey, IEnumerable<string> messages)
+        {
+            foreach (var message in messages)
+            {
+                Add(fieldKey, message);
+            }
+        }
+
+        public AdministrationValidationException ToException() =>
+            new(_messages, _fieldErrors.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<string>)pair.Value));
+    }
+
     private static readonly string[] SeededRoleNames = ["Administrator", "IspUser", "ServiceDesk", "Auditor"];
 
     private readonly IIspRepository _ispRepository;
