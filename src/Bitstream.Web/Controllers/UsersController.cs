@@ -229,22 +229,6 @@ public sealed class UsersController : Controller
         }
     }
 
-    [HttpDelete("{userId:long}")]
-    [RequireJsonPermission(PermissionCodes.UserLock)]
-    [EnableRateLimiting(RateLimitPolicies.Administration)]
-    public async Task<IActionResult> Delete(long userId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _administrationService.DeleteUserAsync(userId, cancellationToken).ConfigureAwait(false);
-            return NoContent();
-        }
-        catch (AdministrationValidationException)
-        {
-            return NotFound();
-        }
-    }
-
     /// <summary>
     /// Distinguishes "no such user" (404) from every other <see cref="AdministrationValidationException"/>
     /// the same call can throw (a bad field, an unknown ISP) — both of which also happen to say
@@ -268,16 +252,13 @@ public sealed class UsersController : Controller
     }
 
     /// <summary>
-    /// "Locked" is not stored on <see cref="Application.Identity.Entities.User.Status"/> any more
+    /// "Locked" is not stored on <see cref="Application.Identity.Entities.User.Status"/>
     /// (TR-SEC-12) — it is derived from <see cref="UserManager{TUser}.IsLockedOutAsync"/> here, so
-    /// the wire contract still returns exactly "Active"/"Locked"/"Deleted" as before, unaffected by
-    /// the internal representation change.
+    /// the wire contract returns exactly "Active" or "Locked".
     /// </summary>
     private async Task<UserResponse> ToResponseAsync(User user)
     {
-        var status = user.Status == UserStatus.Deleted
-            ? "Deleted"
-            : await _userManager.IsLockedOutAsync(user).ConfigureAwait(false) ? "Locked" : "Active";
+        var status = await _userManager.IsLockedOutAsync(user).ConfigureAwait(false) ? "Locked" : "Active";
 
         return new UserResponse(user.Id, user.IspId, user.FullName, user.Email!, user.Mobile, user.Role.Name!, status, user.LastLoginAt);
     }

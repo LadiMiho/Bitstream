@@ -479,15 +479,6 @@ public sealed partial class AdministrationService : IAdministrationService
         var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
             throw new AdministrationValidationException($"User {userId} does not exist.");
 
-        if (user.Status == UserStatus.Deleted)
-        {
-            // Deletion is its own, further-along state (DeleteUserAsync) — locking/unlocking a
-            // deleted user is meaningless, so this is treated as "no such (active) user" rather
-            // than silently flipping a lockout flag nobody can observe (the user cannot
-            // authenticate either way).
-            throw new AdministrationValidationException($"User {userId} does not exist.");
-        }
-
         var wasLockedOut = await _userManager.IsLockedOutAsync(user).ConfigureAwait(false);
 
         if (wasLockedOut == locked)
@@ -624,30 +615,6 @@ public sealed partial class AdministrationService : IAdministrationService
         await _auditWriter.WriteAsync(
             "User.PasswordChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
             null, null, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task DeleteUserAsync(long userId, CancellationToken cancellationToken = default)
-    {
-        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
-            throw new AdministrationValidationException($"User {userId} does not exist.");
-
-        if (user.Status == UserStatus.Deleted)
-        {
-            return;
-        }
-
-        var previousStatus = user.Status;
-        user.Status = UserStatus.Deleted;
-        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        // TR-SEC-07: a deleted user's session must not outlive the deletion — invalidated
-        // immediately (checked every request, see SetIspStatusAsync), not left to lapse.
-        await _userManager.UpdateSecurityStampAsync(user).ConfigureAwait(false);
-
-        await _auditWriter.WriteAsync(
-            "User.Deleted", "User", userId.ToString(CultureInfo.InvariantCulture),
-            $"{{\"status\":\"{previousStatus}\"}}", "{\"status\":\"Deleted\"}",
-            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

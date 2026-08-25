@@ -251,9 +251,9 @@ public interface IAdministrationService
     Task<User?> GetUserAsync(long userId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs. Excludes
-    /// soft-deleted users. <paramref name="roleName"/> and <paramref name="status"/> ("Active"/"Locked")
-    /// narrow the grid further when given.
+    /// Same ownership narrowing as <see cref="SearchIspsAsync"/>, applied to users instead of ISPs.
+    /// <paramref name="roleName"/> and <paramref name="status"/> ("Active"/"Locked") narrow the
+    /// grid further when given.
     /// </summary>
     Task<PagedResult<User>> SearchUsersAsync(string? search, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
@@ -276,14 +276,6 @@ public interface IAdministrationService
     /// (TR-SEC-07).
     /// </summary>
     Task SetUserLockedAsync(long userId, bool locked, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Soft delete (TR-DAT-07: no physical delete). Sets <see cref="UserStatus.Deleted"/>, invalidates
-    /// every session immediately, and hides the user from <see cref="SearchUsersAsync"/> by
-    /// default — the row, and every audit log and password-history entry that references it, are
-    /// left exactly as they are. Idempotent: deleting an already-deleted user is a no-op.
-    /// </summary>
-    Task DeleteUserAsync(long userId, CancellationToken cancellationToken = default);
 }
 
 /// <param name="Items">At most <c>take</c> rows, most recently created first.</param>

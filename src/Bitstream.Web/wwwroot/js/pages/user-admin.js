@@ -1,9 +1,9 @@
 /**
  * User administration behaviour: search/filter/browse grid, plus add/edit/view/change-password
  * (opened in the shared drawer, ../drawer.js, its form fetched from Controllers/UsersController.cs)
- * and delete/lock/unlock (gated by a standard confirmation popup). Every write is a direct call
- * back to that same controller's JSON actions (Controllers/UsersController.cs) — this script
- * never validates or authorises anything itself, it only renders what the server and the drawer
+ * and lock/unlock (gated by a standard confirmation popup). Every write is a direct call back to
+ * that same controller's JSON actions (Controllers/UsersController.cs) — this script never
+ * validates or authorises anything itself, it only renders what the server and the drawer
  * partials return.
  */
 import { api, ApiError } from '../api-client.js';
@@ -74,7 +74,7 @@ let currentStatus = '';
 let currentPageSize = 20;
 let currentTotalCount = 0;
 
-// --- Confirmation popup (delete / lock / unlock) ----------------------------------------
+// --- Confirmation popup (lock / unlock) ----------------------------------------
 const confirmModal = el('#confirm-modal');
 const confirmBackdrop = el('#confirm-backdrop');
 const confirmMessage = el('#confirm-message');
@@ -111,7 +111,6 @@ const ICONS = {
   key: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><circle cx="7" cy="13" r="3.5"/><path d="M9.5 10.5 16 4M13.5 6.5 16 4M16 4l1.5 1.5"/></svg>',
   lock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9"/></svg>',
   unlock: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4.5" y="9" width="11" height="7.5" rx="1.2"/><path d="M6.5 9V6.5a3.5 3.5 0 0 1 6.6-1.5"/></svg>',
-  delete: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h12M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M6 5.5 6.7 16a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9l.7-10.5"/></svg>',
   kebab: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
 };
 
@@ -260,7 +259,6 @@ function renderResults(items) {
           nextStatus === 'Locked' ? ICONS.lock : ICONS.unlock,
           () => confirmAndSetStatus(user, nextStatus)
         ));
-        menu.appendChild(menuItem('Delete', ICONS.delete, () => confirmAndDelete(user), { danger: true }));
       }
 
       openRowMenu(trigger, menu);
@@ -282,21 +280,6 @@ async function confirmAndSetStatus(user, status) {
 
   try {
     await api.patch(`/AccessManagement/Users/${user.userId}/status`, { status });
-    await search();
-  } catch (error) {
-    showError(el('#user-search-error'), describeError(error));
-  }
-}
-
-async function confirmAndDelete(user) {
-  const confirmed = await confirmAction(`Delete ${user.fullName}? Their sessions are revoked immediately and they will no longer be able to sign in.`);
-
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    await api.delete(`/AccessManagement/Users/${user.userId}`);
     await search();
   } catch (error) {
     showError(el('#user-search-error'), describeError(error));

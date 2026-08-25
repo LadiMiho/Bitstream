@@ -9,16 +9,14 @@ public enum IspStatus
 
 /// <summary>
 /// Lifecycle status of a portal user (<c>Bitstream.Application.Identity.Entities.User</c>).
-/// TR-SEC-11, TR-DAT-07 (no physical delete). "Locked" (TR-SEC-12) is deliberately not a value
-/// here — it is a derived condition (<c>UserManager.IsLockedOutAsync</c>, backed by Identity's
-/// own <c>LockoutEnd</c>), not stored state; only the soft-delete distinction needs its own value.
+/// TR-SEC-11. "Locked" (TR-SEC-12) is deliberately not a value here — it is a derived condition
+/// (<c>UserManager.IsLockedOutAsync</c>, backed by Identity's own <c>LockoutEnd</c>), not stored
+/// state. There is no delete of any kind (soft or physical) — locking is the only way to disable
+/// a user.
 /// </summary>
 public enum UserStatus
 {
-    Active,
-
-    /// <summary>Soft-deleted: cannot authenticate, hidden from search/browse by default, row and every audit/session/history reference stays intact.</summary>
-    Deleted
+    Active
 }
 
 /// <summary>

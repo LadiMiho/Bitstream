@@ -135,7 +135,6 @@ public sealed class FakeUserStore :
         string? search, long? ispId, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         var matches = Users.Values
-            .Where(user => user.Status != UserStatus.Deleted)
             .Where(user => ispId is null || user.IspId == ispId)
             .Where(user => string.IsNullOrWhiteSpace(search)
                 || user.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)

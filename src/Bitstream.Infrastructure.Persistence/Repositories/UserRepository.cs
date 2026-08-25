@@ -1,6 +1,5 @@
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Identity.Entities;
-using Bitstream.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence.Repositories;
@@ -21,9 +20,7 @@ public sealed class UserRepository : IUserRepository
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> SearchAsync(
         string? search, long? ispId, string? roleName, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
-        var query = _dbContext.Users.Include(user => user.Role)
-            .Where(user => user.Status != UserStatus.Deleted)
-            .AsQueryable();
+        var query = _dbContext.Users.Include(user => user.Role).AsQueryable();
 
         if (ispId is { } id)
         {
