@@ -1,0 +1,15 @@
+@model Bitstream.Domain.Entities.Isp
+<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP ID</dt><dd class="mt-1 text-sm">@Model.IspId</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@Model.Status</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Name</dt><dd class="mt-1 text-sm">@Model.Name</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">NIPT</dt><dd class="mt-1 text-sm">@Model.Nipt</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact person</dt><dd class="mt-1 text-sm">@Model.ContactPerson</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact email</dt><dd class="mt-1 text-sm">@Model.ContactEmail</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact mobile</dt><dd class="mt-1 text-sm">@Model.ContactMobile</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">CRM BP reference</dt><dd class="mt-1 text-sm">@Model.CrmBpReference</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Created</dt><dd class="mt-1 text-sm">@Model.CreatedAt.ToString("g")</dd></div>
+</dl>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+</template>

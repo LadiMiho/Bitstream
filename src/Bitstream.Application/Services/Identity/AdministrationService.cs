@@ -192,11 +192,13 @@ public sealed partial class AdministrationService : IAdministrationService
         return await _ispRepository.FindByIdAsync(ispId, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<PagedResult<Isp>> SearchIspsAsync(string? search, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<Isp>> SearchIspsAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default)
     {
+        var parsedStatus = !string.IsNullOrEmpty(status) && Enum.TryParse<IspStatus>(status, ignoreCase: false, out var value) ? value : (IspStatus?)null;
+
         if (_currentUser.HasPermission(PermissionCodes.IspReadAll))
         {
-            var (items, totalCount) = await _ispRepository.SearchAsync(search, skip, take, cancellationToken).ConfigureAwait(false);
+            var (items, totalCount) = await _ispRepository.SearchAsync(search, parsedStatus, skip, take, cancellationToken).ConfigureAwait(false);
             return new PagedResult<Isp>(items, totalCount);
         }
 
@@ -208,7 +210,8 @@ public sealed partial class AdministrationService : IAdministrationService
         }
 
         var isp = await _ispRepository.FindByIdAsync(ownIspId, cancellationToken).ConfigureAwait(false);
-        var matches = isp is not null && MatchesSearch(search, isp.Name, isp.Nipt);
+        var matchesStatus = parsedStatus is null || isp?.Status == parsedStatus;
+        var matches = isp is not null && matchesStatus && MatchesSearch(search, isp.Name, isp.Nipt);
 
         return matches ? new PagedResult<Isp>([isp!], 1) : new PagedResult<Isp>([], 0);
     }

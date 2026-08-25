@@ -1,5 +1,6 @@
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 
 namespace Bitstream.Application.Abstractions.Persistence;
 
@@ -49,7 +50,10 @@ public interface IIspRepository
     /// <summary>Resolves the ISP a BI or CRM record belongs to (TR-PAS-04); null when the BP is not a known ISP.</summary>
     Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default);
 
-    /// <summary>Case-insensitive substring match against name and NIPT, most recently created first.</summary>
+    /// <summary>
+    /// Case-insensitive substring match against name and NIPT, most recently created first.
+    /// <paramref name="status"/> narrows the grid further when given.
+    /// </summary>
     Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
-        string? search, int skip, int take, CancellationToken cancellationToken = default);
+        string? search, IspStatus? status, int skip, int take, CancellationToken cancellationToken = default);
 }

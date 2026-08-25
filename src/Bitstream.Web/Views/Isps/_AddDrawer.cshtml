@@ -1,0 +1,37 @@
+<form id="isp-add-form" class="grid gap-4" novalidate data-action="create">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <div>
+        <label class="field-label" for="isp-add-name">Name</label>
+        <input class="field-input" id="isp-add-name" name="name" type="text" required />
+        <p class="field-error" role="alert" data-field-error="name" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-add-nipt">NIPT</label>
+        <input class="field-input" id="isp-add-nipt" name="nipt" type="text" required />
+        <p class="field-error" role="alert" data-field-error="nipt" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-add-contact-person">Contact person</label>
+        <input class="field-input" id="isp-add-contact-person" name="contactPerson" type="text" required />
+        <p class="field-error" role="alert" data-field-error="contactPerson" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-add-contact-email">Contact email</label>
+        <input class="field-input" id="isp-add-contact-email" name="contactEmail" type="email" required />
+        <p class="field-error" role="alert" data-field-error="contactEmail" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-add-contact-mobile">Contact mobile</label>
+        <input class="field-input" id="isp-add-contact-mobile" name="contactMobile" type="tel" placeholder="+355..." required />
+        <p class="field-error" role="alert" data-field-error="contactMobile" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="isp-add-crm-bp">CRM Business Partner reference</label>
+        <input class="field-input" id="isp-add-crm-bp" name="crmBpReference" type="text" required />
+        <p class="field-error" role="alert" data-field-error="crmBpReference" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="isp-add-form" class="btn-primary">Create ISP</button>
+</template>

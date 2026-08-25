@@ -1,5 +1,6 @@
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence.Repositories;
@@ -28,7 +29,7 @@ public sealed class IspRepository : IIspRepository
     }
 
     public async Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
-        string? search, int skip, int take, CancellationToken cancellationToken = default)
+        string? search, IspStatus? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.Isps.AsQueryable();
 
@@ -36,6 +37,11 @@ public sealed class IspRepository : IIspRepository
         {
             var pattern = search.ToUpper();
             query = query.Where(isp => isp.Name.ToUpper().Contains(pattern) || isp.Nipt.ToUpper().Contains(pattern));
+        }
+
+        if (status is { } value)
+        {
+            query = query.Where(isp => isp.Status == value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);

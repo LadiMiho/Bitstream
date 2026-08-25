@@ -37,6 +37,19 @@ public sealed class IspsController : Controller
         return View();
     }
 
+    [HttpGet("AddDrawer")]
+    [RequirePermission(PermissionCodes.IspCreate)]
+    public IActionResult AddDrawer() => PartialView("_AddDrawer");
+
+    [HttpGet("{ispId:long}/ViewDrawer")]
+    [RequireSession]
+    public async Task<IActionResult> ViewDrawer(long ispId, CancellationToken cancellationToken)
+    {
+        var isp = await _administrationService.GetIspAsync(ispId, cancellationToken).ConfigureAwait(false);
+
+        return isp is null ? NotFound() : PartialView("_ViewDrawer", isp);
+    }
+
     // --- JSON support endpoints for the page above (isp-admin.js) --------------------------
 
     [HttpGet("Search")]
@@ -44,12 +57,13 @@ public sealed class IspsController : Controller
     [EnableRateLimiting(RateLimitPolicies.Administration)]
     public async Task<IActionResult> Search(
         [FromQuery] string? search,
+        [FromQuery] string? status,
         [FromQuery] int? skip,
         [FromQuery] int? take,
         CancellationToken cancellationToken)
     {
         var result = await _administrationService.SearchIspsAsync(
-            search, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+            search, status, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
 
         return Ok(new IspListResponse([.. result.Items.Select(ToResponse)], result.TotalCount));
     }

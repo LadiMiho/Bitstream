@@ -99,12 +99,13 @@ public sealed class FakeIspRepository : IIspRepository
     }
 
     public Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
-        string? search, int skip, int take, CancellationToken cancellationToken = default)
+        string? search, IspStatus? status, int skip, int take, CancellationToken cancellationToken = default)
     {
         var matches = Isps.Values
             .Where(isp => string.IsNullOrWhiteSpace(search)
                 || isp.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || isp.Nipt.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(isp => status is null || isp.Status == status)
             .OrderByDescending(isp => isp.CreatedAt)
             .ToList();
 

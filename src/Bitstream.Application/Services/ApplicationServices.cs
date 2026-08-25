@@ -232,7 +232,7 @@ public interface IAdministrationService
     /// enforces — there being nothing to browse is not distinguished from lacking the
     /// permission (TR-SEC-19's reasoning applies here too).
     /// </summary>
-    Task<PagedResult<Isp>> SearchIspsAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+    Task<PagedResult<Isp>> SearchIspsAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Locking cascades to every currently-active user of the ISP and revokes their sessions
