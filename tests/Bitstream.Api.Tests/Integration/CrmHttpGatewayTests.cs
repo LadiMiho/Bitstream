@@ -108,7 +108,8 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal("https://maps.example.com/?q=41.3275,19.8187", values["GEOLOCATION"]);
         Assert.Equal("contact@example.com", values["EMAIL"]);
         Assert.Equal("L12345678A", values["IDNUMBER"]);
-        Assert.Equal("ISP_1", values["NAME"]);
+        // NAME is the request's identifier with the underscore as a space: ISP_1 -> "ISP 1".
+        Assert.Equal("ISP 1", values["NAME"]);
         Assert.Equal(string.Empty, values["SHORT_ADDR"]);
         Assert.Equal("O000", values["CUSTOMERTYPE"]);
         Assert.Equal("2", values["BP_CAT"]);

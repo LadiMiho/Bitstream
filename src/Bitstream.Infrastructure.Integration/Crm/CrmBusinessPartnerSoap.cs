@@ -33,7 +33,7 @@ internal static class CrmBusinessPartnerSoap
                             ContextValue("GEOLOCATION", command.Geolocation),
                             ContextValue("EMAIL", command.ContactEmail),
                             ContextValue("IDNUMBER", command.IspNipt),
-                            ContextValue("NAME", command.RequestPublicId),
+                            ContextValue("NAME", command.RequestPublicId.Replace('_', ' ')),
                             ContextValue("SHORT_ADDR", string.Empty),
                             ContextValue("CUSTOMERTYPE", options.CustomerType),
                             ContextValue("BP_CAT", options.BpCategory),
