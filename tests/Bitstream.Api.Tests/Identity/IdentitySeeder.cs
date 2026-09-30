@@ -41,8 +41,11 @@ internal static class IdentitySeeder
         return role;
     }
 
-    public static async Task<Isp> AddIspAsync(BitstreamDbContext db, string name, string nipt)
+    public static async Task<Isp> AddIspAsync(BitstreamDbContext db, string name, string nipt, string? ticketCode = null)
     {
+        // Default: the name's letters, uppercased and capped at 20 — unique enough within one test's database.
+        var defaultCode = string.Concat(name.Where(char.IsAsciiLetter).Select(char.ToUpperInvariant).Take(20));
+
         var isp = new Isp
         {
             Name = name,
@@ -51,6 +54,7 @@ internal static class IdentitySeeder
             ContactEmail = $"{nipt.ToLowerInvariant()}@example.com",
             ContactMobile = "+355691234567",
             CrmBpReference = $"BP-{nipt}",
+            TicketCode = ticketCode ?? defaultCode,
             Status = IspStatus.Active,
             CreatedAt = DateTimeOffset.UtcNow
         };

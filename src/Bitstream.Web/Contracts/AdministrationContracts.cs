@@ -8,7 +8,8 @@ public sealed record CreateIspHttpRequest(
     [property: JsonPropertyName("contactPerson")] string ContactPerson,
     [property: JsonPropertyName("contactEmail")] string ContactEmail,
     [property: JsonPropertyName("contactMobile")] string ContactMobile,
-    [property: JsonPropertyName("crmBpReference")] string CrmBpReference);
+    [property: JsonPropertyName("crmBpReference")] string CrmBpReference,
+    [property: JsonPropertyName("ticketCode")] string TicketCode);
 
 public sealed record UpdateIspHttpRequest(
     [property: JsonPropertyName("name")] string Name,
@@ -16,7 +17,8 @@ public sealed record UpdateIspHttpRequest(
     [property: JsonPropertyName("contactPerson")] string ContactPerson,
     [property: JsonPropertyName("contactEmail")] string ContactEmail,
     [property: JsonPropertyName("contactMobile")] string ContactMobile,
-    [property: JsonPropertyName("crmBpReference")] string CrmBpReference);
+    [property: JsonPropertyName("crmBpReference")] string CrmBpReference,
+    [property: JsonPropertyName("ticketCode")] string TicketCode);
 
 public sealed record IspResponse(
     [property: JsonPropertyName("ispId")] long IspId,
@@ -26,6 +28,7 @@ public sealed record IspResponse(
     [property: JsonPropertyName("contactEmail")] string ContactEmail,
     [property: JsonPropertyName("contactMobile")] string ContactMobile,
     [property: JsonPropertyName("crmBpReference")] string CrmBpReference,
+    [property: JsonPropertyName("ticketCode")] string? TicketCode,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
 

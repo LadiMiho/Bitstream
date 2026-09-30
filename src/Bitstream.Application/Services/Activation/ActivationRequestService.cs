@@ -166,6 +166,10 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         {
             AddViolation("ispId", "The ISP is locked and cannot submit activation requests.");
         }
+        else if (string.IsNullOrWhiteSpace(isp.TicketCode))
+        {
+            AddViolation("ispId", $"ISP '{isp.Name}' has no ticket code yet. Set one in ISP Administration before submitting.");
+        }
 
         // TR-ACT-01: package code from the DB-backed catalogue (portal.Package), active offers only.
         var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
@@ -234,8 +238,9 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         var now = _clock.UtcNow;
 
         // TR-DAT-01 / TR-ACT-06: the public identifier is issued and the record persisted with
-        // status Submitted before any CRM call is even enqueued.
-        var publicId = await _identifierGenerator.NextAsync(IdentifierSeries.ActivationRequest, cancellationToken).ConfigureAwait(false);
+        // status Submitted before any CRM call is even enqueued. Numbered per ISP ticket code:
+        // TRING_001, TRING_002, ...
+        var publicId = await _identifierGenerator.NextForPrefixAsync(isp!.TicketCode!, cancellationToken).ConfigureAwait(false);
 
         var activationRequest = new ActivationRequest
         {

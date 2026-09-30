@@ -92,6 +92,9 @@ public sealed class FakeIspRepository : IIspRepository
     public Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default) =>
         Task.FromResult(Isps.Values.FirstOrDefault(isp => isp.CrmBpReference == crmBpReference));
 
+    public Task<bool> TicketCodeExistsAsync(string ticketCode, long? excludingIspId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Isps.Values.Any(isp => isp.TicketCode == ticketCode && isp.IspId != excludingIspId));
+
     public Task AddAsync(Isp isp, CancellationToken cancellationToken = default)
     {
         Isps[isp.IspId] = isp;

@@ -35,11 +35,13 @@ internal sealed class IspConfiguration : IEntityTypeConfiguration<Isp>
         builder.Property(x => x.ContactEmail).HasMaxLength(256).IsRequired();
         builder.Property(x => x.ContactMobile).HasMaxLength(20).IsRequired();
         builder.Property(x => x.CrmBpReference).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.TicketCode).HasMaxLength(20);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
 
         // TR-SEC-15/16: NIPT unique across the platform.
         builder.HasIndex(x => x.Nipt).IsUnique().HasDatabaseName("UX_Isp_Nipt");
+        builder.HasIndex(x => x.TicketCode).IsUnique().HasFilter("[TicketCode] IS NOT NULL").HasDatabaseName("UX_Isp_TicketCode");
         builder.HasIndex(x => x.CrmBpReference).HasDatabaseName("IX_Isp_CrmBpReference");
     }
 }

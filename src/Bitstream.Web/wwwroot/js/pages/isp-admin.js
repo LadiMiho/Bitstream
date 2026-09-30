@@ -197,7 +197,7 @@ function renderResults(items) {
         <span class="avatar-circle" aria-hidden="true">${initials(isp.name)}</span>
         <div>
           <div class="font-medium text-ink">${isp.name}</div>
-          <div class="text-xs text-ink-muted">${isp.nipt}</div>
+          <div class="text-xs text-ink-muted">${isp.nipt} · ${isp.ticketCode ?? 'No ticket code'}</div>
         </div>
       </div>`;
     row.appendChild(nameCell);
@@ -401,7 +401,8 @@ drawerBody.addEventListener('submit', async (event) => {
         contactPerson: form.querySelector('[name=contactPerson]').value.trim(),
         contactEmail: form.querySelector('[name=contactEmail]').value.trim(),
         contactMobile: form.querySelector('[name=contactMobile]').value.trim(),
-        crmBpReference: form.querySelector('[name=crmBpReference]').value.trim()
+        crmBpReference: form.querySelector('[name=crmBpReference]').value.trim(),
+        ticketCode: form.querySelector('[name=ticketCode]').value.trim().toUpperCase()
       });
     } else if (action === 'update') {
       await api.put(`/AccessManagement/Isps/${form.dataset.ispId}`, {
@@ -410,7 +411,8 @@ drawerBody.addEventListener('submit', async (event) => {
         contactPerson: form.querySelector('[name=contactPerson]').value.trim(),
         contactEmail: form.querySelector('[name=contactEmail]').value.trim(),
         contactMobile: form.querySelector('[name=contactMobile]').value.trim(),
-        crmBpReference: form.querySelector('[name=crmBpReference]').value.trim()
+        crmBpReference: form.querySelector('[name=crmBpReference]').value.trim(),
+        ticketCode: form.querySelector('[name=ticketCode]').value.trim().toUpperCase()
       });
     }
 

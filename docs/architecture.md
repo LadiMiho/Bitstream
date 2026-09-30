@@ -184,7 +184,7 @@ end to end, Submitted through Completed, including the steps CRM drives — see
 
 | Concern | Where | Requirement |
 | --- | --- | --- |
-| Public identifier | `SqlPublicIdentifierGenerator`, calling `ops.usp_NextPublicIdentifier` inside the caller's transaction | TR-DAT-01 to TR-DAT-02e |
+| Public identifier | `SqlPublicIdentifierGenerator`: activation requests via `ops.usp_NextPrefixedIdentifier` (per-ISP ticket code, `TRING_001`); complaint tickets and service changes via `ops.usp_NextPublicIdentifier` inside the caller's transaction | TR-DAT-01 to TR-DAT-02e |
 | Submission validation | `ActivationRequestService.SubmitAsync` — package, location, classification, contract duration, comment length, against `CatalogueOptions` | TR-ACT-01, TR-ACT-04, TR-ACT-05 |
 | Coordinate parsing | `CoordinateParser` — a bare pair or a map URL's `@lat,lng` / `q=`/`ll=` parameter, normalised and range-checked | TR-ACT-02, TR-ACT-03 |
 | State machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change in the service goes through it | TRD 5.3 |

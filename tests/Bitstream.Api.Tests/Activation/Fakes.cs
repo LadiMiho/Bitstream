@@ -80,6 +80,15 @@ public sealed class FakePublicIdentifierGenerator : IPublicIdentifierGenerator
     public Task<string> NextAsync(IdentifierSeries series, CancellationToken cancellationToken = default) =>
         Task.FromResult($"{Prefix}_{_next++}");
 
+    private readonly Dictionary<string, long> _nextByPrefix = new(StringComparer.Ordinal);
+
+    public Task<string> NextForPrefixAsync(string prefix, CancellationToken cancellationToken = default)
+    {
+        var value = _nextByPrefix.GetValueOrDefault(prefix, 1);
+        _nextByPrefix[prefix] = value + 1;
+        return Task.FromResult($"{prefix}_{value:D3}");
+    }
+
     public bool IsValid(string identifier) =>
         System.Text.RegularExpressions.Regex.IsMatch(identifier, "^[A-Z]+_[0-9]+$");
 }

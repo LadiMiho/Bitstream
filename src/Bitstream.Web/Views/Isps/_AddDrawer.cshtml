@@ -11,6 +11,12 @@
         <p class="field-error" role="alert" data-field-error="nipt" hidden></p>
     </div>
     <div>
+        <label class="field-label" for="isp-add-ticket-code">Ticket code</label>
+        <input class="field-input uppercase" id="isp-add-ticket-code" name="ticketCode" type="text" maxlength="20" placeholder="e.g. TRING" required />
+        <span class="mt-1 block text-xs text-ink-muted">2-20 letters, unique per ISP. Activation requests are numbered TRING_001, TRING_002, ...</span>
+        <p class="field-error" role="alert" data-field-error="ticketCode" hidden></p>
+    </div>
+    <div>
         <label class="field-label" for="isp-add-contact-person">Contact person</label>
         <input class="field-input" id="isp-add-contact-person" name="contactPerson" type="text" required />
         <p class="field-error" role="alert" data-field-error="contactPerson" hidden></p>

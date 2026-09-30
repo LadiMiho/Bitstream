@@ -31,7 +31,19 @@ public sealed partial class SqlPublicIdentifierGenerator : IPublicIdentifierGene
         _options = options;
     }
 
-    public async Task<string> NextAsync(IdentifierSeries series, CancellationToken cancellationToken = default)
+    public Task<string> NextAsync(IdentifierSeries series, CancellationToken cancellationToken = default) =>
+        ExecuteAsync("ops.usp_NextPublicIdentifier", "@SeriesCode", 50, series.ToString(), cancellationToken);
+
+    /// <summary>Calls <c>ops.usp_NextPrefixedIdentifier</c> (db/mssql/0018_isp_ticket_code.sql).</summary>
+    public Task<string> NextForPrefixAsync(string prefix, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+
+        return ExecuteAsync("ops.usp_NextPrefixedIdentifier", "@Prefix", 20, prefix, cancellationToken);
+    }
+
+    private async Task<string> ExecuteAsync(
+        string procedure, string inputName, int inputSize, string inputValue, CancellationToken cancellationToken)
     {
         var connection = _dbContext.Database.GetDbConnection();
 
@@ -41,7 +53,7 @@ public sealed partial class SqlPublicIdentifierGenerator : IPublicIdentifierGene
         }
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "ops.usp_NextPublicIdentifier";
+        command.CommandText = procedure;
         command.CommandType = CommandType.StoredProcedure;
 
         // TR-ACT-06 / TR-ARC-03: enlist in the caller's transaction, when one is open, so the
@@ -51,11 +63,12 @@ public sealed partial class SqlPublicIdentifierGenerator : IPublicIdentifierGene
             command.Transaction = transaction.GetDbTransaction();
         }
 
-        var seriesParameter = command.CreateParameter();
-        seriesParameter.ParameterName = "@SeriesCode";
-        seriesParameter.DbType = DbType.String;
-        seriesParameter.Value = series.ToString();
-        command.Parameters.Add(seriesParameter);
+        var inputParameter = command.CreateParameter();
+        inputParameter.ParameterName = inputName;
+        inputParameter.DbType = DbType.String;
+        inputParameter.Size = inputSize;
+        inputParameter.Value = inputValue;
+        command.Parameters.Add(inputParameter);
 
         var identifierParameter = command.CreateParameter();
         identifierParameter.ParameterName = "@Identifier";

@@ -12,6 +12,12 @@
         <p class="field-error" role="alert" data-field-error="nipt" hidden></p>
     </div>
     <div>
+        <label class="field-label" for="isp-edit-ticket-code">Ticket code</label>
+        <input class="field-input uppercase" id="isp-edit-ticket-code" name="ticketCode" type="text" maxlength="20" value="@Model.TicketCode" placeholder="e.g. TRING" required />
+        <span class="mt-1 block text-xs text-ink-muted">Changing it only affects new activation requests; existing IDs keep their old prefix.</span>
+        <p class="field-error" role="alert" data-field-error="ticketCode" hidden></p>
+    </div>
+    <div>
         <label class="field-label" for="isp-edit-contact-person">Contact person</label>
         <input class="field-input" id="isp-edit-contact-person" name="contactPerson" type="text" value="@Model.ContactPerson" required />
         <p class="field-error" role="alert" data-field-error="contactPerson" hidden></p>

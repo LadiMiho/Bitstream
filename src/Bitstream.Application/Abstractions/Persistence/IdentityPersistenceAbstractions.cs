@@ -45,6 +45,9 @@ public interface IIspRepository
 
     Task<bool> NiptExistsAsync(string nipt, CancellationToken cancellationToken = default);
 
+    /// <summary>True when another ISP (any but <paramref name="excludingIspId"/>) already uses <paramref name="ticketCode"/>.</summary>
+    Task<bool> TicketCodeExistsAsync(string ticketCode, long? excludingIspId, CancellationToken cancellationToken = default);
+
     Task AddAsync(Isp isp, CancellationToken cancellationToken = default);
 
     /// <summary>Resolves the ISP a BI or CRM record belongs to (TR-PAS-04); null when the BP is not a known ISP.</summary>

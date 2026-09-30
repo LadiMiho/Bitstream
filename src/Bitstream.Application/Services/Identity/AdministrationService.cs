@@ -138,11 +138,18 @@ public sealed partial class AdministrationService : IAdministrationService
         RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
         RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
         RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
+        var ticketCode = NormaliseTicketCode(request.TicketCode);
+        RequireValidTicketCode(ticketCode, violations);
 
         if (violations.Count == 0 && await _ispRepository.NiptExistsAsync(request.Nipt, cancellationToken).ConfigureAwait(false))
         {
             // TR-SEC-16: NIPT unique across the platform.
             violations.Add("nipt", $"An ISP with NIPT '{request.Nipt}' already exists.");
+        }
+
+        if (violations.Count == 0 && await _ispRepository.TicketCodeExistsAsync(ticketCode, null, cancellationToken).ConfigureAwait(false))
+        {
+            violations.Add("ticketCode", $"Ticket code '{ticketCode}' is already used by another ISP.");
         }
 
         if (violations.Count > 0)
@@ -160,6 +167,7 @@ public sealed partial class AdministrationService : IAdministrationService
             ContactEmail = request.ContactEmail,
             ContactMobile = request.ContactMobile,
             CrmBpReference = request.CrmBpReference,
+            TicketCode = ticketCode,
             Status = IspStatus.Active,
             CreatedAt = now,
             CreatedBy = _currentUser.UserId
@@ -170,7 +178,7 @@ public sealed partial class AdministrationService : IAdministrationService
 
         await _auditWriter.WriteAsync(
             "Isp.Created", "Isp", isp.IspId.ToString(CultureInfo.InvariantCulture),
-            null, $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)}}}",
+            null, $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)},\"ticketCode\":{JsonSerializer.Serialize(isp.TicketCode)}}}",
             cancellationToken).ConfigureAwait(false);
 
         return isp;
@@ -231,6 +239,8 @@ public sealed partial class AdministrationService : IAdministrationService
         RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
         RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
         RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
+        var ticketCode = NormaliseTicketCode(request.TicketCode);
+        RequireValidTicketCode(ticketCode, violations);
 
         if (violations.Count == 0 && !string.Equals(request.Nipt, isp.Nipt, StringComparison.Ordinal)
             && await _ispRepository.NiptExistsAsync(request.Nipt, cancellationToken).ConfigureAwait(false))
@@ -239,12 +249,17 @@ public sealed partial class AdministrationService : IAdministrationService
             violations.Add("nipt", $"An ISP with NIPT '{request.Nipt}' already exists.");
         }
 
+        if (violations.Count == 0 && await _ispRepository.TicketCodeExistsAsync(ticketCode, ispId, cancellationToken).ConfigureAwait(false))
+        {
+            violations.Add("ticketCode", $"Ticket code '{ticketCode}' is already used by another ISP.");
+        }
+
         if (violations.Count > 0)
         {
             throw violations.ToException();
         }
 
-        var previous = $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)}}}";
+        var previous = $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)},\"ticketCode\":{JsonSerializer.Serialize(isp.TicketCode)}}}";
 
         isp.Name = request.Name;
         isp.Nipt = request.Nipt;
@@ -252,12 +267,13 @@ public sealed partial class AdministrationService : IAdministrationService
         isp.ContactEmail = request.ContactEmail;
         isp.ContactMobile = request.ContactMobile;
         isp.CrmBpReference = request.CrmBpReference;
+        isp.TicketCode = ticketCode;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
             "Isp.Updated", "Isp", ispId.ToString(CultureInfo.InvariantCulture),
-            previous, $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)}}}",
+            previous, $"{{\"name\":{JsonSerializer.Serialize(isp.Name)},\"nipt\":{JsonSerializer.Serialize(isp.Nipt)},\"ticketCode\":{JsonSerializer.Serialize(isp.TicketCode)}}}",
             cancellationToken).ConfigureAwait(false);
 
         return isp;
@@ -713,6 +729,26 @@ public sealed partial class AdministrationService : IAdministrationService
 
     [GeneratedRegex(@"^[A-Za-z0-9]{5,20}$")]
     private static partial Regex NiptPattern();
+
+    [GeneratedRegex("^[A-Z]{2,20}$", RegexOptions.CultureInvariant)]
+    private static partial Regex TicketCodePattern();
+
+    /// <summary>Entered case-insensitively ("tring"), stored and used uppercase ("TRING").</summary>
+    private static string NormaliseTicketCode(string? value) =>
+        (value ?? string.Empty).Trim().ToUpperInvariant();
+
+    /// <summary>The prefix half of the activation request identifier ^[A-Z]+_[0-9]+$ (TR-DAT-02d).</summary>
+    private static void RequireValidTicketCode(string value, ValidationCollector violations)
+    {
+        if (value.Length == 0)
+        {
+            violations.Add("ticketCode", "Ticket code is required.");
+        }
+        else if (!TicketCodePattern().IsMatch(value))
+        {
+            violations.Add("ticketCode", "Ticket code must be 2 to 20 letters (A-Z), e.g. TRING.");
+        }
+    }
 
     private static void RequireValidNipt(string value, ValidationCollector violations)
     {

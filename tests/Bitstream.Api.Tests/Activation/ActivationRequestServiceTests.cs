@@ -52,7 +52,7 @@ public sealed class ActivationRequestServiceTests
             _clock,
             _currentUser);
 
-    private Isp AddActiveIsp(long ispId = 1)
+    private Isp AddActiveIsp(long ispId = 1, string? ticketCode = "ALPHA")
     {
         var isp = new Isp
         {
@@ -63,6 +63,7 @@ public sealed class ActivationRequestServiceTests
             ContactEmail = "a@example.com",
             ContactMobile = "+355691234567",
             CrmBpReference = "BP1",
+            TicketCode = ticketCode,
             Status = IspStatus.Active
         };
         _ispRepository.Isps[ispId] = isp;
@@ -73,6 +74,37 @@ public sealed class ActivationRequestServiceTests
         new(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, comments);
 
     [Fact]
+    public async Task SubmitAsync_numbers_each_ISP_separately_from_its_ticket_code()
+    {
+        AddActiveIsp(1, "TRING");
+        AddActiveIsp(2, "ABCOM");
+        // An internal submitter, so both ISPs may be submitted for.
+        _currentUser.IspId = null;
+        _currentUser.RoleName = "Administrator";
+        var service = CreateService();
+
+        var first = await service.SubmitAsync(ValidRequest(ispId: 1));
+        var second = await service.SubmitAsync(ValidRequest(ispId: 1));
+        var otherIsp = await service.SubmitAsync(ValidRequest(ispId: 2));
+
+        Assert.Equal("TRING_001", first.PublicId);
+        Assert.Equal("TRING_002", second.PublicId);
+        Assert.Equal("ABCOM_001", otherIsp.PublicId);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_rejects_an_ISP_without_a_ticket_code()
+    {
+        AddActiveIsp(ticketCode: null);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ActivationRequestValidationException>(() => service.SubmitAsync(ValidRequest()));
+
+        Assert.True(exception.FieldErrors.ContainsKey("ispId"));
+        Assert.Empty(_requestRepository.Requests);
+    }
+
+    [Fact]
     public async Task SubmitAsync_issues_an_identifier_persists_Submitted_then_moves_to_PendingCrmSync()
     {
         AddActiveIsp();
@@ -80,7 +112,7 @@ public sealed class ActivationRequestServiceTests
 
         var result = await service.SubmitAsync(ValidRequest());
 
-        Assert.Equal("ISP_1", result.PublicId);
+        Assert.Equal("ALPHA_001", result.PublicId);
         Assert.Equal(ActivationRequestStatus.PendingCrmSync, result.Status);
         Assert.Equal(41.3275m, result.LocationLat);
         Assert.Equal(19.8187m, result.LocationLng);

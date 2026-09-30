@@ -206,7 +206,7 @@ CRM-driven steps included, now that CRM integration (below) is built. Full write
 
 | Requirement | Where |
 | --- | --- |
-| TR-DAT-01 to TR-DAT-02e identifier | `SqlPublicIdentifierGenerator`, calling `ops.usp_NextPublicIdentifier` inside the caller's transaction — gap-free, `PREFIX_NUMBER`, never zero-padded |
+| TR-DAT-01 to TR-DAT-02e identifier | `SqlPublicIdentifierGenerator`. Activation requests: `ops.usp_NextPrefixedIdentifier`, one counter per ISP ticket code, zero-padded to three digits (`TRING_001`, `TRING_002`, …). Complaint tickets and service changes: `ops.usp_NextPublicIdentifier` inside the caller's transaction — gap-free, `PREFIX_NUMBER`, never zero-padded |
 | TR-ACT-01 to TR-ACT-06 submission | `ActivationRequestService.SubmitAsync` — package, location, classification and contract duration validated against `CatalogueOptions`; the identifier is issued and the record persisted before any CRM call is enqueued |
 | TR-ACT-02/03 coordinates | `CoordinateParser` — a bare `lat,lng` pair or a map URL's `@lat,lng` marker or `q=`/`ll=` parameter, normalised and range-checked |
 | TRD §5.3 state machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change goes through it, so an invalid jump fails rather than corrupting the record |

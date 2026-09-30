@@ -39,9 +39,11 @@ public sealed class BitstreamDbContext : DbContext
     /// dropped — both fully superseded by ASP.NET Core Identity's own cookie auth and 2FA token
     /// providers) was added, and from 9 to 10 when db/mssql/0017_activation_catalogues.sql
     /// (portal.Package/ActivationClassification/ContractDuration, replacing the
-    /// Catalogues:Packages/Classifications/ContractDurationsMonths configuration lists) was added.
+    /// Catalogues:Packages/Classifications/ContractDurationsMonths configuration lists) was added,
+    /// and from 10 to 11 when db/mssql/0018_isp_ticket_code.sql (sec.Isp.TicketCode and the
+    /// per-prefix activation request identifier counter) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 10;
+    public const int ExpectedSchemaVersion = 11;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

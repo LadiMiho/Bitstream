@@ -18,6 +18,11 @@ public sealed class IspRepository : IIspRepository
     public Task<bool> NiptExistsAsync(string nipt, CancellationToken cancellationToken = default) =>
         _dbContext.Isps.AnyAsync(isp => isp.Nipt == nipt, cancellationToken);
 
+    public Task<bool> TicketCodeExistsAsync(string ticketCode, long? excludingIspId, CancellationToken cancellationToken = default) =>
+        _dbContext.Isps.AnyAsync(
+            isp => isp.TicketCode == ticketCode && (excludingIspId == null || isp.IspId != excludingIspId),
+            cancellationToken);
+
     public Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default) =>
         _dbContext.Isps.FirstOrDefaultAsync(isp => isp.CrmBpReference == crmBpReference, cancellationToken);
 

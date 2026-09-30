@@ -86,7 +86,7 @@ public sealed class IspsController : Controller
         try
         {
             var isp = await _administrationService.CreateIspAsync(
-                new CreateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference),
+                new CreateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference, request.TicketCode),
                 cancellationToken).ConfigureAwait(false);
 
             return CreatedAtAction(nameof(Get), new { ispId = isp.IspId }, ToResponse(isp));
@@ -123,7 +123,7 @@ public sealed class IspsController : Controller
         try
         {
             var isp = await _administrationService.UpdateIspAsync(
-                ispId, new UpdateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference),
+                ispId, new UpdateIspRequest(request.Name, request.Nipt, request.ContactPerson, request.ContactEmail, request.ContactMobile, request.CrmBpReference, request.TicketCode),
                 cancellationToken).ConfigureAwait(false);
 
             return Ok(ToResponse(isp));
@@ -182,5 +182,5 @@ public sealed class IspsController : Controller
 
     private static IspResponse ToResponse(Isp isp) =>
         new(isp.IspId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile,
-            isp.CrmBpReference, isp.Status.ToString(), isp.CreatedAt);
+            isp.CrmBpReference, isp.TicketCode, isp.Status.ToString(), isp.CreatedAt);
 }

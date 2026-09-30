@@ -25,6 +25,13 @@ public sealed class Isp
     /// <summary>CRM Business Partner reference of this ISP (TR-SEC-15).</summary>
     public required string CrmBpReference { get; set; }
 
+    /// <summary>
+    /// Unique uppercase code (e.g. TRING) prefixing this ISP's activation request identifiers:
+    /// TRING_001, TRING_002, ... Null only for ISPs created before the code existed; such an ISP
+    /// cannot submit activation requests until one is set.
+    /// </summary>
+    public string? TicketCode { get; set; }
+
     public IspStatus Status { get; set; } = IspStatus.Active;
 
     public DateTimeOffset CreatedAt { get; set; }

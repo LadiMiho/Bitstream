@@ -4,6 +4,7 @@
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@Model.Status</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Name</dt><dd class="mt-1 text-sm">@Model.Name</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">NIPT</dt><dd class="mt-1 text-sm">@Model.Nipt</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Ticket code</dt><dd class="mt-1 text-sm">@(string.IsNullOrEmpty(Model.TicketCode) ? "Not set" : Model.TicketCode)</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact person</dt><dd class="mt-1 text-sm">@Model.ContactPerson</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact email</dt><dd class="mt-1 text-sm">@Model.ContactEmail</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contact mobile</dt><dd class="mt-1 text-sm">@Model.ContactMobile</dd></div>

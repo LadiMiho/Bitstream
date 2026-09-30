@@ -62,9 +62,58 @@ public sealed class AdministrationServiceTests
         };
 
         var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
-            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "+355697654321", "BP2")));
+            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "+355697654321", "BP2", "NEWISP")));
 
         Assert.Contains(exception.Violations, v => v.Contains("NIPT", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CreateIspAsync_rejects_a_ticket_code_already_used_by_another_ISP()
+    {
+        var service = CreateService();
+        _ispRepository.Isps[1] = new Isp
+        {
+            IspId = 1,
+            Name = "Tring",
+            Nipt = "L12345678A",
+            ContactPerson = "A",
+            ContactEmail = "a@example.com",
+            ContactMobile = "+355691234567",
+            CrmBpReference = "BP1",
+            TicketCode = "TRING"
+        };
+
+        // Entered in lower case: still the same code once normalised.
+        var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
+            new CreateIspRequest("Other ISP", "L87654321B", "B", "b@example.com", "+355697654321", "BP2", "tring")));
+
+        Assert.True(exception.FieldErrors.ContainsKey("ticketCode"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("T")]
+    [InlineData("TRING1")]
+    [InlineData("TR_ING")]
+    public async Task CreateIspAsync_rejects_a_ticket_code_that_is_not_2_to_20_letters(string ticketCode)
+    {
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
+            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "+355697654321", "BP2", ticketCode)));
+
+        Assert.True(exception.FieldErrors.ContainsKey("ticketCode"));
+    }
+
+    [Fact]
+    public async Task CreateIspAsync_stores_the_ticket_code_uppercase()
+    {
+        var service = CreateService();
+
+        var isp = await service.CreateIspAsync(
+            new CreateIspRequest("Tring", "L12345678A", "B", "b@example.com", "+355697654321", "BP2", " tring "));
+
+        Assert.Equal("TRING", isp.TicketCode);
     }
 
     [Fact]
@@ -73,7 +122,7 @@ public sealed class AdministrationServiceTests
         var service = CreateService();
 
         var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
-            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "0691234567", "BP2")));
+            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "0691234567", "BP2", "NEWISP")));
 
         Assert.Contains(exception.Violations, v => v.Contains("E.164", StringComparison.Ordinal));
     }

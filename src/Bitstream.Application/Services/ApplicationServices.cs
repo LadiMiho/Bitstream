@@ -312,13 +312,15 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount);
 /// <param name="ContactEmail">Primary contact's email.</param>
 /// <param name="ContactMobile">E.164 format (TR-SEC-14, TR-SEC-15).</param>
 /// <param name="CrmBpReference">CRM Business Partner reference; verified against CRM before activation per TR-SEC-16 (Should — CRM contract is TRD 11.4 open item 1, so this is recorded but not yet cross-checked).</param>
+/// <param name="TicketCode">Unique 2-20 letter code prefixing this ISP's activation request identifiers (TRING → TRING_001); case-insensitive on input, stored uppercase.</param>
 public sealed record CreateIspRequest(
     string Name,
     string Nipt,
     string ContactPerson,
     string ContactEmail,
     string ContactMobile,
-    string CrmBpReference);
+    string CrmBpReference,
+    string TicketCode);
 
 /// <summary>Same fields as <see cref="CreateIspRequest"/> — everything but status is editable (TR-SEC-15).</summary>
 public sealed record UpdateIspRequest(
@@ -327,7 +329,8 @@ public sealed record UpdateIspRequest(
     string ContactPerson,
     string ContactEmail,
     string ContactMobile,
-    string CrmBpReference);
+    string CrmBpReference,
+    string TicketCode);
 
 /// <param name="IspId">Owning ISP, or null for an internal user (Administrator, Service Desk, Auditor) (TR-SEC-14).</param>
 /// <param name="FullName">User's full name.</param>
