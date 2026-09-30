@@ -147,6 +147,16 @@ public sealed class OutboxDispatcher : BackgroundService
         var command = Deserialize<CreateCrmCustomerCommand>(message);
         var gateway = services.GetRequiredService<ICrmGateway>();
 
+        var requests = services.GetRequiredService<IActivationRequestRepository>();
+        var request = await requests.FindByPublicIdAsync(command.RequestPublicId, cancellationToken).ConfigureAwait(false);
+
+        // A message enqueued before the command carried Geolocation deserialises it as null;
+        // the location is on the request itself, so take it from there rather than send it empty.
+        if (string.IsNullOrWhiteSpace(command.Geolocation) && request is not null)
+        {
+            command = command with { Geolocation = request.LocationRaw };
+        }
+
         var result = await gateway.CreateCustomerAsync(command, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
@@ -161,9 +171,6 @@ public sealed class OutboxDispatcher : BackgroundService
 
         // INT-CRM-02 needs the Business Partner INT-CRM-01 just returned, so it is enqueued
         // here — with the real BP, never a placeholder — rather than by SubmitAsync up front.
-        var requests = services.GetRequiredService<IActivationRequestRepository>();
-        var request = await requests.FindByPublicIdAsync(command.RequestPublicId, cancellationToken).ConfigureAwait(false);
-
         if (request is null)
         {
             _logger.LogWarning(

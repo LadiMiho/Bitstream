@@ -91,6 +91,8 @@ public sealed class CrmClosureEndToEndTests
         }
 
         Assert.Single(factory.CrmGateway.CreateCustomerCalls);
+        // The form's location reaches the Business Partner call as GEOLOCATION.
+        Assert.Equal("41.3275,19.8187", factory.CrmGateway.CreateCustomerCalls[0].Geolocation);
         Assert.Single(factory.CrmGateway.CreateActivationTicketCalls);
         // TR-INT-03/17: the ticket call carries the BP the customer call actually returned, not a placeholder.
         Assert.Equal("BP-000001", factory.CrmGateway.CreateActivationTicketCalls[0].BusinessPartner);
@@ -247,6 +249,38 @@ public sealed class CrmClosureEndToEndTests
         }
 
         await AssertStatusAsync(factory, submitted!.RequestId, ActivationRequestStatus.IntegrationFailed);
+    }
+
+    [Fact]
+    public async Task A_customer_message_queued_without_geolocation_takes_it_from_the_activation_request()
+    {
+        await using var factory = new CrmApiFactory();
+        const string publicId = "ISP_700";
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var isp = await IdentitySeeder.AddIspAsync(db, "Old Payload ISP", "L00000903");
+            await Bitstream.Api.Tests.Activation.ActivationSeeder.AddRequestAsync(db, isp.IspId, publicId, ActivationRequestStatus.PendingCrmSync);
+
+            // The payload shape enqueued before Geolocation existed on the command.
+            var outbox = scope.ServiceProvider.GetRequiredService<IIntegrationOutbox>();
+            var legacyPayload =
+                "{\"Envelope\":{\"MessageId\":\"" + Guid.NewGuid() + "\",\"CorrelationId\":\"corr-old\",\"IdempotencyKey\":\"" + publicId + "\"," +
+                "\"OccurredAt\":\"2026-09-01T00:00:00+00:00\"},\"RequestPublicId\":\"" + publicId + "\",\"IspName\":\"Old Payload ISP\"," +
+                "\"IspNipt\":\"L00000903\",\"ContactPerson\":\"Contact\",\"ContactEmail\":\"old@example.com\",\"ContactMobile\":\"+355691234567\"}";
+
+            await outbox.EnqueueOutboundAsync(
+                TargetSystem.Crm, "INT-CRM-01", "CREATE_CUSTOMER", publicId, legacyPayload, "corr-old", publicId);
+        }
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchBatchAsync();
+        }
+
+        var call = Assert.Single(factory.CrmGateway.CreateCustomerCalls);
+        Assert.Equal("41.3275,19.8187", call.Geolocation);
     }
 
     private static async Task AssertStatusAsync(CrmApiFactory factory, long requestId, ActivationRequestStatus expected)
