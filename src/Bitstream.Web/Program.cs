@@ -207,7 +207,21 @@ app.UseHttpsRedirection();
 
 // Ahead of authentication/authorization: a CSS file needs neither, and short-circuiting here
 // means the request never reaches that pipeline.
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // Page scripts and styles are referenced without a version stamp (and ES module imports
+    // cannot carry one), so the browser must revalidate them on every load — otherwise it keeps
+    // running an old script after an update. With the ETag this is a cheap 304 when unchanged.
+    OnPrepareResponse = context =>
+    {
+        var extension = Path.GetExtension(context.File.Name);
+
+        if (extension.Equals(".js", StringComparison.OrdinalIgnoreCase) || extension.Equals(".css", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers.CacheControl = "no-cache";
+        }
+    }
+});
 
 app.UseRateLimiter();
 
