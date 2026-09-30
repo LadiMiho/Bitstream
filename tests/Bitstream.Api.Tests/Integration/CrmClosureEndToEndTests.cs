@@ -76,6 +76,16 @@ public sealed class CrmClosureEndToEndTests
             var firstCycle = await dispatcher.DispatchBatchAsync();
             Assert.Equal(1, firstCycle); // INT-CRM-01 only — INT-CRM-02 does not exist yet.
 
+            // BP_NO is stored as soon as INT-CRM-01 returns it, before the ticket exists.
+            await using (var checkScope = factory.CreateAsyncScope())
+            {
+                var db = checkScope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+                var afterCustomer = await db.ActivationRequests.FindAsync(requestId);
+
+                Assert.Equal("BP-000001", afterCustomer!.Bp);
+                Assert.Equal(ActivationRequestStatus.PendingCrmSync, afterCustomer.Status);
+            }
+
             var secondCycle = await dispatcher.DispatchBatchAsync();
             Assert.Equal(1, secondCycle); // INT-CRM-02, enqueued by the first cycle's success.
         }

@@ -7,7 +7,7 @@ contract belongs to the other system.
 
 | TRD §7.1 | Direction | Represented by | OpenAPI | Blocked by |
 | --- | --- | --- | --- | --- |
-| INT-CRM-01 Create Customer | Portal → CRM | `ICrmGateway.CreateCustomerAsync` — **implemented** against a provisional payload shape, dispatched from the outbox by `OutboxDispatcher` | no — outbound | Real contract: Open item 1 |
+| INT-CRM-01 Create Customer (Business Partner) | Portal → CRM | `ICrmGateway.CreateCustomerAsync` — **implemented** against CRM's real `CRM_BP_CREATE` SOAP operation (`Integration:Crm:BusinessPartner`), dispatched from the outbox by `OutboxDispatcher`; only `responseCode` 0 is success, and the returned `BP_NO` is stored on the activation request immediately | no — outbound | — |
 | INT-CRM-02 Create Activation Ticket | Portal → CRM | `ICrmGateway.CreateActivationTicketAsync` — **implemented**, enqueued by the dispatcher once INT-CRM-01's Business Partner is known | no — outbound | Real contract: Open item 1 |
 | INT-CRM-03 Sales Order Notification | CRM → Portal | `POST /api/v1/tickets/{identifier}/events`, `SALES_ORDER_OPENED` — **implemented** for activation requests (TR-ACT-18) | **yes** | Auth: open item 3 |
 | INT-CRM-04 Create Complaint Ticket | Portal → CRM | `ICrmGateway.CreateComplaintTicketAsync` — **implemented** against a provisional payload shape, dispatched from the outbox on `ComplaintTicketService.CreateAsync` | no — outbound | Real contract: Open item 1 |

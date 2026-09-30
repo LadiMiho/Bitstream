@@ -61,6 +61,24 @@ public sealed class CrmOptionsValidator : IValidateOptions<CrmOptions>
                 $"({options.Timeout}); no retry could complete inside the window (TR-INT-04).");
         }
 
+        // The Business Partner endpoint is the address CRM supplied (plain http on the internal
+        // network), so the https rule above deliberately does not apply to it.
+        var businessPartner = options.BusinessPartner;
+
+        if (businessPartner.Endpoint is not null && !businessPartner.Endpoint.IsAbsoluteUri)
+        {
+            failures.Add($"Integration:Crm:BusinessPartner:Endpoint must be an absolute URI. Configured: '{businessPartner.Endpoint}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(businessPartner.OperationCode)
+            || string.IsNullOrWhiteSpace(businessPartner.CustomerType)
+            || string.IsNullOrWhiteSpace(businessPartner.BpCategory)
+            || string.IsNullOrWhiteSpace(businessPartner.PartnerType))
+        {
+            failures.Add(
+                "Integration:Crm:BusinessPartner:OperationCode, CustomerType, BpCategory and PartnerType must all be set.");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

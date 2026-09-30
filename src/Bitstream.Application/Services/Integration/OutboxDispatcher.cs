@@ -172,8 +172,14 @@ public sealed class OutboxDispatcher : BackgroundService
             return;
         }
 
+        // BP_NO is stored as soon as CRM returns it, not only once the ticket is created too, so
+        // it is never lost if INT-CRM-02 later fails.
+        request.CrmCustomerId = result.Value!.CrmCustomerId;
+        request.Bp = result.Value.BusinessPartner;
+        await services.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
         var ticketCommand = new CreateActivationTicketCommand(
-            command.Envelope, request.PublicId, result.Value!.CrmCustomerId, result.Value.BusinessPartner,
+            command.Envelope, request.PublicId, result.Value.CrmCustomerId, result.Value.BusinessPartner,
             request.Classification, request.PackageCode, request.ContractDurationMonths,
             request.LocationRaw, request.LocationLat, request.LocationLng, request.Comments);
 

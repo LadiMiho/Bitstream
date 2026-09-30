@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bitstream.Application.Abstractions.Configuration;
@@ -50,15 +51,40 @@ public sealed class CrmOptions
 
     /// <summary>Timeout for the health probe. Short, so readiness stays responsive.</summary>
     public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Business Partner creation (INT-CRM-01), a SOAP operation on its own endpoint.</summary>
+    public CrmBusinessPartnerOptions BusinessPartner { get; set; } = new();
+}
+
+/// <summary>
+/// The <c>CRM_BP_CREATE</c> SOAP operation's endpoint and the fixed codes it is sent with
+/// (<c>Integration:Crm:BusinessPartner</c>).
+/// </summary>
+public sealed class CrmBusinessPartnerOptions
+{
+    /// <summary>Absolute SOAP endpoint URL. Unset means INT-CRM-01 fails as a retryable technical failure.</summary>
+    public Uri? Endpoint { get; set; }
+
+    public string OperationCode { get; set; } = "CRM_BP_CREATE";
+
+    /// <summary>Sent as CUSTOMERTYPE.</summary>
+    public string CustomerType { get; set; } = "O000";
+
+    /// <summary>Sent as BP_CAT.</summary>
+    public string BpCategory { get; set; } = "2";
+
+    /// <summary>Sent as PARTNERTYPE.</summary>
+    public string PartnerType { get; set; } = "O100";
 }
 
 /// <summary>
 /// HTTP adapter for CRM (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09; TRD 7.3.1 Direction A).
 /// <para>
-/// Five of six operations are implemented — customer and activation ticket creation
-/// (INT-CRM-01/02), complaint ticket creation (INT-CRM-04), comment replication (INT-CRM-06),
-/// closure decision (INT-CRM-08) and service change (INT-CRM-09) — all against the provisional
-/// payload shape in TRD §7.4, since the real CRM contract is still TRD 11.4 open item 1. Only
+/// Business Partner creation (INT-CRM-01) uses the real <c>CRM_BP_CREATE</c> SOAP operation
+/// (<see cref="CrmBusinessPartnerSoap"/>). Activation ticket creation (INT-CRM-02), complaint
+/// ticket creation (INT-CRM-04), comment replication (INT-CRM-06), closure decision (INT-CRM-08)
+/// and service change (INT-CRM-09) still use the provisional JSON payload shape in TRD §7.4,
+/// since the rest of the CRM contract is still TRD 11.4 open item 1. Only
 /// <c>FindTicketByIdempotencyKeyAsync</c> (the ambiguous-timeout status query, TR-INT-20) still
 /// throws — there is nothing to poll without knowing what CRM's status response looks like.
 /// </para>
@@ -89,19 +115,68 @@ public sealed class CrmHttpGateway : ICrmGateway
         _secretResolver = secretResolver;
     }
 
+    /// <summary>
+    /// INT-CRM-01: creates the Business Partner through the <c>CRM_BP_CREATE</c> SOAP operation.
+    /// Only <c>responseCode</c> 0 is success; any other code is a business rejection (not
+    /// retried). CRM returns no separate customer ID, so <c>BP_NO</c> is used for both
+    /// <see cref="CreateCrmCustomerResult.CrmCustomerId"/> and
+    /// <see cref="CreateCrmCustomerResult.BusinessPartner"/>.
+    /// </summary>
     public async Task<IntegrationResult<CreateCrmCustomerResult>> CreateCustomerAsync(
         CreateCrmCustomerCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var body = new CustomerRequestBody(
-            command.RequestPublicId, command.IspName, command.IspNipt, command.ContactPerson, command.ContactEmail, command.ContactMobile);
+        var bpOptions = _options.BusinessPartner;
 
-        return await SendAsync(
-            "customers", command.Envelope.IdempotencyKey, body,
-            (CustomerResponseBody response) => new CreateCrmCustomerResult(response.CrmCustomerId, response.BusinessPartner),
-            cancellationToken).ConfigureAwait(false);
+        if (bpOptions.Endpoint is null)
+        {
+            return IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(
+                "Integration:Crm:BusinessPartner:Endpoint is not configured.");
+        }
+
+        var envelope = CrmBusinessPartnerSoap.BuildCreateRequest(bpOptions, command);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, bpOptions.Endpoint)
+        {
+            Content = new StringContent(envelope, Encoding.UTF8, "text/xml")
+        };
+        request.Headers.TryAddWithoutValidation("SOAPAction", "\"\"");
+
+        HttpResponseMessage response;
+
+        try
+        {
+            response = await _client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return IntegrationResult<CreateCrmCustomerResult>.Timeout(
+                $"CRM Business Partner creation did not respond within {_options.Timeout.TotalSeconds:F0}s.");
+        }
+        catch (HttpRequestException exception)
+        {
+            return IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(exception.Message);
+        }
+
+        using (response)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var statusCode = ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = CrmBusinessPartnerSoap.TryReadFault(body)
+                    ?? $"CRM Business Partner creation returned {(int)response.StatusCode} {response.ReasonPhrase}.";
+
+                return IsBusinessRejection(response.StatusCode)
+                    ? IntegrationResult<CreateCrmCustomerResult>.BusinessRejection(statusCode, detail)
+                    : IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(detail, statusCode);
+            }
+
+            return CrmBusinessPartnerSoap.ParseCreateResponse(body);
+        }
     }
 
     public async Task<IntegrationResult<CreateCrmTicketResult>> CreateActivationTicketAsync(
@@ -281,18 +356,6 @@ public sealed class CrmHttpGateway : ICrmGateway
     }
 
     // --- Provisional TRD 7.4 payload shape --------------------------------------------------
-
-    private sealed record CustomerRequestBody(
-        [property: JsonPropertyName("requestPublicId")] string RequestPublicId,
-        [property: JsonPropertyName("ispName")] string IspName,
-        [property: JsonPropertyName("ispNipt")] string IspNipt,
-        [property: JsonPropertyName("contactPerson")] string ContactPerson,
-        [property: JsonPropertyName("contactEmail")] string ContactEmail,
-        [property: JsonPropertyName("contactMobile")] string ContactMobile);
-
-    private sealed record CustomerResponseBody(
-        [property: JsonPropertyName("crmCustomerId")] string CrmCustomerId,
-        [property: JsonPropertyName("businessPartner")] string BusinessPartner);
 
     private sealed record ActivationTicketRequestBody(
         [property: JsonPropertyName("requestPublicId")] string RequestPublicId,

@@ -523,7 +523,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         var envelope = new IntegrationEnvelope(Guid.NewGuid(), _currentUser.CorrelationId, request.PublicId, _clock.UtcNow);
 
         var customerCommand = new CreateCrmCustomerCommand(
-            envelope, request.PublicId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile);
+            envelope, request.PublicId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile, request.LocationRaw);
 
         // TR-INT-03/17: the idempotency key is the request's own public identifier — stable
         // across every retry of this message, including a whole re-submission via

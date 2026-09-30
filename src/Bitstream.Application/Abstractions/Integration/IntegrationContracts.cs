@@ -22,6 +22,7 @@ public sealed record IntegrationEnvelope(
 /// <param name="ContactPerson">ISP's primary contact.</param>
 /// <param name="ContactEmail">ISP's primary contact email.</param>
 /// <param name="ContactMobile">ISP's primary contact mobile.</param>
+/// <param name="Geolocation">Location exactly as entered on the activation form; sent as the Business Partner's GEOLOCATION. Nullable only so outbox payloads enqueued before it existed still deserialise.</param>
 public sealed record CreateCrmCustomerCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
@@ -29,7 +30,8 @@ public sealed record CreateCrmCustomerCommand(
     string IspNipt,
     string ContactPerson,
     string ContactEmail,
-    string ContactMobile);
+    string ContactMobile,
+    string? Geolocation);
 
 /// <param name="CrmCustomerId">CRM-side customer ID.</param>
 /// <param name="BusinessPartner">BP assigned by CRM, required for the subsequent ticket (TR-ACT-08).</param>
