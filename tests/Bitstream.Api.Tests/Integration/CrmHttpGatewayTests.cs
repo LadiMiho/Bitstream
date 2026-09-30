@@ -40,7 +40,7 @@ public sealed class CrmHttpGatewayTests
         }
     }
 
-    private static CrmHttpGateway CreateGateway(RecordingHandler handler, bool configureBusinessPartner = true)
+    private static CrmHttpGateway CreateGateway(RecordingHandler handler, bool configureBusinessPartner = true, string? messageLogDirectory = null)
     {
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://crm.example.com/") };
         var secretResolver = new FakeSecretResolver().Set("CrmClientSecret", "test-token");
@@ -49,7 +49,8 @@ public sealed class CrmHttpGatewayTests
             CredentialSecretName = "CrmClientSecret",
             BusinessPartner = new CrmBusinessPartnerOptions
             {
-                Endpoint = configureBusinessPartner ? new Uri(BusinessPartnerEndpoint) : null
+                Endpoint = configureBusinessPartner ? new Uri(BusinessPartnerEndpoint) : null,
+                MessageLogDirectory = messageLogDirectory
             }
         });
 
@@ -113,6 +114,43 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal("2", values["BP_CAT"]);
         Assert.Equal("O100", values["PARTNERTYPE"]);
         Assert.Equal("672017664", values["MOBILE"]);
+    }
+
+    [Fact]
+    public async Task The_message_log_file_records_the_exact_request_XML_and_the_response()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "bitstream-crm-bp-" + Guid.NewGuid().ToString("N"));
+        const string mapsLink = "https://www.google.com/maps/place/41.3275,19.8187/@41.3275,19.8187,17z?entry=ttu&g_ep=abc";
+
+        try
+        {
+            var handler = new RecordingHandler
+            {
+                Respond = _ => SoapResponse("0", "<string name=\"BP_NO\">1102017112</string>")
+            };
+            var gateway = CreateGateway(handler, messageLogDirectory: directory);
+
+            await gateway.CreateCustomerAsync(CustomerCommand() with { Geolocation = mapsLink });
+
+            var logFile = Assert.Single(Directory.GetFiles(directory, "crm-bp-soap-*.log"));
+            var logText = await File.ReadAllTextAsync(logFile);
+
+            // The request exactly as sent is in the file, and the link round-trips through XML.
+            Assert.Contains(handler.LastBody!, logText, StringComparison.Ordinal);
+            var geolocation = XDocument.Parse(handler.LastBody!).Descendants("string")
+                .Single(e => e.Attribute("name")!.Value == "GEOLOCATION").Value;
+            Assert.Equal(mapsLink, geolocation);
+
+            Assert.Contains("RESPONSE HTTP 200", logText, StringComparison.Ordinal);
+            Assert.Contains("1102017112", logText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     [Fact]

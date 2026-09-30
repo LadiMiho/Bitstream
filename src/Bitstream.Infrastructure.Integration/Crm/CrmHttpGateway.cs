@@ -83,6 +83,15 @@ public sealed class CrmBusinessPartnerOptions
     /// acceptable in the logs (Development).
     /// </summary>
     public bool LogMessages { get; set; }
+
+    /// <summary>
+    /// When set, every CRM_BP_CREATE request XML (exactly as sent) and CRM's raw response are
+    /// appended to a daily text file, <c>crm-bp-soap-yyyyMMdd.log</c>, in this directory. A
+    /// relative path resolves against the process's working directory (the project folder when
+    /// run from Visual Studio). Unset (the default) writes nothing — the file carries the ISP's
+    /// email, NIPT and mobile.
+    /// </summary>
+    public string? MessageLogDirectory { get; set; }
 }
 
 /// <summary>
@@ -111,6 +120,9 @@ public sealed class CrmHttpGateway : ICrmGateway
 
     /// <summary>Header idempotency travels on, in addition to the envelope's key already carried in the body (TR-INT-03, TR-INT-17).</summary>
     private const string IdempotencyHeader = "Idempotency-Key";
+
+    /// <summary>Serialises appends to the SOAP message log file across gateway instances.</summary>
+    private static readonly SemaphoreSlim MessageLogLock = new(1, 1);
 
     private readonly HttpClient _client;
     private readonly CrmOptions _options;
@@ -155,6 +167,8 @@ public sealed class CrmHttpGateway : ICrmGateway
                 command.RequestPublicId, bpOptions.Endpoint, envelope);
         }
 
+        await WriteMessageLogAsync(command.RequestPublicId, $"REQUEST POST {bpOptions.Endpoint}", envelope, cancellationToken).ConfigureAwait(false);
+
         using var request = new HttpRequestMessage(HttpMethod.Post, bpOptions.Endpoint)
         {
             Content = new StringContent(envelope, Encoding.UTF8, "text/xml")
@@ -169,11 +183,13 @@ public sealed class CrmHttpGateway : ICrmGateway
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return IntegrationResult<CreateCrmCustomerResult>.Timeout(
-                $"CRM Business Partner creation did not respond within {_options.Timeout.TotalSeconds:F0}s.");
+            var timeout = $"CRM Business Partner creation did not respond within {_options.Timeout.TotalSeconds:F0}s.";
+            await WriteMessageLogAsync(command.RequestPublicId, "NO RESPONSE (timeout)", timeout, CancellationToken.None).ConfigureAwait(false);
+            return IntegrationResult<CreateCrmCustomerResult>.Timeout(timeout);
         }
         catch (HttpRequestException exception)
         {
+            await WriteMessageLogAsync(command.RequestPublicId, "NO RESPONSE (connection failed)", exception.Message, CancellationToken.None).ConfigureAwait(false);
             return IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(exception.Message);
         }
 
@@ -181,6 +197,8 @@ public sealed class CrmHttpGateway : ICrmGateway
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var statusCode = ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
+
+            await WriteMessageLogAsync(command.RequestPublicId, $"RESPONSE HTTP {statusCode}", body, cancellationToken).ConfigureAwait(false);
 
             if (bpOptions.LogMessages)
             {
@@ -341,6 +359,43 @@ public sealed class CrmHttpGateway : ICrmGateway
             return IsBusinessRejection(response.StatusCode)
                 ? IntegrationResult<TResult>.BusinessRejection(((int)response.StatusCode).ToString(CultureInfo.InvariantCulture), detail)
                 : IntegrationResult<TResult>.TechnicalFailure(detail, ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
+    /// <summary>
+    /// Appends one entry to the daily SOAP message log when
+    /// <see cref="CrmBusinessPartnerOptions.MessageLogDirectory"/> is set. A failure to write is
+    /// logged and swallowed — diagnostics must never fail the CRM call itself.
+    /// </summary>
+    private async Task WriteMessageLogAsync(string requestPublicId, string heading, string content, CancellationToken cancellationToken)
+    {
+        var directory = _options.BusinessPartner.MessageLogDirectory;
+
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var path = Path.GetFullPath(Path.Combine(directory, $"crm-bp-soap-{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.log"));
+        var entry =
+            $"===== {now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)} UTC | {requestPublicId} | {heading} ====={Environment.NewLine}" +
+            $"{content}{Environment.NewLine}{Environment.NewLine}";
+
+        await MessageLogLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.AppendAllTextAsync(path, entry, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(exception, "Could not write the CRM_BP_CREATE message log to {Path}.", path);
+        }
+        finally
+        {
+            MessageLogLock.Release();
         }
     }
 

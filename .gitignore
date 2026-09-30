@@ -21,3 +21,6 @@ appsettings.*.Local.json
 *.pfx
 *.snk
 .env
+
+## Local diagnostic logs (e.g. the CRM_BP_CREATE SOAP message log)
+logs/
