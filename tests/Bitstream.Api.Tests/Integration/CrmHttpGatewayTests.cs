@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using Bitstream.Api.Tests.Identity;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Infrastructure.Integration.Crm;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -52,7 +53,7 @@ public sealed class CrmHttpGatewayTests
             }
         });
 
-        return new CrmHttpGateway(client, options, secretResolver);
+        return new CrmHttpGateway(client, options, secretResolver, NullLogger<CrmHttpGateway>.Instance);
     }
 
     private static CreateCrmCustomerCommand CustomerCommand() =>

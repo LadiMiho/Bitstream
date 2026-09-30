@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Integration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Bitstream.Infrastructure.Integration.Crm;
@@ -75,6 +76,13 @@ public sealed class CrmBusinessPartnerOptions
 
     /// <summary>Sent as PARTNERTYPE.</summary>
     public string PartnerType { get; set; } = "O100";
+
+    /// <summary>
+    /// Logs the full SOAP request and CRM's raw response at Information level. Off by default:
+    /// the envelope carries the ISP's email, NIPT and mobile, so enable it only where that is
+    /// acceptable in the logs (Development).
+    /// </summary>
+    public bool LogMessages { get; set; }
 }
 
 /// <summary>
@@ -107,12 +115,14 @@ public sealed class CrmHttpGateway : ICrmGateway
     private readonly HttpClient _client;
     private readonly CrmOptions _options;
     private readonly ISecretResolver _secretResolver;
+    private readonly ILogger<CrmHttpGateway> _logger;
 
-    public CrmHttpGateway(HttpClient httpClient, IOptions<CrmOptions> options, ISecretResolver secretResolver)
+    public CrmHttpGateway(HttpClient httpClient, IOptions<CrmOptions> options, ISecretResolver secretResolver, ILogger<CrmHttpGateway> logger)
     {
         _client = httpClient;
         _options = options.Value;
         _secretResolver = secretResolver;
+        _logger = logger;
     }
 
     /// <summary>
@@ -137,6 +147,13 @@ public sealed class CrmHttpGateway : ICrmGateway
         }
 
         var envelope = CrmBusinessPartnerSoap.BuildCreateRequest(bpOptions, command);
+
+        if (bpOptions.LogMessages)
+        {
+            _logger.LogInformation(
+                "CRM_BP_CREATE request for {RequestPublicId} to {Endpoint}: {SoapRequest}",
+                command.RequestPublicId, bpOptions.Endpoint, envelope);
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, bpOptions.Endpoint)
         {
@@ -164,6 +181,13 @@ public sealed class CrmHttpGateway : ICrmGateway
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var statusCode = ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
+
+            if (bpOptions.LogMessages)
+            {
+                _logger.LogInformation(
+                    "CRM_BP_CREATE response for {RequestPublicId} (HTTP {StatusCode}): {SoapResponse}",
+                    command.RequestPublicId, statusCode, body);
+            }
 
             if (!response.IsSuccessStatusCode)
             {
