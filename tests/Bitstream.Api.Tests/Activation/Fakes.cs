@@ -85,6 +85,24 @@ public sealed class FakeActivationCatalogueRepository : IActivationCatalogueRepo
         PackageOffers.Add(offer);
         return Task.CompletedTask;
     }
+
+    public Task<Package?> FindPackageAsync(string code, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Packages.FirstOrDefault(p => p.Code == code));
+
+    public Task AddPackageAsync(Package package, CancellationToken cancellationToken = default)
+    {
+        Packages.Add(package);
+        return Task.CompletedTask;
+    }
+
+    public Task<ContractDuration?> FindContractDurationAsync(int months, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ContractDurations.FirstOrDefault(d => d.Months == months));
+
+    public Task AddContractDurationAsync(ContractDuration duration, CancellationToken cancellationToken = default)
+    {
+        ContractDurations.Add(duration);
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Deterministic, in-memory stand-in for <see cref="IPublicIdentifierGenerator"/> — no stored procedure, no database.</summary>

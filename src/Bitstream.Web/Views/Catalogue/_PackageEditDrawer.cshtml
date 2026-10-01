@@ -1,0 +1,23 @@
+@model Bitstream.Domain.Entities.Package
+<form id="package-edit-form" class="grid gap-4" novalidate data-entity="package" data-action="update" data-key="@Model.Code">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <dl>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Code</dt>
+        <dd class="mt-1 text-sm">@Model.Code</dd>
+    </dl>
+    <div>
+        <label class="field-label" for="package-edit-name">Name</label>
+        <input class="field-input" id="package-edit-name" name="name" type="text" maxlength="200" value="@Model.Name" required />
+        <p class="field-error" role="alert" data-field-error="name" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="package-edit-tier">Tier</label>
+        <input class="field-input" id="package-edit-tier" name="tier" type="number" min="0" step="1" value="@Model.Tier" required />
+        <span class="mt-1 block text-xs text-ink-muted">Relative rank: a higher tier is an upgrade, a lower one a downgrade, for service change requests.</span>
+        <p class="field-error" role="alert" data-field-error="tier" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="package-edit-form" class="btn-primary">Save</button>
+</template>

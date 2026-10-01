@@ -1,0 +1,18 @@
+<form id="duration-add-form" class="grid gap-4" novalidate data-entity="duration" data-action="create">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <div>
+        <label class="field-label" for="duration-add-months">Months</label>
+        <input class="field-input" id="duration-add-months" name="months" type="number" min="1" max="120" step="1" placeholder="e.g. 36" required />
+        <span class="mt-1 block text-xs text-ink-muted">Cannot be changed later.</span>
+        <p class="field-error" role="alert" data-field-error="months" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="duration-add-label">Label</label>
+        <input class="field-input" id="duration-add-label" name="label" type="text" maxlength="50" placeholder="Leave empty for &quot;N months&quot;" />
+        <p class="field-error" role="alert" data-field-error="label" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="duration-add-form" class="btn-primary">Add duration</button>
+</template>

@@ -40,4 +40,24 @@ public sealed class ActivationCatalogueRepository : IActivationCatalogueReposito
 
         await _dbContext.PackageOffers.AddAsync(offer, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<Package?> FindPackageAsync(string code, CancellationToken cancellationToken = default) =>
+        _dbContext.Packages.FirstOrDefaultAsync(package => package.Code == code, cancellationToken);
+
+    public async Task AddPackageAsync(Package package, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+
+        await _dbContext.Packages.AddAsync(package, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<ContractDuration?> FindContractDurationAsync(int months, CancellationToken cancellationToken = default) =>
+        _dbContext.ContractDurations.FirstOrDefaultAsync(duration => duration.Months == months, cancellationToken);
+
+    public async Task AddContractDurationAsync(ContractDuration duration, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(duration);
+
+        await _dbContext.ContractDurations.AddAsync(duration, cancellationToken).ConfigureAwait(false);
+    }
 }

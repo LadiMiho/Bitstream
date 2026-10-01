@@ -116,6 +116,47 @@ public sealed record PackageOfferOverview(
 
 public sealed record CreatePackageOfferRequest(string PackageCode, int ContractDurationMonths, string OfferCode);
 
+/// <summary>
+/// Packages &amp; contract durations screen: maintains portal.Package and portal.ContractDuration.
+/// A package's code and a duration's months identify them and never change; everything else is
+/// editable, and either can be deactivated instead of deleted. Gated on <c>catalogue.manage</c>
+/// by the presentation layer.
+/// </summary>
+public interface ICatalogueService
+{
+    /// <summary>Every package and contract duration, active and inactive alike.</summary>
+    Task<CatalogueOverview> GetOverviewAsync(CancellationToken cancellationToken = default);
+
+    Task<Package?> GetPackageAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.CatalogueValidationException">Invalid or duplicate code, empty name, negative tier.</exception>
+    Task<Package> CreatePackageAsync(string code, string name, int tier, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.CatalogueNotFoundException">No package with that code.</exception>
+    /// <exception cref="Activation.CatalogueValidationException">Empty name or negative tier.</exception>
+    Task<Package> UpdatePackageAsync(string code, string name, int tier, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.CatalogueNotFoundException">No package with that code.</exception>
+    Task SetPackageActiveAsync(string code, bool isActive, CancellationToken cancellationToken = default);
+
+    Task<ContractDuration?> GetContractDurationAsync(int months, CancellationToken cancellationToken = default);
+
+    /// <summary>An empty label defaults to "N months".</summary>
+    /// <exception cref="Activation.CatalogueValidationException">Months out of range or already present, label too long.</exception>
+    Task<ContractDuration> CreateContractDurationAsync(int months, string? label, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.CatalogueNotFoundException">No duration of that many months.</exception>
+    /// <exception cref="Activation.CatalogueValidationException">Label too long.</exception>
+    Task<ContractDuration> UpdateContractDurationAsync(int months, string? label, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.CatalogueNotFoundException">No duration of that many months.</exception>
+    Task SetContractDurationActiveAsync(int months, bool isActive, CancellationToken cancellationToken = default);
+}
+
+/// <param name="Packages">Every package, ordered by tier.</param>
+/// <param name="ContractDurations">Every contract duration, ordered by months.</param>
+public sealed record CatalogueOverview(IReadOnlyList<Package> Packages, IReadOnlyList<ContractDuration> ContractDurations);
+
 public sealed record UpdatePackageOfferRequest(string OfferCode);
 
 /// <param name="IspId">Owning ISP.</param>

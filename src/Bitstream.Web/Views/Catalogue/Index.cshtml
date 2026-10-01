@@ -1,0 +1,114 @@
+@using Bitstream.Application.Services
+@model CatalogueOverview
+@{
+    ViewData["Title"] = "Packages & contract durations";
+}
+
+<div class="grid gap-6" data-role="catalogue-admin-page">
+    <div>
+        <div class="flex flex-wrap gap-4 text-sm">
+            <a href="/ActivationRequests" class="text-brand-600 underline">&larr; Activation Requests</a>
+            <a href="/ActivationRequests/PackageOffers" class="text-brand-600 underline">Package offers</a>
+        </div>
+        <h1 class="mt-2 text-xl font-semibold">Packages &amp; contract durations</h1>
+        <p class="mt-1 max-w-2xl text-sm text-ink-muted">
+            What the New activation request form offers. A package or duration only appears on the form while it is
+            active and has an active package offer. Deactivating one never changes existing requests.
+        </p>
+    </div>
+
+    <p id="catalogue-error" class="field-error" role="alert" hidden></p>
+
+    <section class="card" aria-labelledby="packages-heading">
+        <div class="flex items-center justify-between">
+            <h2 id="packages-heading" class="text-base font-semibold">Packages</h2>
+            <button type="button" class="btn-primary" data-entity="package" data-catalogue-action="add">Add package</button>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Package</th>
+                        <th class="table-head">Tier</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var package in Model.Packages)
+                    {
+                        <tr class="border-t border-line">
+                            <td class="table-cell">
+                                <div class="font-medium text-ink">@package.Name</div>
+                                <div class="text-xs text-ink-muted">@package.Code</div>
+                            </td>
+                            <td class="table-cell">@package.Tier</td>
+                            <td class="table-cell"><partial name="_StatusPill" model="@package.IsActive" /></td>
+                            <td class="table-cell">
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" class="btn-secondary" data-entity="package" data-catalogue-action="edit"
+                                            data-key="@package.Code" data-label="@package.Name">Edit</button>
+                                    <button type="button" class="btn-secondary" data-entity="package"
+                                            data-catalogue-action="@(package.IsActive ? "deactivate" : "activate")"
+                                            data-key="@package.Code" data-label="@package.Name">@(package.IsActive ? "Deactivate" : "Activate")</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Model.Packages.Count == 0)
+            {
+                <p class="mt-3 text-sm text-ink-muted">No packages yet.</p>
+            }
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="durations-heading">
+        <div class="flex items-center justify-between">
+            <h2 id="durations-heading" class="text-base font-semibold">Contract durations</h2>
+            <button type="button" class="btn-primary" data-entity="duration" data-catalogue-action="add">Add duration</button>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Months</th>
+                        <th class="table-head">Label</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var duration in Model.ContractDurations)
+                    {
+                        <tr class="border-t border-line">
+                            <td class="table-cell font-medium text-ink">@duration.Months</td>
+                            <td class="table-cell">@duration.Label</td>
+                            <td class="table-cell"><partial name="_StatusPill" model="@duration.IsActive" /></td>
+                            <td class="table-cell">
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" class="btn-secondary" data-entity="duration" data-catalogue-action="edit"
+                                            data-key="@duration.Months" data-label="@duration.Label">Edit</button>
+                                    <button type="button" class="btn-secondary" data-entity="duration"
+                                            data-catalogue-action="@(duration.IsActive ? "deactivate" : "activate")"
+                                            data-key="@duration.Months" data-label="@duration.Label">@(duration.IsActive ? "Deactivate" : "Activate")</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Model.ContractDurations.Count == 0)
+            {
+                <p class="mt-3 text-sm text-ink-muted">No contract durations yet.</p>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/catalogue-admin.js"></script>
+}

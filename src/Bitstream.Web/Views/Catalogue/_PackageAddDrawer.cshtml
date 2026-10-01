@@ -1,0 +1,24 @@
+<form id="package-add-form" class="grid gap-4" novalidate data-entity="package" data-action="create">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <div>
+        <label class="field-label" for="package-add-code">Code</label>
+        <input class="field-input uppercase" id="package-add-code" name="code" type="text" maxlength="50" placeholder="e.g. BITSTREAM_ULTRA" required />
+        <span class="mt-1 block text-xs text-ink-muted">Letters, digits and underscores. Sent to CRM and BI; it cannot be changed later.</span>
+        <p class="field-error" role="alert" data-field-error="code" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="package-add-name">Name</label>
+        <input class="field-input" id="package-add-name" name="name" type="text" maxlength="200" placeholder="e.g. Bitstream Ultra" required />
+        <p class="field-error" role="alert" data-field-error="name" hidden></p>
+    </div>
+    <div>
+        <label class="field-label" for="package-add-tier">Tier</label>
+        <input class="field-input" id="package-add-tier" name="tier" type="number" min="0" step="1" value="0" required />
+        <span class="mt-1 block text-xs text-ink-muted">Relative rank: a higher tier is an upgrade, a lower one a downgrade, for service change requests.</span>
+        <p class="field-error" role="alert" data-field-error="tier" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="package-add-form" class="btn-primary">Add package</button>
+</template>

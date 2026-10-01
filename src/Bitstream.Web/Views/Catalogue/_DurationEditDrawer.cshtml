@@ -1,0 +1,18 @@
+@model Bitstream.Domain.Entities.ContractDuration
+<form id="duration-edit-form" class="grid gap-4" novalidate data-entity="duration" data-action="update" data-key="@Model.Months">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <dl>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Months</dt>
+        <dd class="mt-1 text-sm">@Model.Months</dd>
+    </dl>
+    <div>
+        <label class="field-label" for="duration-edit-label">Label</label>
+        <input class="field-input" id="duration-edit-label" name="label" type="text" maxlength="50" value="@Model.Label" />
+        <span class="mt-1 block text-xs text-ink-muted">Leave empty for "@Model.Months months".</span>
+        <p class="field-error" role="alert" data-field-error="label" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="duration-edit-form" class="btn-primary">Save</button>
+</template>

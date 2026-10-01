@@ -53,4 +53,16 @@ public interface IActivationCatalogueRepository
 
     /// <summary>Stages a new offer; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
     Task AddPackageOfferAsync(PackageOffer offer, CancellationToken cancellationToken = default);
+
+    /// <summary>The package with <paramref name="code"/>, tracked for update; null when there is none.</summary>
+    Task<Package?> FindPackageAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>Stages a new package; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
+    Task AddPackageAsync(Package package, CancellationToken cancellationToken = default);
+
+    /// <summary>The contract duration of <paramref name="months"/>, tracked for update; null when there is none.</summary>
+    Task<ContractDuration?> FindContractDurationAsync(int months, CancellationToken cancellationToken = default);
+
+    /// <summary>Stages a new contract duration; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
+    Task AddContractDurationAsync(ContractDuration duration, CancellationToken cancellationToken = default);
 }
