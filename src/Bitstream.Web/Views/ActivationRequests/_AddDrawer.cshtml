@@ -22,7 +22,7 @@
 
     <div>
         <label class="field-label" for="activation-add-package">Package</label>
-        <select class="field-input" id="activation-add-package" name="packageCode" required>
+        <select class="field-input" id="activation-add-package" name="packageCode" data-role="package-select" required>
             <option value="">— Select a package —</option>
             @foreach (var package in catalogue.Packages)
             {
@@ -51,13 +51,16 @@
 
     <div>
         <label class="field-label" for="activation-add-duration">Contract duration</label>
-        <select class="field-input" id="activation-add-duration" name="contractDurationMonths" required>
+        <select class="field-input" id="activation-add-duration" name="contractDurationMonths" data-role="duration-select" required>
             <option value="">— Select a duration —</option>
             @foreach (var duration in catalogue.ContractDurations)
             {
-                <option value="@duration.Months">@duration.Label</option>
+                @* Package codes this duration is offered with (portal.PackageOffer); activation-admin.js shows only the matching ones. *@
+                var offeredFor = string.Join(" ", catalogue.Offers.Where(o => o.ContractDurationMonths == duration.Months).Select(o => o.PackageCode));
+                <option value="@duration.Months" data-packages="@offeredFor">@duration.Label</option>
             }
         </select>
+        <span class="mt-1 block text-xs text-ink-muted" data-role="duration-hint" hidden>No contract duration is offered for this package yet.</span>
         <p class="field-error" role="alert" data-field-error="contractDurationMonths" hidden></p>
     </div>
 

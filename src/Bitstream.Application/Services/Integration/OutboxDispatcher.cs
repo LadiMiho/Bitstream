@@ -188,7 +188,7 @@ public sealed class OutboxDispatcher : BackgroundService
         var ticketCommand = new CreateActivationTicketCommand(
             command.Envelope, request.PublicId, result.Value.CrmCustomerId, result.Value.BusinessPartner,
             request.Classification, request.PackageCode, request.ContractDurationMonths,
-            request.LocationRaw, request.LocationLat, request.LocationLng, request.Comments);
+            request.LocationRaw, request.LocationLat, request.LocationLng, request.Comments, request.OfferCode);
 
         await outbox.EnqueueOutboundAsync(
             TargetSystem.Crm, "INT-CRM-02", "CREATE_ACTIVATION_TICKET", request.PublicId,

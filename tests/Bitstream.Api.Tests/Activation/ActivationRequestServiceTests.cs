@@ -38,6 +38,9 @@ public sealed class ActivationRequestServiceTests
             new ContractDuration { Months = 12, Label = "12 months", IsActive = true },
             new ContractDuration { Months = 24, Label = "24 months", IsActive = true }
         ]);
+        // Standard is offered with 12 months only.
+        _catalogueRepository.PackageOffers.Add(
+            new PackageOffer { PackageCode = "BITSTREAM_STD", ContractDurationMonths = 12, OfferCode = "5100020013", IsActive = true });
     }
 
     private ActivationRequestService CreateService() =>
@@ -72,6 +75,30 @@ public sealed class ActivationRequestServiceTests
 
     private static SubmitActivationRequest ValidRequest(long ispId = 1, string? comments = null) =>
         new(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, comments);
+
+    [Fact]
+    public async Task SubmitAsync_records_the_package_and_duration_code()
+    {
+        AddActiveIsp();
+        var service = CreateService();
+
+        var result = await service.SubmitAsync(ValidRequest());
+
+        Assert.Equal("5100020013", result.OfferCode);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_rejects_a_package_and_duration_combination_without_a_code()
+    {
+        AddActiveIsp();
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ActivationRequestValidationException>(() =>
+            service.SubmitAsync(ValidRequest() with { ContractDurationMonths = 24 }));
+
+        Assert.True(exception.FieldErrors.ContainsKey("contractDurationMonths"));
+        Assert.Empty(_requestRepository.Requests);
+    }
 
     [Fact]
     public async Task SubmitAsync_numbers_each_ISP_separately_from_its_ticket_code()

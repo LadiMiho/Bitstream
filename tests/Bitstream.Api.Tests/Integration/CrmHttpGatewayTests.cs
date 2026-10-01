@@ -12,8 +12,9 @@ using Xunit;
 namespace Bitstream.Api.Tests.Integration;
 
 /// <summary>
-/// Direction A over the wire (TR-INT-15 to TR-INT-21): the SOAP Business Partner creation
-/// (INT-CRM-01), the idempotency header and bearer credential on the JSON operations, and the
+/// Direction A over the wire (TR-INT-15 to TR-INT-21): the SOAP Business Partner and activation
+/// ticket creation (INT-CRM-01/02), the idempotency header and bearer credential on the JSON
+/// operations, and the
 /// business-rejection/technical-failure split TR-INT-19/-20 require.
 /// <see cref="CrmClosureEndToEndTests"/> exercises the same operations through
 /// <see cref="FakeCrmGateway"/> instead, so the full activation flow does not depend on a real
@@ -22,7 +23,7 @@ namespace Bitstream.Api.Tests.Integration;
 /// </summary>
 public sealed class CrmHttpGatewayTests
 {
-    private const string BusinessPartnerEndpoint = "http://sap.example.com:5040/integration/sap";
+    private const string SoapEndpoint = "http://sap.example.com:5040/integration/sap";
 
     private sealed class RecordingHandler : HttpMessageHandler
     {
@@ -40,16 +41,16 @@ public sealed class CrmHttpGatewayTests
         }
     }
 
-    private static CrmHttpGateway CreateGateway(RecordingHandler handler, bool configureBusinessPartner = true, string? messageLogDirectory = null)
+    private static CrmHttpGateway CreateGateway(RecordingHandler handler, bool configureEndpoint = true, string? messageLogDirectory = null)
     {
         var client = new HttpClient(handler) { BaseAddress = new Uri("https://crm.example.com/") };
         var secretResolver = new FakeSecretResolver().Set("CrmClientSecret", "test-token");
         var options = Options.Create(new CrmOptions
         {
             CredentialSecretName = "CrmClientSecret",
-            BusinessPartner = new CrmBusinessPartnerOptions
+            Soap = new CrmSoapOptions
             {
-                Endpoint = configureBusinessPartner ? new Uri(BusinessPartnerEndpoint) : null,
+                Endpoint = configureEndpoint ? new Uri(SoapEndpoint) : null,
                 MessageLogDirectory = messageLogDirectory
             }
         });
@@ -66,7 +67,12 @@ public sealed class CrmHttpGatewayTests
         new(
             new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "ISP_1", DateTimeOffset.UtcNow),
             "ISP_1", "CUST-1", "BP-1", "REQUEST_FOR_ACTIVATION", "BITSTREAM_STD", 12,
-            "41.3275,19.8187", 41.3275m, 19.8187m, null);
+            "41.3275,19.8187", 41.3275m, 19.8187m, "Test koti nga SOAP", "5100020013");
+
+    private static CreateComplaintTicketCommand ComplaintCommand() =>
+        new(
+            new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "TKT_1", DateTimeOffset.UtcNow),
+            "TKT_1", "BP-1", "CONTRACT-1", "SUB-1", "CONNECTIVITY", "NO_SIGNAL", "FIBRE_CUT", "No signal");
 
     private static HttpResponseMessage SoapResponse(string responseCode, string contextStrings, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status)
@@ -96,7 +102,7 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal("1102017112", result.Value.CrmCustomerId);
 
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
-        Assert.Equal(new Uri(BusinessPartnerEndpoint), handler.LastRequest.RequestUri);
+        Assert.Equal(new Uri(SoapEndpoint), handler.LastRequest.RequestUri);
 
         var envelope = XDocument.Parse(handler.LastBody!);
         Assert.Equal("CRM_BP_CREATE", envelope.Descendants("code").Single().Value);
@@ -133,7 +139,7 @@ public sealed class CrmHttpGatewayTests
 
             await gateway.CreateCustomerAsync(CustomerCommand() with { Geolocation = mapsLink });
 
-            var logFile = Assert.Single(Directory.GetFiles(directory, "crm-bp-soap-*.log"));
+            var logFile = Assert.Single(Directory.GetFiles(directory, "crm-soap-*.log"));
             var logText = await File.ReadAllTextAsync(logFile);
 
             // The request exactly as sent is in the file, and the link round-trips through XML.
@@ -142,7 +148,7 @@ public sealed class CrmHttpGatewayTests
                 .Single(e => e.Attribute("name")!.Value == "GEOLOCATION").Value;
             Assert.Equal(mapsLink, geolocation);
 
-            Assert.Contains("RESPONSE HTTP 200", logText, StringComparison.Ordinal);
+            Assert.Contains("CRM_BP_CREATE RESPONSE HTTP 200", logText, StringComparison.Ordinal);
             Assert.Contains("1102017112", logText, StringComparison.Ordinal);
         }
         finally
@@ -209,10 +215,10 @@ public sealed class CrmHttpGatewayTests
     }
 
     [Fact]
-    public async Task An_unconfigured_Business_Partner_endpoint_is_a_retryable_technical_failure()
+    public async Task An_unconfigured_SOAP_endpoint_is_a_retryable_technical_failure()
     {
         var handler = new RecordingHandler();
-        var gateway = CreateGateway(handler, configureBusinessPartner: false);
+        var gateway = CreateGateway(handler, configureEndpoint: false);
 
         var result = await gateway.CreateCustomerAsync(CustomerCommand());
 
@@ -234,7 +240,79 @@ public sealed class CrmHttpGatewayTests
     }
 
     [Fact]
-    public async Task CreateActivationTicketAsync_sends_the_idempotency_key_and_bearer_credential()
+    public async Task CreateActivationTicketAsync_posts_the_BITSTREAM_TICKET_CREATE_envelope_and_returns_EV_TICKET_NO()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse(
+                "0",
+                "<string name=\"EV_MSG\">Service Ticket Created Successfully.</string>" +
+                "<string name=\"EV_TICKET_NO\">8009521719</string><string name=\"EV_SUCCESS\">X</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("8009521719", result.Value!.CrmTicketId);
+        Assert.Equal(new Uri(SoapEndpoint), handler.LastRequest!.RequestUri);
+
+        var envelope = XDocument.Parse(handler.LastBody!);
+        Assert.Equal("BITSTREAM_TICKET_CREATE", envelope.Descendants("code").Single().Value);
+
+        var values = envelope.Descendants("context").Single().Elements("string")
+            .ToDictionary(e => e.Attribute("name")!.Value, e => e.Value);
+        Assert.Equal("BP-1", values["BP_NO"]);
+        Assert.Equal("5100020013", values["CLASS_3"]);
+        Assert.Equal("Test koti nga SOAP", values["NOTE"]);
+    }
+
+    [Fact]
+    public async Task A_ticket_response_without_EV_SUCCESS_X_is_a_business_rejection_carrying_EV_MSG()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse(
+                "0",
+                "<string name=\"EV_MSG\">Business partner not found.</string><string name=\"EV_SUCCESS\"></string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+
+        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("Business partner not found.", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_ticket_with_EV_SUCCESS_X_but_no_ticket_number_is_not_a_success()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse("0", "<string name=\"EV_SUCCESS\">X</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task A_ticket_without_a_package_duration_code_is_rejected_without_calling_CRM()
+    {
+        var handler = new RecordingHandler();
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreateActivationTicketAsync(TicketCommand() with { OfferCode = null });
+
+        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Fact]
+    public async Task CreateComplaintTicketAsync_sends_the_idempotency_key_and_bearer_credential()
     {
         var handler = new RecordingHandler
         {
@@ -245,12 +323,12 @@ public sealed class CrmHttpGatewayTests
         };
         var gateway = CreateGateway(handler);
 
-        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+        var result = await gateway.CreateComplaintTicketAsync(ComplaintCommand());
 
         Assert.True(result.IsSuccess);
         Assert.Equal("TKT-1", result.Value!.CrmTicketId);
 
-        Assert.Equal("ISP_1", handler.LastRequest!.Headers.GetValues("Idempotency-Key").Single());
+        Assert.Equal("TKT_1", handler.LastRequest!.Headers.GetValues("Idempotency-Key").Single());
         Assert.Equal("Bearer", handler.LastRequest.Headers.Authorization!.Scheme);
         Assert.Equal("test-token", handler.LastRequest.Headers.Authorization.Parameter);
     }
@@ -268,7 +346,7 @@ public sealed class CrmHttpGatewayTests
         };
         var gateway = CreateGateway(handler);
 
-        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+        var result = await gateway.CreateComplaintTicketAsync(ComplaintCommand());
 
         Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
         Assert.False(result.IsRetryable);
@@ -282,7 +360,7 @@ public sealed class CrmHttpGatewayTests
         var handler = new RecordingHandler { Respond = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError) };
         var gateway = CreateGateway(handler);
 
-        var result = await gateway.CreateActivationTicketAsync(TicketCommand());
+        var result = await gateway.CreateComplaintTicketAsync(ComplaintCommand());
 
         Assert.Equal(IntegrationOutcome.TechnicalFailure, result.Outcome);
         Assert.True(result.IsRetryable);

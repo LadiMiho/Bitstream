@@ -327,6 +327,48 @@ function initFilters() {
   });
 }
 
+// --- Contract duration filtering (Add drawer) -----------------------------------------
+// A duration is offered for a package only when portal.PackageOffer has a code for that pair;
+// each duration <option> lists those packages in data-packages. The server re-checks on submit.
+function syncDurationOptions(form) {
+  const packageSelect = form?.querySelector('[data-role="package-select"]');
+  const durationSelect = form?.querySelector('[data-role="duration-select"]');
+  if (!packageSelect || !durationSelect) {
+    return;
+  }
+
+  const packageCode = packageSelect.value;
+  let available = 0;
+
+  for (const option of durationSelect.options) {
+    if (option.value === '') {
+      continue;
+    }
+    const offered = packageCode !== '' && (option.dataset.packages ?? '').split(' ').includes(packageCode);
+    option.hidden = !offered;
+    option.disabled = !offered;
+    if (offered) {
+      available += 1;
+    }
+  }
+
+  if (durationSelect.selectedOptions[0]?.disabled) {
+    durationSelect.value = '';
+  }
+
+  durationSelect.disabled = packageCode === '' || available === 0;
+  const hint = form.querySelector('[data-role="duration-hint"]');
+  if (hint) {
+    hint.hidden = packageCode === '' || available > 0;
+  }
+}
+
+drawerBody.addEventListener('change', (event) => {
+  if (event.target.matches('[data-role="package-select"]')) {
+    syncDurationOptions(event.target.form);
+  }
+});
+
 // --- Drawer form submission (delegated: forms are injected dynamically) ----------------
 drawerBody.addEventListener('submit', async (event) => {
   const form = event.target;
@@ -381,7 +423,10 @@ function init() {
     return;
   }
 
-  el('#activation-add-button')?.addEventListener('click', () => openDrawer('New activation request', '/ActivationRequests/AddDrawer'));
+  el('#activation-add-button')?.addEventListener('click', async () => {
+    await openDrawer('New activation request', '/ActivationRequests/AddDrawer');
+    syncDurationOptions(drawerBody.querySelector('#activation-add-form'));
+  });
 
   el('#activation-search-form').addEventListener('submit', (event) => {
     event.preventDefault();

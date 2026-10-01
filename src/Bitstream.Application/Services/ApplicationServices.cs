@@ -75,10 +75,12 @@ public interface IActivationRequestService
 /// <param name="Packages">Active packages only, ordered by <see cref="Package.Tier"/>.</param>
 /// <param name="Classifications">Active classifications only, ordered by name.</param>
 /// <param name="ContractDurations">Active contract durations only, ordered by months.</param>
+/// <param name="Offers">Active package + duration combinations; a duration is offered for a package only when a row exists here.</param>
 public sealed record ActivationCatalogue(
     IReadOnlyList<Package> Packages,
     IReadOnlyList<ActivationClassification> Classifications,
-    IReadOnlyList<ContractDuration> ContractDurations);
+    IReadOnlyList<ContractDuration> ContractDurations,
+    IReadOnlyList<PackageOffer> Offers);
 
 /// <param name="IspId">Owning ISP.</param>
 /// <param name="PackageCode">From the configured catalogue (TR-ACT-01).</param>

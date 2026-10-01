@@ -36,6 +36,13 @@ public sealed class ActivationRequest
     /// <summary>12 or 24, from the configured list (TRD 5.1).</summary>
     public int ContractDurationMonths { get; set; }
 
+    /// <summary>
+    /// CRM code of the package + contract duration combination (portal.PackageOffer), recorded at
+    /// submission and sent as CLASS_3 on ticket creation. Null only for requests submitted before
+    /// the code existed.
+    /// </summary>
+    public string? OfferCode { get; set; }
+
     /// <summary>Free text, max 2000 characters, HTML stripped (TRD 5.1).</summary>
     public string? Comments { get; set; }
 

@@ -53,19 +53,42 @@ public sealed class CrmOptions
     /// <summary>Timeout for the health probe. Short, so readiness stays responsive.</summary>
     public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>Business Partner creation (INT-CRM-01), a SOAP operation on its own endpoint.</summary>
-    public CrmBusinessPartnerOptions BusinessPartner { get; set; } = new();
+    /// <summary>CRM's SOAP operations: Business Partner creation (INT-CRM-01) and activation ticket creation (INT-CRM-02).</summary>
+    public CrmSoapOptions Soap { get; set; } = new();
 }
 
 /// <summary>
-/// The <c>CRM_BP_CREATE</c> SOAP operation's endpoint and the fixed codes it is sent with
-/// (<c>Integration:Crm:BusinessPartner</c>).
+/// CRM's SOAP workflow endpoint (<c>Integration:Crm:Soap</c>) and the operations called on it.
 /// </summary>
-public sealed class CrmBusinessPartnerOptions
+public sealed class CrmSoapOptions
 {
-    /// <summary>Absolute SOAP endpoint URL. Unset means INT-CRM-01 fails as a retryable technical failure.</summary>
+    /// <summary>Absolute SOAP endpoint URL. Unset means every SOAP call fails as a retryable technical failure.</summary>
     public Uri? Endpoint { get; set; }
 
+    /// <summary>
+    /// Logs the full SOAP request and CRM's raw response at Information level. Off by default:
+    /// the envelopes carry the ISP's email, NIPT and mobile, so enable it only where that is
+    /// acceptable in the logs (Development).
+    /// </summary>
+    public bool LogMessages { get; set; }
+
+    /// <summary>
+    /// When set, every SOAP request XML (exactly as sent) and CRM's raw response are appended to
+    /// a daily text file, <c>crm-soap-yyyyMMdd.log</c>, in this directory. A relative path
+    /// resolves against the process's working directory (the project folder when run from Visual
+    /// Studio). Unset (the default) writes nothing — the file carries the ISP's email, NIPT and
+    /// mobile.
+    /// </summary>
+    public string? MessageLogDirectory { get; set; }
+
+    public CrmBusinessPartnerOptions BusinessPartner { get; set; } = new();
+
+    public CrmTicketOptions Ticket { get; set; } = new();
+}
+
+/// <summary>INT-CRM-01: the <c>CRM_BP_CREATE</c> operation and the fixed codes it is sent with.</summary>
+public sealed class CrmBusinessPartnerOptions
+{
     public string OperationCode { get; set; } = "CRM_BP_CREATE";
 
     /// <summary>Sent as CUSTOMERTYPE.</summary>
@@ -76,32 +99,23 @@ public sealed class CrmBusinessPartnerOptions
 
     /// <summary>Sent as PARTNERTYPE.</summary>
     public string PartnerType { get; set; } = "O100";
+}
 
-    /// <summary>
-    /// Logs the full SOAP request and CRM's raw response at Information level. Off by default:
-    /// the envelope carries the ISP's email, NIPT and mobile, so enable it only where that is
-    /// acceptable in the logs (Development).
-    /// </summary>
-    public bool LogMessages { get; set; }
-
-    /// <summary>
-    /// When set, every CRM_BP_CREATE request XML (exactly as sent) and CRM's raw response are
-    /// appended to a daily text file, <c>crm-bp-soap-yyyyMMdd.log</c>, in this directory. A
-    /// relative path resolves against the process's working directory (the project folder when
-    /// run from Visual Studio). Unset (the default) writes nothing — the file carries the ISP's
-    /// email, NIPT and mobile.
-    /// </summary>
-    public string? MessageLogDirectory { get; set; }
+/// <summary>INT-CRM-02: the <c>BITSTREAM_TICKET_CREATE</c> operation.</summary>
+public sealed class CrmTicketOptions
+{
+    public string OperationCode { get; set; } = "BITSTREAM_TICKET_CREATE";
 }
 
 /// <summary>
 /// HTTP adapter for CRM (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09; TRD 7.3.1 Direction A).
 /// <para>
-/// Business Partner creation (INT-CRM-01) uses the real <c>CRM_BP_CREATE</c> SOAP operation
-/// (<see cref="CrmBusinessPartnerSoap"/>). Activation ticket creation (INT-CRM-02), complaint
-/// ticket creation (INT-CRM-04), comment replication (INT-CRM-06), closure decision (INT-CRM-08)
-/// and service change (INT-CRM-09) still use the provisional JSON payload shape in TRD §7.4,
-/// since the rest of the CRM contract is still TRD 11.4 open item 1. Only
+/// Business Partner creation (INT-CRM-01, <c>CRM_BP_CREATE</c>) and activation ticket creation
+/// (INT-CRM-02, <c>BITSTREAM_TICKET_CREATE</c>) use CRM's real SOAP operations
+/// (<see cref="CrmSoap"/>). Complaint ticket creation (INT-CRM-04), comment replication
+/// (INT-CRM-06), closure decision (INT-CRM-08) and service change (INT-CRM-09) still use the
+/// provisional JSON payload shape in TRD §7.4, since the rest of the CRM contract is still TRD
+/// 11.4 open item 1. Only
 /// <c>FindTicketByIdempotencyKeyAsync</c> (the ambiguous-timeout status query, TR-INT-20) still
 /// throws — there is nothing to poll without knowing what CRM's status response looks like.
 /// </para>
@@ -144,32 +158,76 @@ public sealed class CrmHttpGateway : ICrmGateway
     /// <see cref="CreateCrmCustomerResult.CrmCustomerId"/> and
     /// <see cref="CreateCrmCustomerResult.BusinessPartner"/>.
     /// </summary>
-    public async Task<IntegrationResult<CreateCrmCustomerResult>> CreateCustomerAsync(
+    public Task<IntegrationResult<CreateCrmCustomerResult>> CreateCustomerAsync(
         CreateCrmCustomerCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var bpOptions = _options.BusinessPartner;
+        var envelope = CrmSoap.BuildCreateBusinessPartnerRequest(_options.Soap.BusinessPartner, command);
 
-        if (bpOptions.Endpoint is null)
+        return SendSoapAsync(
+            command.RequestPublicId, _options.Soap.BusinessPartner.OperationCode, envelope,
+            CrmSoap.ParseCreateBusinessPartnerResponse, cancellationToken);
+    }
+
+    /// <summary>
+    /// INT-CRM-02: creates the activation ticket through the <c>BITSTREAM_TICKET_CREATE</c> SOAP
+    /// operation (BP_NO, CLASS_3 = package + duration code, NOTE = comments). Success needs
+    /// <c>responseCode</c> 0 and <c>EV_SUCCESS</c> = X; the ticket number is <c>EV_TICKET_NO</c>.
+    /// </summary>
+    public Task<IntegrationResult<CreateCrmTicketResult>> CreateActivationTicketAsync(
+        CreateActivationTicketCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        // A request submitted before package + duration codes existed has none; sending CLASS_3
+        // empty would only be rejected by CRM, so fail it visibly here instead.
+        if (string.IsNullOrWhiteSpace(command.OfferCode))
         {
-            return IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(
-                "Integration:Crm:BusinessPartner:Endpoint is not configured.");
+            return Task.FromResult(IntegrationResult<CreateCrmTicketResult>.BusinessRejection(
+                "NO_OFFER_CODE",
+                $"Activation request {command.RequestPublicId} has no package + contract duration code (CLASS_3)."));
         }
 
-        var envelope = CrmBusinessPartnerSoap.BuildCreateRequest(bpOptions, command);
+        var envelope = CrmSoap.BuildCreateTicketRequest(_options.Soap.Ticket, command);
 
-        if (bpOptions.LogMessages)
+        return SendSoapAsync(
+            command.RequestPublicId, _options.Soap.Ticket.OperationCode, envelope,
+            CrmSoap.ParseCreateTicketResponse, cancellationToken);
+    }
+
+    /// <summary>
+    /// One call shape for every SOAP operation: POST the envelope to the configured endpoint,
+    /// log it when asked to, and map the outcome. A SOAP fault, 5xx, timeout or dropped
+    /// connection is a retryable technical failure; 400/409/422 a business rejection; a 2xx
+    /// body is interpreted by <paramref name="parse"/>.
+    /// </summary>
+    private async Task<IntegrationResult<TResult>> SendSoapAsync<TResult>(
+        string requestPublicId,
+        string operationCode,
+        string envelope,
+        Func<string, IntegrationResult<TResult>> parse,
+        CancellationToken cancellationToken)
+    {
+        var soap = _options.Soap;
+
+        if (soap.Endpoint is null)
+        {
+            return IntegrationResult<TResult>.TechnicalFailure("Integration:Crm:Soap:Endpoint is not configured.");
+        }
+
+        if (soap.LogMessages)
         {
             _logger.LogInformation(
-                "CRM_BP_CREATE request for {RequestPublicId} to {Endpoint}: {SoapRequest}",
-                command.RequestPublicId, bpOptions.Endpoint, envelope);
+                "{Operation} request for {RequestPublicId} to {Endpoint}: {SoapRequest}",
+                operationCode, requestPublicId, soap.Endpoint, envelope);
         }
 
-        await WriteMessageLogAsync(command.RequestPublicId, $"REQUEST POST {bpOptions.Endpoint}", envelope, cancellationToken).ConfigureAwait(false);
+        await WriteMessageLogAsync(requestPublicId, $"{operationCode} REQUEST POST {soap.Endpoint}", envelope, cancellationToken).ConfigureAwait(false);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, bpOptions.Endpoint)
+        using var request = new HttpRequestMessage(HttpMethod.Post, soap.Endpoint)
         {
             Content = new StringContent(envelope, Encoding.UTF8, "text/xml")
         };
@@ -183,14 +241,14 @@ public sealed class CrmHttpGateway : ICrmGateway
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            var timeout = $"CRM Business Partner creation did not respond within {_options.Timeout.TotalSeconds:F0}s.";
-            await WriteMessageLogAsync(command.RequestPublicId, "NO RESPONSE (timeout)", timeout, CancellationToken.None).ConfigureAwait(false);
-            return IntegrationResult<CreateCrmCustomerResult>.Timeout(timeout);
+            var timeout = $"CRM {operationCode} did not respond within {_options.Timeout.TotalSeconds:F0}s.";
+            await WriteMessageLogAsync(requestPublicId, $"{operationCode} NO RESPONSE (timeout)", timeout, CancellationToken.None).ConfigureAwait(false);
+            return IntegrationResult<TResult>.Timeout(timeout);
         }
         catch (HttpRequestException exception)
         {
-            await WriteMessageLogAsync(command.RequestPublicId, "NO RESPONSE (connection failed)", exception.Message, CancellationToken.None).ConfigureAwait(false);
-            return IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(exception.Message);
+            await WriteMessageLogAsync(requestPublicId, $"{operationCode} NO RESPONSE (connection failed)", exception.Message, CancellationToken.None).ConfigureAwait(false);
+            return IntegrationResult<TResult>.TechnicalFailure(exception.Message);
         }
 
         using (response)
@@ -198,43 +256,27 @@ public sealed class CrmHttpGateway : ICrmGateway
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var statusCode = ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture);
 
-            await WriteMessageLogAsync(command.RequestPublicId, $"RESPONSE HTTP {statusCode}", body, cancellationToken).ConfigureAwait(false);
+            await WriteMessageLogAsync(requestPublicId, $"{operationCode} RESPONSE HTTP {statusCode}", body, cancellationToken).ConfigureAwait(false);
 
-            if (bpOptions.LogMessages)
+            if (soap.LogMessages)
             {
                 _logger.LogInformation(
-                    "CRM_BP_CREATE response for {RequestPublicId} (HTTP {StatusCode}): {SoapResponse}",
-                    command.RequestPublicId, statusCode, body);
+                    "{Operation} response for {RequestPublicId} (HTTP {StatusCode}): {SoapResponse}",
+                    operationCode, requestPublicId, statusCode, body);
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                var detail = CrmBusinessPartnerSoap.TryReadFault(body)
-                    ?? $"CRM Business Partner creation returned {(int)response.StatusCode} {response.ReasonPhrase}.";
+                var detail = CrmSoap.TryReadFault(body)
+                    ?? $"CRM {operationCode} returned {(int)response.StatusCode} {response.ReasonPhrase}.";
 
                 return IsBusinessRejection(response.StatusCode)
-                    ? IntegrationResult<CreateCrmCustomerResult>.BusinessRejection(statusCode, detail)
-                    : IntegrationResult<CreateCrmCustomerResult>.TechnicalFailure(detail, statusCode);
+                    ? IntegrationResult<TResult>.BusinessRejection(statusCode, detail)
+                    : IntegrationResult<TResult>.TechnicalFailure(detail, statusCode);
             }
 
-            return CrmBusinessPartnerSoap.ParseCreateResponse(body);
+            return parse(body);
         }
-    }
-
-    public async Task<IntegrationResult<CreateCrmTicketResult>> CreateActivationTicketAsync(
-        CreateActivationTicketCommand command,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-
-        var body = new ActivationTicketRequestBody(
-            command.RequestPublicId, command.CrmCustomerId, command.BusinessPartner, command.Classification, command.PackageCode,
-            command.ContractDurationMonths, command.LocationRaw, command.LocationLat, command.LocationLng, command.Comments);
-
-        return await SendAsync(
-            "tickets", command.Envelope.IdempotencyKey, body,
-            (TicketResponseBody response) => new CreateCrmTicketResult(response.CrmTicketId),
-            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IntegrationResult<CreateCrmTicketResult>> CreateComplaintTicketAsync(
@@ -364,12 +406,12 @@ public sealed class CrmHttpGateway : ICrmGateway
 
     /// <summary>
     /// Appends one entry to the daily SOAP message log when
-    /// <see cref="CrmBusinessPartnerOptions.MessageLogDirectory"/> is set. A failure to write is
+    /// <see cref="CrmSoapOptions.MessageLogDirectory"/> is set. A failure to write is
     /// logged and swallowed — diagnostics must never fail the CRM call itself.
     /// </summary>
     private async Task WriteMessageLogAsync(string requestPublicId, string heading, string content, CancellationToken cancellationToken)
     {
-        var directory = _options.BusinessPartner.MessageLogDirectory;
+        var directory = _options.Soap.MessageLogDirectory;
 
         if (string.IsNullOrWhiteSpace(directory))
         {
@@ -377,7 +419,7 @@ public sealed class CrmHttpGateway : ICrmGateway
         }
 
         var now = DateTimeOffset.UtcNow;
-        var path = Path.GetFullPath(Path.Combine(directory, $"crm-bp-soap-{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.log"));
+        var path = Path.GetFullPath(Path.Combine(directory, $"crm-soap-{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}.log"));
         var entry =
             $"===== {now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)} UTC | {requestPublicId} | {heading} ====={Environment.NewLine}" +
             $"{content}{Environment.NewLine}{Environment.NewLine}";
@@ -391,7 +433,7 @@ public sealed class CrmHttpGateway : ICrmGateway
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning(exception, "Could not write the CRM_BP_CREATE message log to {Path}.", path);
+            _logger.LogWarning(exception, "Could not write the CRM SOAP message log to {Path}.", path);
         }
         finally
         {
@@ -435,18 +477,6 @@ public sealed class CrmHttpGateway : ICrmGateway
     }
 
     // --- Provisional TRD 7.4 payload shape --------------------------------------------------
-
-    private sealed record ActivationTicketRequestBody(
-        [property: JsonPropertyName("requestPublicId")] string RequestPublicId,
-        [property: JsonPropertyName("crmCustomerId")] string CrmCustomerId,
-        [property: JsonPropertyName("businessPartner")] string BusinessPartner,
-        [property: JsonPropertyName("classification")] string Classification,
-        [property: JsonPropertyName("packageCode")] string PackageCode,
-        [property: JsonPropertyName("contractDurationMonths")] int ContractDurationMonths,
-        [property: JsonPropertyName("locationRaw")] string LocationRaw,
-        [property: JsonPropertyName("locationLat")] decimal LocationLat,
-        [property: JsonPropertyName("locationLng")] decimal LocationLng,
-        [property: JsonPropertyName("comments")] string? Comments);
 
     private sealed record TicketResponseBody([property: JsonPropertyName("crmTicketId")] string CrmTicketId);
 

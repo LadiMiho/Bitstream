@@ -119,11 +119,13 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
         var classifications = await _catalogueRepository.GetClassificationsAsync(cancellationToken).ConfigureAwait(false);
         var contractDurations = await _catalogueRepository.GetContractDurationsAsync(cancellationToken).ConfigureAwait(false);
+        var offers = await _catalogueRepository.GetPackageOffersAsync(cancellationToken).ConfigureAwait(false);
 
         return new ActivationCatalogue(
             [.. packages.Where(package => package.IsActive)],
             [.. classifications.Where(classification => classification.IsActive)],
-            [.. contractDurations.Where(duration => duration.IsActive)]);
+            [.. contractDurations.Where(duration => duration.IsActive)],
+            [.. offers.Where(offer => offer.IsActive)]);
     }
 
     public async Task<ActivationRequest> SubmitAsync(SubmitActivationRequest request, CancellationToken cancellationToken = default)
@@ -219,6 +221,27 @@ public sealed partial class ActivationRequestService : IActivationRequestService
                 $"{string.Join(", ", contractDurations.Where(d => d.IsActive).Select(d => d.Months))}.");
         }
 
+        // Each package + duration combination has its own CRM code (portal.PackageOffer, sent as
+        // CLASS_3 on ticket creation); a combination without an active row is not offered. Only
+        // checked once the package and the duration are each valid, so one mistake is one message.
+        PackageOffer? offer = null;
+
+        if (!fieldErrors.ContainsKey("packageCode") && !fieldErrors.ContainsKey("contractDurationMonths"))
+        {
+            var offers = await _catalogueRepository.GetPackageOffersAsync(cancellationToken).ConfigureAwait(false);
+            offer = offers.FirstOrDefault(o =>
+                o.IsActive
+                && string.Equals(o.PackageCode, request.PackageCode, StringComparison.Ordinal)
+                && o.ContractDurationMonths == request.ContractDurationMonths);
+
+            if (offer is null)
+            {
+                AddViolation(
+                    "contractDurationMonths",
+                    $"{package?.Name ?? request.PackageCode} is not offered with a {request.ContractDurationMonths}-month contract.");
+            }
+        }
+
         // TR-ACT-05: free text, max 2000 characters, HTML stripped before it is stored or ever
         // reaches CRM.
         var comments = StripHtml(request.Comments);
@@ -252,6 +275,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             LocationLng = longitude,
             Classification = classification,
             ContractDurationMonths = request.ContractDurationMonths,
+            OfferCode = offer!.OfferCode,
             Comments = comments,
             Status = ActivationRequestStatus.Submitted,
             CreatedAt = now,

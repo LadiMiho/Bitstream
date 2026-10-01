@@ -41,4 +41,7 @@ public interface IActivationCatalogueRepository
     Task<IReadOnlyList<ActivationClassification>> GetClassificationsAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ContractDuration>> GetContractDurationsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Package + contract duration combinations and their CRM codes (portal.PackageOffer).</summary>
+    Task<IReadOnlyList<PackageOffer>> GetPackageOffersAsync(CancellationToken cancellationToken = default);
 }

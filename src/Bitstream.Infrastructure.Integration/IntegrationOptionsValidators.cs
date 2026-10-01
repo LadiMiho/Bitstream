@@ -61,22 +61,27 @@ public sealed class CrmOptionsValidator : IValidateOptions<CrmOptions>
                 $"({options.Timeout}); no retry could complete inside the window (TR-INT-04).");
         }
 
-        // The Business Partner endpoint is the address CRM supplied (plain http on the internal
-        // network), so the https rule above deliberately does not apply to it.
-        var businessPartner = options.BusinessPartner;
+        // The SOAP endpoint is the address CRM supplied (plain http on the internal network), so
+        // the https rule above deliberately does not apply to it.
+        var soap = options.Soap;
 
-        if (businessPartner.Endpoint is not null && !businessPartner.Endpoint.IsAbsoluteUri)
+        if (soap.Endpoint is not null && !soap.Endpoint.IsAbsoluteUri)
         {
-            failures.Add($"Integration:Crm:BusinessPartner:Endpoint must be an absolute URI. Configured: '{businessPartner.Endpoint}'.");
+            failures.Add($"Integration:Crm:Soap:Endpoint must be an absolute URI. Configured: '{soap.Endpoint}'.");
         }
 
-        if (string.IsNullOrWhiteSpace(businessPartner.OperationCode)
-            || string.IsNullOrWhiteSpace(businessPartner.CustomerType)
-            || string.IsNullOrWhiteSpace(businessPartner.BpCategory)
-            || string.IsNullOrWhiteSpace(businessPartner.PartnerType))
+        if (string.IsNullOrWhiteSpace(soap.BusinessPartner.OperationCode)
+            || string.IsNullOrWhiteSpace(soap.BusinessPartner.CustomerType)
+            || string.IsNullOrWhiteSpace(soap.BusinessPartner.BpCategory)
+            || string.IsNullOrWhiteSpace(soap.BusinessPartner.PartnerType))
         {
             failures.Add(
-                "Integration:Crm:BusinessPartner:OperationCode, CustomerType, BpCategory and PartnerType must all be set.");
+                "Integration:Crm:Soap:BusinessPartner:OperationCode, CustomerType, BpCategory and PartnerType must all be set.");
+        }
+
+        if (string.IsNullOrWhiteSpace(soap.Ticket.OperationCode))
+        {
+            failures.Add("Integration:Crm:Soap:Ticket:OperationCode must be set.");
         }
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);

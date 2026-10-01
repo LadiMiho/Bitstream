@@ -41,9 +41,11 @@ public sealed class BitstreamDbContext : DbContext
     /// (portal.Package/ActivationClassification/ContractDuration, replacing the
     /// Catalogues:Packages/Classifications/ContractDurationsMonths configuration lists) was added,
     /// and from 10 to 11 when db/mssql/0018_isp_ticket_code.sql (sec.Isp.TicketCode and the
-    /// per-prefix activation request identifier counter) was added.
+    /// per-prefix activation request identifier counter) was added, and from 11 to 12 when
+    /// db/mssql/0019_package_offer.sql (portal.PackageOffer and ActivationRequest.OfferCode, the
+    /// package + duration code sent to CRM as CLASS_3) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 11;
+    public const int ExpectedSchemaVersion = 12;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -77,6 +79,8 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<ActivationClassification> ActivationClassifications => Set<ActivationClassification>();
 
     public DbSet<ContractDuration> ContractDurations => Set<ContractDuration>();
+
+    public DbSet<PackageOffer> PackageOffers => Set<PackageOffer>();
 
     public DbSet<Notification> Notifications => Set<Notification>();
 

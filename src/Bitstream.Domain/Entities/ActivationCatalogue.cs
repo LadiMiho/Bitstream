@@ -55,3 +55,20 @@ public sealed class ContractDuration
 
     public bool IsActive { get; set; } = true;
 }
+
+/// <summary>
+/// A package + contract duration combination that may be ordered, with the CRM code sent as
+/// CLASS_3 when the activation ticket is created (INT-CRM-02). A combination with no row is not
+/// offered.
+/// </summary>
+public sealed class PackageOffer
+{
+    public required string PackageCode { get; set; }
+
+    public int ContractDurationMonths { get; set; }
+
+    /// <summary>CRM code of this combination, e.g. 5100020013. Unique.</summary>
+    public required string OfferCode { get; set; }
+
+    public bool IsActive { get; set; } = true;
+}

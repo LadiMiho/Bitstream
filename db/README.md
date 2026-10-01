@@ -22,6 +22,7 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0004_operations_tables.sql` | Notification, IntegrationMessage (outbox + inbox) |
 | `0005_identifier_series.sql` | Gap-free public identifier counter and `ops.usp_NextPublicIdentifier` |
 | `0018_isp_ticket_code.sql` | `sec.Isp.TicketCode` (unique) and the per-code activation request counter `ops.usp_NextPrefixedIdentifier` (`TRING_001`) |
+| `0019_package_offer.sql` | `portal.PackageOffer` (package + contract duration → CRM code, sent as CLASS_3) and `ActivationRequest.OfferCode`; created empty |
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |

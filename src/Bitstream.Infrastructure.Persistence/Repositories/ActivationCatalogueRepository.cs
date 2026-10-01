@@ -19,4 +19,11 @@ public sealed class ActivationCatalogueRepository : IActivationCatalogueReposito
 
     public async Task<IReadOnlyList<ContractDuration>> GetContractDurationsAsync(CancellationToken cancellationToken = default) =>
         await _dbContext.ContractDurations.OrderBy(duration => duration.Months).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<PackageOffer>> GetPackageOffersAsync(CancellationToken cancellationToken = default) =>
+        await _dbContext.PackageOffers
+            .OrderBy(offer => offer.PackageCode)
+            .ThenBy(offer => offer.ContractDurationMonths)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 }

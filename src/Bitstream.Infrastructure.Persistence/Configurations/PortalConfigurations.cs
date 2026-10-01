@@ -22,6 +22,7 @@ internal sealed class ActivationRequestConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.LocationLat).HasColumnType("decimal(9,6)");
         builder.Property(x => x.LocationLng).HasColumnType("decimal(9,6)");
         builder.Property(x => x.Classification).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.OfferCode).HasMaxLength(50);
         builder.Property(x => x.Comments).HasMaxLength(2000);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.CrmTicketId).HasMaxLength(50);
@@ -210,6 +211,21 @@ internal sealed class ContractDurationConfiguration : IEntityTypeConfiguration<C
 
         builder.Property(x => x.Months).ValueGeneratedNever();
         builder.Property(x => x.Label).HasMaxLength(50).IsRequired();
+    }
+}
+
+internal sealed class PackageOfferConfiguration : IEntityTypeConfiguration<PackageOffer>
+{
+    public void Configure(EntityTypeBuilder<PackageOffer> builder)
+    {
+        builder.ToTable("PackageOffer", Schemas.Portal);
+        builder.HasKey(x => new { x.PackageCode, x.ContractDurationMonths });
+
+        builder.Property(x => x.PackageCode).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.ContractDurationMonths).ValueGeneratedNever();
+        builder.Property(x => x.OfferCode).HasMaxLength(50).IsRequired();
+
+        builder.HasIndex(x => x.OfferCode).IsUnique().HasDatabaseName("UX_PackageOffer_OfferCode");
     }
 }
 

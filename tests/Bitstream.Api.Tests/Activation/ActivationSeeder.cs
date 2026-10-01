@@ -28,6 +28,7 @@ internal static class ActivationSeeder
         db.ActivationClassifications.Add(new ActivationClassification { Code = "REQUEST_FOR_ACTIVATION", Name = "Request for Activation", IsDefault = true, IsActive = true });
         db.ContractDurations.Add(new ContractDuration { Months = 12, Label = "12 months", IsActive = true });
         db.ContractDurations.Add(new ContractDuration { Months = 24, Label = "24 months", IsActive = true });
+        db.PackageOffers.Add(new PackageOffer { PackageCode = "BITSTREAM_STD", ContractDurationMonths = 12, OfferCode = "5100020013", IsActive = true });
 
         await db.SaveChangesAsync();
     }

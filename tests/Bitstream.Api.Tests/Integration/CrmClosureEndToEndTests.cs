@@ -96,6 +96,8 @@ public sealed class CrmClosureEndToEndTests
         Assert.Single(factory.CrmGateway.CreateActivationTicketCalls);
         // TR-INT-03/17: the ticket call carries the BP the customer call actually returned, not a placeholder.
         Assert.Equal("BP-000001", factory.CrmGateway.CreateActivationTicketCalls[0].BusinessPartner);
+        // The package + duration code chosen at submission reaches the ticket call (CLASS_3).
+        Assert.Equal("5100020013", factory.CrmGateway.CreateActivationTicketCalls[0].OfferCode);
 
         await using (var scope = factory.CreateAsyncScope())
         {

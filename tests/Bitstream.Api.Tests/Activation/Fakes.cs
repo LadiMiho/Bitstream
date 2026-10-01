@@ -60,6 +60,8 @@ public sealed class FakeActivationCatalogueRepository : IActivationCatalogueRepo
 
     public List<ContractDuration> ContractDurations { get; } = [];
 
+    public List<PackageOffer> PackageOffers { get; } = [];
+
     public Task<IReadOnlyList<Package>> GetPackagesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Package>>([.. Packages]);
 
@@ -68,6 +70,9 @@ public sealed class FakeActivationCatalogueRepository : IActivationCatalogueRepo
 
     public Task<IReadOnlyList<ContractDuration>> GetContractDurationsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ContractDuration>>([.. ContractDurations]);
+
+    public Task<IReadOnlyList<PackageOffer>> GetPackageOffersAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PackageOffer>>([.. PackageOffers]);
 }
 
 /// <summary>Deterministic, in-memory stand-in for <see cref="IPublicIdentifierGenerator"/> — no stored procedure, no database.</summary>
