@@ -99,6 +99,36 @@ public sealed class ActivationEndpointsTests
         Assert.Equal(publicId, body!.PublicId);
     }
 
+    [Theory]
+    [InlineData("ViewDrawer", "activation.read.all")]
+    [InlineData("GisOutcomeDrawer", "activation.gis.record")]
+    public async Task The_request_drawers_render_with_the_ISP_name(string drawer, string permission)
+    {
+        // Regression: single-request reads did not load Isp, so both drawers threw on @Model.Isp.Name.
+        await using var factory = new IdentityApiFactory();
+        var email = $"drawer-{drawer.ToLowerInvariant()}@example.com";
+        string publicId;
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", [.. new[] { permission, "activation.read.all" }.Distinct()]);
+            var isp = await IdentitySeeder.AddIspAsync(db, "Drawer Test ISP", "L00000110");
+            await IdentitySeeder.AddUserAsync(db, role, ispId: null, email);
+
+            var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "ISP_1010", ActivationRequestStatus.AwaitingGisVerification);
+            publicId = request.PublicId;
+        }
+
+        using var client = factory.CreateClient();
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{publicId}/{drawer}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Drawer Test ISP", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task GisOutcome_without_the_permission_is_rejected_with_403()
     {

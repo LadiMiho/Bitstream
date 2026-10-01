@@ -12,11 +12,13 @@ public sealed class ActivationRequestRepository : IActivationRequestRepository
 
     public ActivationRequestRepository(BitstreamDbContext dbContext) => _dbContext = dbContext;
 
+    // Isp is loaded with every single-request read, as SearchAsync does: the view/GIS drawers
+    // display the ISP's name, and a caller should never get a request with a null Isp.
     public Task<ActivationRequest?> FindByIdAsync(long requestId, CancellationToken cancellationToken = default) =>
-        _dbContext.ActivationRequests.FirstOrDefaultAsync(request => request.RequestId == requestId, cancellationToken);
+        _dbContext.ActivationRequests.Include(request => request.Isp).FirstOrDefaultAsync(request => request.RequestId == requestId, cancellationToken);
 
     public Task<ActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default) =>
-        _dbContext.ActivationRequests.FirstOrDefaultAsync(request => request.PublicId == publicId, cancellationToken);
+        _dbContext.ActivationRequests.Include(request => request.Isp).FirstOrDefaultAsync(request => request.PublicId == publicId, cancellationToken);
 
     public async Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default)
     {
