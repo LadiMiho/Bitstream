@@ -85,6 +85,7 @@ public static class DependencyInjection
 
         // TRD 5 — activation request lifecycle (TR-ACT-01 to TR-ACT-19).
         services.AddScoped<IActivationRequestService, ActivationRequestService>();
+        services.AddScoped<IPackageOfferService, PackageOfferService>();
 
         // TRD 7.3 — CRM integration. Direction A: the dispatcher claims the outbox and calls
         // ICrmGateway (Integration layer). Direction B: InboundEventService interprets a

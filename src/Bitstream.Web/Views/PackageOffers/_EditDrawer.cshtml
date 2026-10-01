@@ -1,0 +1,21 @@
+@model Bitstream.Domain.Entities.PackageOffer
+<form id="offer-edit-form" class="grid gap-4" novalidate data-action="update"
+      data-package-code="@Model.PackageCode" data-months="@Model.ContractDurationMonths">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+
+    <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@Model.PackageCode</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Contract duration</dt><dd class="mt-1 text-sm">@Model.ContractDurationMonths months</dd></div>
+    </dl>
+
+    <div>
+        <label class="field-label" for="offer-edit-code">CRM code (CLASS_3)</label>
+        <input class="field-input" id="offer-edit-code" name="offerCode" type="text" maxlength="50" value="@Model.OfferCode" required />
+        <span class="mt-1 block text-xs text-ink-muted">Only new activation requests use the new code; existing ones keep the code they were submitted with.</span>
+        <p class="field-error" role="alert" data-field-error="offerCode" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="offer-edit-form" class="btn-primary">Save</button>
+</template>

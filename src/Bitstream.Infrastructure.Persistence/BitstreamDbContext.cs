@@ -43,9 +43,11 @@ public sealed class BitstreamDbContext : DbContext
     /// and from 10 to 11 when db/mssql/0018_isp_ticket_code.sql (sec.Isp.TicketCode and the
     /// per-prefix activation request identifier counter) was added, and from 11 to 12 when
     /// db/mssql/0019_package_offer.sql (portal.PackageOffer and ActivationRequest.OfferCode, the
-    /// package + duration code sent to CRM as CLASS_3) was added.
+    /// package + duration code sent to CRM as CLASS_3) was added, and from 12 to 13 when
+    /// db/mssql/0020_catalogue_manage_permission.sql (the catalogue.manage permission behind the
+    /// Package offers screen) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 12;
+    public const int ExpectedSchemaVersion = 13;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

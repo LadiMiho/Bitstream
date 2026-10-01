@@ -73,6 +73,18 @@ public sealed class FakeActivationCatalogueRepository : IActivationCatalogueRepo
 
     public Task<IReadOnlyList<PackageOffer>> GetPackageOffersAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<PackageOffer>>([.. PackageOffers]);
+
+    public Task<PackageOffer?> FindPackageOfferAsync(string packageCode, int contractDurationMonths, CancellationToken cancellationToken = default) =>
+        Task.FromResult(PackageOffers.FirstOrDefault(o => o.PackageCode == packageCode && o.ContractDurationMonths == contractDurationMonths));
+
+    public Task<PackageOffer?> FindPackageOfferByCodeAsync(string offerCode, CancellationToken cancellationToken = default) =>
+        Task.FromResult(PackageOffers.FirstOrDefault(o => o.OfferCode == offerCode));
+
+    public Task AddPackageOfferAsync(PackageOffer offer, CancellationToken cancellationToken = default)
+    {
+        PackageOffers.Add(offer);
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Deterministic, in-memory stand-in for <see cref="IPublicIdentifierGenerator"/> — no stored procedure, no database.</summary>

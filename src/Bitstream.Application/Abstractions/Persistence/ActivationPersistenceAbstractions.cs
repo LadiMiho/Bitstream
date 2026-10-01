@@ -44,4 +44,13 @@ public interface IActivationCatalogueRepository
 
     /// <summary>Package + contract duration combinations and their CRM codes (portal.PackageOffer).</summary>
     Task<IReadOnlyList<PackageOffer>> GetPackageOffersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>The offer for one package + duration pair, tracked for update; null when there is none.</summary>
+    Task<PackageOffer?> FindPackageOfferAsync(string packageCode, int contractDurationMonths, CancellationToken cancellationToken = default);
+
+    /// <summary>The offer using <paramref name="offerCode"/>, whichever pair it belongs to; null when unused.</summary>
+    Task<PackageOffer?> FindPackageOfferByCodeAsync(string offerCode, CancellationToken cancellationToken = default);
+
+    /// <summary>Stages a new offer; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
+    Task AddPackageOfferAsync(PackageOffer offer, CancellationToken cancellationToken = default);
 }

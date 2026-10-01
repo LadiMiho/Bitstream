@@ -2,6 +2,7 @@
     ViewData["Title"] = "Activation Requests";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
     var canRecordGis = (bool)(ViewBag.CanRecordGis ?? false);
+    var canManageCatalogue = (bool)(ViewBag.CanManageCatalogue ?? false);
 }
 
 <div class="grid gap-6"
@@ -12,10 +13,16 @@
             <h1 class="text-xl font-semibold">Activation Requests</h1>
         </div>
 
-        @if (canCreate)
-        {
-            <button type="button" id="activation-add-button" class="btn-primary">New request</button>
-        }
+        <div class="flex items-center gap-2">
+            @if (canManageCatalogue)
+            {
+                <a href="/ActivationRequests/PackageOffers" class="btn-secondary">Package offers</a>
+            }
+            @if (canCreate)
+            {
+                <button type="button" id="activation-add-button" class="btn-primary">New request</button>
+            }
+        </div>
     </div>
 
     <section class="card" aria-labelledby="activation-search-heading">

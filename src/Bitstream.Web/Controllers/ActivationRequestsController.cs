@@ -42,6 +42,7 @@ public sealed class ActivationRequestsController : Controller
         ViewData["Title"] = "Activation Requests";
         ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationCreate);
         ViewBag.CanRecordGis = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationGisRecord);
+        ViewBag.CanManageCatalogue = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.CatalogueManage);
 
         return View();
     }

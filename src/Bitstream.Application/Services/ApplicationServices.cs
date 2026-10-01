@@ -82,6 +82,42 @@ public sealed record ActivationCatalogue(
     IReadOnlyList<ContractDuration> ContractDurations,
     IReadOnlyList<PackageOffer> Offers);
 
+/// <summary>
+/// Package offers screen: maintains the package + contract duration codes (portal.PackageOffer)
+/// sent to CRM as CLASS_3. Callers are gated on <c>catalogue.manage</c> by the presentation layer.
+/// </summary>
+public interface IPackageOfferService
+{
+    /// <summary>Every package, contract duration and offer, active and inactive alike.</summary>
+    Task<PackageOfferOverview> GetOverviewAsync(CancellationToken cancellationToken = default);
+
+    Task<PackageOffer?> GetAsync(string packageCode, int contractDurationMonths, CancellationToken cancellationToken = default);
+
+    /// <exception cref="Activation.PackageOfferValidationException">Unknown package or duration, a pair that already has an offer, or a code already in use.</exception>
+    Task<PackageOffer> CreateAsync(CreatePackageOfferRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Changes the offer's code; the package and duration identify it and do not change.</summary>
+    /// <exception cref="Activation.PackageOfferNotFoundException">No offer for the pair.</exception>
+    /// <exception cref="Activation.PackageOfferValidationException">Empty code or one already in use.</exception>
+    Task<PackageOffer> UpdateAsync(string packageCode, int contractDurationMonths, UpdatePackageOfferRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>An inactive offer is no longer offered on the form; existing requests keep the code they recorded.</summary>
+    /// <exception cref="Activation.PackageOfferNotFoundException">No offer for the pair.</exception>
+    Task SetActiveAsync(string packageCode, int contractDurationMonths, bool isActive, CancellationToken cancellationToken = default);
+}
+
+/// <param name="Packages">Every package, ordered by tier.</param>
+/// <param name="ContractDurations">Every contract duration, ordered by months.</param>
+/// <param name="Offers">Every offer, ordered by package then months.</param>
+public sealed record PackageOfferOverview(
+    IReadOnlyList<Package> Packages,
+    IReadOnlyList<ContractDuration> ContractDurations,
+    IReadOnlyList<PackageOffer> Offers);
+
+public sealed record CreatePackageOfferRequest(string PackageCode, int ContractDurationMonths, string OfferCode);
+
+public sealed record UpdatePackageOfferRequest(string OfferCode);
+
 /// <param name="IspId">Owning ISP.</param>
 /// <param name="PackageCode">From the configured catalogue (TR-ACT-01).</param>
 /// <param name="LocationRaw">A map URL or a 'latitude,longitude' pair, exactly as entered (TR-ACT-02).</param>

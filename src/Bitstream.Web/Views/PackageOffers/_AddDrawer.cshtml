@@ -1,0 +1,39 @@
+@using Bitstream.Application.Services
+@model PackageOfferOverview
+<form id="offer-add-form" class="grid gap-4" novalidate data-action="create">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+
+    <div>
+        <label class="field-label" for="offer-add-package">Package</label>
+        <select class="field-input" id="offer-add-package" name="packageCode" required>
+            <option value="">— Select a package —</option>
+            @foreach (var package in Model.Packages)
+            {
+                <option value="@package.Code">@(package.Name + (package.IsActive ? "" : " (inactive)"))</option>
+            }
+        </select>
+        <p class="field-error" role="alert" data-field-error="packageCode" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="offer-add-duration">Contract duration</label>
+        <select class="field-input" id="offer-add-duration" name="contractDurationMonths" required>
+            <option value="">— Select a duration —</option>
+            @foreach (var duration in Model.ContractDurations)
+            {
+                <option value="@duration.Months">@(duration.Label + (duration.IsActive ? "" : " (inactive)"))</option>
+            }
+        </select>
+        <p class="field-error" role="alert" data-field-error="contractDurationMonths" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="offer-add-code">CRM code (CLASS_3)</label>
+        <input class="field-input" id="offer-add-code" name="offerCode" type="text" maxlength="50" placeholder="e.g. 5100020013" required />
+        <p class="field-error" role="alert" data-field-error="offerCode" hidden></p>
+    </div>
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="offer-add-form" class="btn-primary">Add offer</button>
+</template>

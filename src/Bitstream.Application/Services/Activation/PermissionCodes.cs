@@ -18,4 +18,7 @@ public static class ActivationPermissionCodes
 
     /// <summary>Record the manual GIS verification outcome (TR-ACT-12 to TR-ACT-19).</summary>
     public const string ActivationGisRecord = "activation.gis.record";
+
+    /// <summary>Maintain package offers — the package + contract duration codes (db/mssql/0020_catalogue_manage_permission.sql).</summary>
+    public const string CatalogueManage = "catalogue.manage";
 }

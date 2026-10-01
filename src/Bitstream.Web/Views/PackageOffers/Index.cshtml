@@ -1,0 +1,90 @@
+@using Bitstream.Application.Services
+@model PackageOfferOverview
+@{
+    ViewData["Title"] = "Package offers";
+    var packageNames = Model.Packages.ToDictionary(p => p.Code, p => p.Name);
+    var durationLabels = Model.ContractDurations.ToDictionary(d => d.Months, d => d.Label);
+}
+
+<div class="grid gap-6" data-role="package-offers-page">
+    <div class="flex items-center justify-between">
+        <div>
+            <a href="/ActivationRequests" class="text-sm text-brand-600 underline">&larr; Activation Requests</a>
+            <h1 class="mt-2 text-xl font-semibold">Package offers</h1>
+            <p class="mt-1 max-w-2xl text-sm text-ink-muted">
+                Each package + contract duration combination that can be ordered, and the CRM code sent as CLASS_3
+                when its activation ticket is created. A combination without an active offer is not offered on the
+                New activation request form.
+            </p>
+        </div>
+
+        <button type="button" id="offer-add-button" class="btn-primary">Add offer</button>
+    </div>
+
+    <section class="card" aria-labelledby="offers-heading">
+        <h2 id="offers-heading" class="sr-only">Package offers</h2>
+        <p id="offers-error" class="field-error" role="alert" hidden></p>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Package</th>
+                        <th class="table-head">Contract duration</th>
+                        <th class="table-head">CRM code (CLASS_3)</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var offer in Model.Offers)
+                    {
+                        var packageName = packageNames.GetValueOrDefault(offer.PackageCode, offer.PackageCode);
+                        var durationLabel = durationLabels.GetValueOrDefault(offer.ContractDurationMonths, $"{offer.ContractDurationMonths} months");
+                        <tr class="border-t border-line">
+                            <td class="table-cell">
+                                <div class="font-medium text-ink">@packageName</div>
+                                <div class="text-xs text-ink-muted">@offer.PackageCode</div>
+                            </td>
+                            <td class="table-cell">@durationLabel</td>
+                            <td class="table-cell font-mono">@offer.OfferCode</td>
+                            <td class="table-cell">
+                                @if (offer.IsActive)
+                                {
+                                    <span class="status-pill status-dot text-state-done bg-state-done/15">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="status-pill status-dot text-ink-muted bg-ink-muted/10">Inactive</span>
+                                }
+                            </td>
+                            <td class="table-cell">
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" class="btn-secondary"
+                                            data-offer-action="edit"
+                                            data-package-code="@offer.PackageCode"
+                                            data-months="@offer.ContractDurationMonths"
+                                            data-label="@packageName, @durationLabel">Edit</button>
+                                    <button type="button" class="btn-secondary"
+                                            data-offer-action="@(offer.IsActive ? "deactivate" : "activate")"
+                                            data-package-code="@offer.PackageCode"
+                                            data-months="@offer.ContractDurationMonths"
+                                            data-label="@packageName, @durationLabel">@(offer.IsActive ? "Deactivate" : "Activate")</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (Model.Offers.Count == 0)
+            {
+                <p class="mt-3 text-sm text-ink-muted">No package offers yet. Until one is added, no activation request can be submitted.</p>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/package-offers.js"></script>
+}

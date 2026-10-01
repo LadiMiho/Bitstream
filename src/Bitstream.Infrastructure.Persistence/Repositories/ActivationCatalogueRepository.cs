@@ -26,4 +26,18 @@ public sealed class ActivationCatalogueRepository : IActivationCatalogueReposito
             .ThenBy(offer => offer.ContractDurationMonths)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+    public Task<PackageOffer?> FindPackageOfferAsync(string packageCode, int contractDurationMonths, CancellationToken cancellationToken = default) =>
+        _dbContext.PackageOffers.FirstOrDefaultAsync(
+            offer => offer.PackageCode == packageCode && offer.ContractDurationMonths == contractDurationMonths, cancellationToken);
+
+    public Task<PackageOffer?> FindPackageOfferByCodeAsync(string offerCode, CancellationToken cancellationToken = default) =>
+        _dbContext.PackageOffers.FirstOrDefaultAsync(offer => offer.OfferCode == offerCode, cancellationToken);
+
+    public async Task AddPackageOfferAsync(PackageOffer offer, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(offer);
+
+        await _dbContext.PackageOffers.AddAsync(offer, cancellationToken).ConfigureAwait(false);
+    }
 }
