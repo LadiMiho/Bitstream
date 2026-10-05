@@ -25,6 +25,9 @@ public sealed class FakeComplaintTicketRepository : IComplaintTicketRepository
     public Task<ComplaintTicket?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Tickets.Values.FirstOrDefault(t => t.PublicId == publicId));
 
+    public Task<ComplaintTicket?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Tickets.Values.FirstOrDefault(t => t.CrmTicketId == crmTicketId));
+
     public Task AddAsync(ComplaintTicket ticket, CancellationToken cancellationToken = default)
     {
         if (ticket.TicketId == 0)

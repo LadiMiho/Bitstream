@@ -20,6 +20,9 @@ public sealed class ActivationRequestRepository : IActivationRequestRepository
     public Task<ActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default) =>
         _dbContext.ActivationRequests.Include(request => request.Isp).FirstOrDefaultAsync(request => request.PublicId == publicId, cancellationToken);
 
+    public Task<ActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default) =>
+        _dbContext.ActivationRequests.Include(request => request.Isp).FirstOrDefaultAsync(request => request.CrmTicketId == crmTicketId, cancellationToken);
+
     public async Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

@@ -23,6 +23,9 @@ public interface IComplaintTicketRepository
 
     Task<ComplaintTicket?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
+    /// <summary>Looked up by CRM's own ticket number, as CRM may address its inbound events.</summary>
+    Task<ComplaintTicket?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default);
+
     Task AddAsync(ComplaintTicket ticket, CancellationToken cancellationToken = default);
 
     /// <summary>Ownership-scoped by the caller; server-side filtered and paged (TR-PAS-06, TR-PAS-31/32).</summary>

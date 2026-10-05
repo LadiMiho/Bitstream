@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Bitstream.Api.Contracts;
+using Bitstream.Api.Security;
 using Bitstream.Application.Abstractions;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Services;
@@ -18,12 +19,14 @@ namespace Bitstream.Api.Endpoints;
 /// This covers TRD 7.1 rows INT-CRM-03 (sales order notification), INT-CRM-05 (ticket
 /// lifecycle events), INT-CRM-07 (closure and clearing code) and the inbound half of
 /// INT-CRM-06 (comment replication) — one endpoint, distinguished by event type, exactly as
-/// TR-INT-22 requires. Only the activation request events (SALES_ORDER_OPENED,
-/// PROVISIONING_STARTED, TECHNICALLY_COMPLETED) are actually acted on; the complaint-ticket
-/// events are recognised as valid shape but rejected with 422 because that module is not built.
+/// TR-INT-22 requires. Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED,
+/// PROVISIONING_STARTED, TECHNICALLY_COMPLETED. Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
+/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. The identifier in the route may be the
+/// portal's ID (e.g. TRING_001) or CRM's own ticket number.
 /// </para>
 /// <para>
-/// Authentication is not yet configured: the method is TRD 11.4 open item 3.
+/// Every call must carry the API key (<see cref="CrmApiKeyEndpointFilter"/>); the CRM-facing
+/// description of the whole interface is docs/integration/crm-inbound-api.md.
 /// </para>
 /// </summary>
 public static class CrmInboundEndpoints
@@ -37,7 +40,8 @@ public static class CrmInboundEndpoints
         // supported for the agreed transition period.
         var group = app.MapGroup("/api/v1/tickets")
             .WithTags("CRM inbound (INT-CRM-03, -05, -06, -07)")
-            .RequireRateLimiting(RateLimitPolicies.CrmInbound);
+            .RequireRateLimiting(RateLimitPolicies.CrmInbound)
+            .AddEndpointFilter<CrmApiKeyEndpointFilter>();
 
         group.MapPost("/{identifier}/events", SubmitEvent)
             .WithName("SubmitTicketEvent")
@@ -46,16 +50,25 @@ public static class CrmInboundEndpoints
                 """
                 Single inbound interface for every CRM-originated update (TR-INT-22).
 
+                {identifier} is the portal's request ID (e.g. TRING_001) or CRM's own ticket number
+                (EV_TICKET_NO). Authenticate with the X-Api-Key header.
+
+                Activation request steps (eventType: required status before -> status after):
+                  LINE_AVAILABLE        AwaitingGisVerification -> LineAvailable
+                  NO_LINE               AwaitingGisVerification -> RejectedNoLine (payload.reason required)
+                  SALES_ORDER_OPENED    LineAvailable -> SalesOrderOpened (payload.salesOrderId required)
+                  PROVISIONING_STARTED  SalesOrderOpened -> InProvisioning
+                  TECHNICALLY_COMPLETED InProvisioning -> Completed
+
                 Response codes:
                   200 — accepted: newly applied, applied-but-discarded-as-stale, or a duplicate
                         eventId (Duplicate=true in the body; nothing re-applied, TR-INT-25).
-                  400 — malformed request, or the route identifier does not match the body's.
-                  404 — identifier does not resolve to any known request.
-                  409 — event type is a valid TRD 5.3 concept but not a permitted transition from
-                        the request's current status.
-                  422 — event type is recognised shape but not applicable to this identifier
-                        (TR-INT-27) — including every complaint-ticket event, since that module is
-                        not built yet — or the payload is missing a field the event type requires.
+                  400 — malformed request, or the body's identifier does not match the route's.
+                  401 — missing or wrong X-Api-Key.
+                  404 — identifier does not resolve to any known request or ticket.
+                  409 — the step is not permitted from the request's current status (wrong order).
+                  422 — event type not applicable to this identifier (TR-INT-27), or the payload is
+                        missing a field the event type requires.
                   429 — rate limited (TR-SEC-29, TR-INT-30).
 
                 Behaviour:
@@ -65,8 +78,8 @@ public static class CrmInboundEndpoints
                   * occurredAt orders events per ticket; an event no later than the last one
                     applied is discarded, not applied (TR-INT-25, TR-PAS-17).
 
-                Open items: the authentication method and CRM source IP ranges (TRD 11.4 open
-                item 3), and the complete status and event type list (open item 4).
+                Open items: CRM source IP ranges (TRD 11.4 open item 3) and the complete complaint
+                ticket status list (open item 4).
                 """)
             .Accepts<TicketEventRequest>("application/json")
             .Produces<TicketEventAccepted>(StatusCodes.Status200OK)
@@ -113,7 +126,8 @@ public static class CrmInboundEndpoints
         ICorrelationContext correlationContext,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(request.Identifier, identifier, StringComparison.Ordinal))
+        // The body's identifier is optional; when CRM sends one it must name the same request.
+        if (request.Identifier is not null && !string.Equals(request.Identifier, identifier, StringComparison.Ordinal))
         {
             return Results.Problem(
                 title: "Identifier mismatch",
@@ -129,7 +143,7 @@ public static class CrmInboundEndpoints
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var rawPayload = JsonSerializer.Serialize(ToApplicationEvent(request));
+        var rawPayload = JsonSerializer.Serialize(ToApplicationEvent(request, identifier));
 
         // TR-INT-07: acknowledgement follows persistence, not interpretation — this line is
         // what makes that true, before any of the branching below.
@@ -178,11 +192,11 @@ public static class CrmInboundEndpoints
         return Results.Accepted();
     }
 
-    private static InboundTicketEvent ToApplicationEvent(TicketEventRequest request) =>
+    private static InboundTicketEvent ToApplicationEvent(TicketEventRequest request, string identifier) =>
         new(
             request.EventId,
             request.EventType,
-            request.Identifier,
+            identifier,
             request.CrmTicketId,
             request.OccurredAt,
             new InboundTicketEventPayload(
@@ -195,5 +209,6 @@ public static class CrmInboundEndpoints
                 request.Payload.ForwardingGroup,
                 request.Payload.Agent,
                 request.Payload.SalesOrderId,
-                request.Payload.BusinessPartner));
+                request.Payload.BusinessPartner,
+                request.Payload.Reason));
 }

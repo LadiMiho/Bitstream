@@ -17,6 +17,9 @@ public sealed class ComplaintTicketRepository : IComplaintTicketRepository
     public Task<ComplaintTicket?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default) =>
         _dbContext.ComplaintTickets.FirstOrDefaultAsync(ticket => ticket.PublicId == publicId, cancellationToken);
 
+    public Task<ComplaintTicket?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default) =>
+        _dbContext.ComplaintTickets.FirstOrDefaultAsync(ticket => ticket.CrmTicketId == crmTicketId, cancellationToken);
+
     public async Task AddAsync(ComplaintTicket ticket, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ticket);

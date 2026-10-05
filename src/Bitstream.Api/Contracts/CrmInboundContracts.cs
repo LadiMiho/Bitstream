@@ -8,20 +8,19 @@ namespace Bitstream.Api.Contracts;
 /// </summary>
 /// <param name="EventId">Deduplication key. A repeated eventId returns the original result and re-applies nothing (TR-INT-25).</param>
 /// <param name="EventType">
-/// Activation requests currently act on SALES_ORDER_OPENED, PROVISIONING_STARTED and
-/// TECHNICALLY_COMPLETED (TRD 5.3). STATUS_CHANGED, COMMENT_ADDED, CLOSED_WITH_CLEARING_CODE,
-/// AUTO_COMPLETED and REOPENED are complaint-ticket lifecycle events (TRD 6) recognised as valid
-/// shape but not yet acted on, since that module is not built. Any of these, or an entirely
-/// unknown type, is rejected with 422 (TR-INT-27) — the vocabulary itself is TRD 11.4 open item 4.
+/// Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED, PROVISIONING_STARTED,
+/// TECHNICALLY_COMPLETED (TRD 5.3). Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
+/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED (TRD 6). A type that does not apply to the
+/// identifier, or an unknown type, is rejected with 422 (TR-INT-27).
 /// </param>
-/// <param name="Identifier">Portal public identifier of the ticket, e.g. ISP_1024.</param>
-/// <param name="CrmTicketId">CRM-side identifier, accepted as an alternative lookup key if agreed.</param>
+/// <param name="Identifier">Optional. When sent it must equal the route's identifier (portal ID such as TRING_001, or CRM's ticket number).</param>
+/// <param name="CrmTicketId">CRM-side ticket number; informational — CRM may instead use it as the route identifier.</param>
 /// <param name="OccurredAt">Event time in UTC. Determines order per ticket; an event older than the last applied one is discarded (TR-INT-25).</param>
 /// <param name="Payload">Event body.</param>
 public sealed record TicketEventRequest(
     [property: JsonPropertyName("eventId")] string EventId,
     [property: JsonPropertyName("eventType")] string EventType,
-    [property: JsonPropertyName("identifier")] string Identifier,
+    [property: JsonPropertyName("identifier")] string? Identifier,
     [property: JsonPropertyName("crmTicketId")] string? CrmTicketId,
     [property: JsonPropertyName("occurredAt")] DateTimeOffset OccurredAt,
     [property: JsonPropertyName("payload")] TicketEventPayload Payload);
@@ -45,6 +44,7 @@ public sealed record TicketEventRequest(
 /// <param name="Agent">CRM agent who raised the event.</param>
 /// <param name="SalesOrderId">For SALES_ORDER_OPENED (INT-CRM-03, TR-ACT-18): the sales order reference to store against the activation request.</param>
 /// <param name="BusinessPartner">For SALES_ORDER_OPENED: the customer BP the sales order was raised for (TR-ACT-15).</param>
+/// <param name="Reason">For NO_LINE: why no line is available; shown on the request as its status reason (TR-ACT-13).</param>
 public sealed record TicketEventPayload(
     [property: JsonPropertyName("status")] string? Status,
     [property: JsonPropertyName("comment")] string? Comment,
@@ -55,7 +55,8 @@ public sealed record TicketEventPayload(
     [property: JsonPropertyName("forwardingGroup")] string? ForwardingGroup,
     [property: JsonPropertyName("agent")] string? Agent,
     [property: JsonPropertyName("salesOrderId")] string? SalesOrderId,
-    [property: JsonPropertyName("businessPartner")] string? BusinessPartner);
+    [property: JsonPropertyName("businessPartner")] string? BusinessPartner,
+    [property: JsonPropertyName("reason")] string? Reason = null);
 
 /// <summary>
 /// Acknowledgement returned to CRM. Sent only after the event has been persisted

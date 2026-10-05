@@ -37,10 +37,11 @@ public static class ComplaintTicketEventTypes
 /// The endpoint persists the raw event first, through <see cref="IIntegrationOutbox.RecordInboundAsync"/>
 /// (TR-INT-07, TR-INT-24) and returns immediately on a duplicate eventId (TR-INT-25) without
 /// calling here again. This class only interprets an already-persisted message: dedup is the
-/// outbox's job, ordering and applying the event are this class's. The identifier is looked up
-/// as an activation request first and a complaint ticket second — the two series are
-/// distinguishable by prefix (TR-DAT-06) but nothing here needs to parse that; whichever lookup
-/// finds a row decides the routing.
+/// outbox's job, ordering and applying the event are this class's. The identifier may be the
+/// portal's public identifier (e.g. TRING_001) or CRM's own ticket number (CrmTicketId); it is
+/// looked up in that order, as an activation request first and a complaint ticket second, and
+/// whichever lookup finds a row decides the routing. From then on the event is applied under the
+/// row's public identifier.
 /// </para>
 /// </summary>
 public sealed class InboundEventService : IInboundEventService
@@ -96,23 +97,30 @@ public sealed class InboundEventService : IInboundEventService
         var evt = JsonSerializer.Deserialize<InboundTicketEvent>(message.Payload) ??
             throw new InvalidOperationException($"Integration message {integrationMessageId} payload could not be deserialised.");
 
-        var activationRequest = await _requestRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
+        var activationRequest =
+            await _requestRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
+            ?? await _requestRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
 
         if (activationRequest is not null)
         {
-            await ApplyToActivationRequestAsync(integrationMessageId, evt, activationRequest, cancellationToken).ConfigureAwait(false);
+            await ApplyToActivationRequestAsync(integrationMessageId, evt with { Identifier = activationRequest.PublicId }, activationRequest, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
-        var ticket = await _ticketRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
+        var ticket =
+            await _ticketRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
+            ?? await _ticketRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
 
         if (ticket is not null)
         {
-            await ApplyToComplaintTicketAsync(integrationMessageId, evt, ticket, cancellationToken).ConfigureAwait(false);
+            await ApplyToComplaintTicketAsync(integrationMessageId, evt with { Identifier = ticket.PublicId }, ticket, cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
-        throw new InboundEventNotFoundException($"No activation request or complaint ticket found for identifier '{evt.Identifier}'.");
+        throw new InboundEventNotFoundException(
+            $"No activation request or complaint ticket found for identifier '{evt.Identifier}' (looked up as portal ID and as CRM ticket number).");
     }
 
     public async Task ReplayAsync(string? ticketPublicId, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, CancellationToken cancellationToken = default)
@@ -151,6 +159,23 @@ public sealed class InboundEventService : IInboundEventService
 
         switch (evt.EventType)
         {
+            // GIS line check reported by CRM — the same rules, transition and audit as the
+            // portal's manual Record GIS outcome action.
+            case ActivationEventTypes.LineAvailable:
+                await _activationRequestService.RecordGisOutcomeAsync(request.RequestId, lineAvailable: true, reason: null, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+
+            case ActivationEventTypes.NoLine:
+                if (string.IsNullOrWhiteSpace(evt.Payload.Reason))
+                {
+                    throw new ActivationRequestValidationException("payload.reason is required for a NO_LINE event.");
+                }
+
+                await _activationRequestService.RecordGisOutcomeAsync(request.RequestId, lineAvailable: false, evt.Payload.Reason, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+
             case ActivationEventTypes.SalesOrderOpened:
                 if (string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId))
                 {

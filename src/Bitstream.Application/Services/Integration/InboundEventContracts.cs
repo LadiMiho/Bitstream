@@ -29,11 +29,18 @@ public sealed record InboundTicketEventPayload(
     string? ForwardingGroup,
     string? Agent,
     string? SalesOrderId,
-    string? BusinessPartner);
+    string? BusinessPartner,
+    string? Reason = null);
 
 /// <summary>Recognised event types for an activation request (TRD 5.3). Provisional: the complete vocabulary is TRD 11.4 open item 4.</summary>
 public static class ActivationEventTypes
 {
+    /// <summary>GIS line check done in CRM: a line is available (AwaitingGisVerification → LineAvailable).</summary>
+    public const string LineAvailable = "LINE_AVAILABLE";
+
+    /// <summary>GIS line check done in CRM: no line (AwaitingGisVerification → RejectedNoLine). Requires <see cref="InboundTicketEventPayload.Reason"/>.</summary>
+    public const string NoLine = "NO_LINE";
+
     /// <summary>INT-CRM-03. Requires <see cref="InboundTicketEventPayload.SalesOrderId"/>.</summary>
     public const string SalesOrderOpened = "SALES_ORDER_OPENED";
 

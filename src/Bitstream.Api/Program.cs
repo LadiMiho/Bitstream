@@ -1,4 +1,5 @@
 using Bitstream.Api.Endpoints;
+using Bitstream.Api.Security;
 using Bitstream.Application;
 using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Persistence;
@@ -35,6 +36,10 @@ builder.Services.AddBitstreamIntegration(builder.Configuration);
 builder.Services.AddBitstreamBackgroundJobs();
 
 builder.Services.AddSingleton<ISecretResolver, ConfigurationSecretResolver>();
+
+// How CRM authenticates its inbound calls: an API key header (CrmApiKeyEndpointFilter).
+builder.Services.AddOptions<CrmInboundOptions>()
+    .Bind(builder.Configuration.GetSection(CrmInboundOptions.SectionName));
 
 // Nothing here acts for a portal user: CRM posts events, and the background jobs run on a
 // timer. The audit log records that honestly rather than attributing the change to whichever
@@ -73,8 +78,9 @@ builder.Services.AddOpenApi("v1", options =>
                 "The CRM-facing interface of the ISP Platform (Bitstream Portal), TRD v1.0 " +
                 "section 7.3.2. This host serves the inbound ticket event API only; the portal's " +
                 "own screens and the endpoints they call are served by Bitstream.Web and are not " +
-                "part of this contract. Authentication of the inbound interface — mutual TLS or a " +
-                "signed bearer token — is TRD 11.4 open item 3 and is not yet configured."
+                "part of this contract. Every call must carry the API key agreed with the portal team " +
+                "in the X-Api-Key header; a missing or wrong key is refused with 401. See " +
+                "docs/integration/crm-inbound-api.md for the steps and an example of each call."
         };
         return Task.CompletedTask;
     });

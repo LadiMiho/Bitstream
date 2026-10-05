@@ -35,6 +35,9 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
 
     public FakeCrmGateway CrmGateway { get; } = new();
 
+    /// <summary>The API key CRM must send (X-Api-Key); <see cref="CreateClient()"/> sends it on every call.</summary>
+    public const string ApiKey = "test-crm-inbound-key";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -47,7 +50,8 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
             {
                 ["Database:FailFastOnSchemaMismatch"] = "false",
                 ["WorkingCalendar:TimeZoneId"] = "UTC",
-                ["Integration:OutboxDispatcher:Enabled"] = "false"
+                ["Integration:OutboxDispatcher:Enabled"] = "false",
+                ["Secrets:CrmInboundApiKey"] = ApiKey
             });
         });
 
@@ -72,6 +76,17 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
             services.AddSingleton<IPublicIdentifierGenerator>(new FakePublicIdentifierGenerator());
         });
     }
+
+    /// <summary>A client that authenticates as CRM, sending <see cref="ApiKey"/> in X-Api-Key.</summary>
+    public new HttpClient CreateClient()
+    {
+        var client = CreateClientWithoutApiKey();
+        client.DefaultRequestHeaders.Add("X-Api-Key", ApiKey);
+        return client;
+    }
+
+    /// <summary>A client with no API key, for proving the inbound API refuses unauthenticated calls.</summary>
+    public HttpClient CreateClientWithoutApiKey() => base.CreateClient();
 
     /// <summary>Opens a scope for seeding data, asserting on state, or driving the dispatcher directly.</summary>
     public AsyncServiceScope CreateAsyncScope() => Services.CreateAsyncScope();

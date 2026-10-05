@@ -12,6 +12,9 @@ public interface IActivationRequestRepository
     /// module and every integration message addresses the request by (TR-DAT-04).</summary>
     Task<ActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
+    /// <summary>Looked up by CRM's ticket number (EV_TICKET_NO), the identifier CRM itself holds for the request.</summary>
+    Task<ActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default);
+
     Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
