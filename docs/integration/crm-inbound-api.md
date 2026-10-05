@@ -13,6 +13,9 @@ X-Api-Key: {key agreed with the portal team}
 X-Correlation-Id: {optional; echoed in the portal's logs}
 ```
 
+The key is configured in `Bitstream.Api`'s `appsettings.json` as `Integration:CrmInbound:ApiKey`
+(or the environment variable `BITSTREAM_Integration__CrmInbound__ApiKey`).
+
 `{identifier}` is **either** the portal's request ID (for example `TRING_001`) **or** CRM's own
 ticket number (the `EV_TICKET_NO` returned by `BITSTREAM_TICKET_CREATE`, for example
 `8009521719`). The portal tries its own ID first, then the CRM ticket number.

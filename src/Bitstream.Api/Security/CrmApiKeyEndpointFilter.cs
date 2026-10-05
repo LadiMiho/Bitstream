@@ -7,10 +7,9 @@ namespace Bitstream.Api.Security;
 
 /// <summary>
 /// How CRM authenticates its calls to the inbound event API (<c>Integration:CrmInbound</c>): a
-/// shared secret in a request header. The key itself is never in a settings file outside
-/// Development — it comes from the secret store, <c>Secrets:{ApiKeySecretName}</c> (environment
-/// variable <c>BITSTREAM_Secrets__CrmInboundApiKey</c> by default), as every other credential does
-/// (TR-SEC-28).
+/// shared key in a request header. The key is <see cref="ApiKey"/> (appsettings.json, or the
+/// environment variable <c>BITSTREAM_Integration__CrmInbound__ApiKey</c>); when that is empty it
+/// falls back to the secret store, <c>Secrets:{ApiKeySecretName}</c>.
 /// </summary>
 public sealed class CrmInboundOptions
 {
@@ -19,7 +18,10 @@ public sealed class CrmInboundOptions
     /// <summary>Header CRM puts the key in.</summary>
     public string ApiKeyHeader { get; set; } = "X-Api-Key";
 
-    /// <summary>Name of the secret holding the expected key.</summary>
+    /// <summary>The key CRM must send. Takes precedence over <see cref="ApiKeySecretName"/> when set.</summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Name of the secret holding the expected key, used when <see cref="ApiKey"/> is empty.</summary>
     public string ApiKeySecretName { get; set; } = "CrmInboundApiKey";
 }
 
@@ -49,12 +51,15 @@ public sealed class CrmApiKeyEndpointFilter : IEndpointFilter
 
         var options = _options.CurrentValue;
         var httpContext = context.HttpContext;
-        var expected = await _secretResolver.GetSecretAsync(options.ApiKeySecretName, httpContext.RequestAborted).ConfigureAwait(false);
+        var expected = !string.IsNullOrEmpty(options.ApiKey)
+            ? options.ApiKey
+            : await _secretResolver.GetSecretAsync(options.ApiKeySecretName, httpContext.RequestAborted).ConfigureAwait(false);
 
         if (string.IsNullOrEmpty(expected))
         {
             _logger.LogError(
-                "CRM inbound API key is not configured (secret {SecretName}); refusing the call.", options.ApiKeySecretName);
+                "CRM inbound API key is not configured (Integration:CrmInbound:ApiKey or secret {SecretName}); refusing the call.",
+                options.ApiKeySecretName);
             return Unauthorized("The portal has no API key configured for CRM calls.");
         }
 
