@@ -8,8 +8,8 @@ namespace Bitstream.Api.Contracts;
 /// </summary>
 /// <param name="EventId">Deduplication key. A repeated eventId returns the original result and re-applies nothing (TR-INT-25).</param>
 /// <param name="EventType">
-/// Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED, PROVISIONING_STARTED,
-/// TECHNICALLY_COMPLETED (TRD 5.3). Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
+/// Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED, LINE_ACTIVATED (TRD 5.3).
+/// Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
 /// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED (TRD 6). A type that does not apply to the
 /// identifier, or an unknown type, is rejected with 422 (TR-INT-27).
 /// </param>

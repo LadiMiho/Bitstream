@@ -185,12 +185,8 @@ public sealed class InboundEventService : IInboundEventService
                 await _activationRequestService.ApplySalesOrderAsync(evt.Identifier, evt.Payload.SalesOrderId, cancellationToken).ConfigureAwait(false);
                 break;
 
-            case ActivationEventTypes.ProvisioningStarted:
-                await _activationRequestService.StartProvisioningAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
-                break;
-
-            case ActivationEventTypes.TechnicallyCompleted:
-                await _activationRequestService.CompleteAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
+            case ActivationEventTypes.LineActivated:
+                await _activationRequestService.MarkLineActivatedAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
                 break;
 
             default:

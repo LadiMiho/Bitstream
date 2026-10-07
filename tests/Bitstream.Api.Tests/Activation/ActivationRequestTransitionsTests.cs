@@ -22,8 +22,12 @@ public sealed class ActivationRequestTransitionsTests
         (ActivationRequestStatus.AwaitingGisVerification, ActivationRequestStatus.LineAvailable),
         (ActivationRequestStatus.RejectedNoLine, ActivationRequestStatus.Closed),
         (ActivationRequestStatus.LineAvailable, ActivationRequestStatus.SalesOrderOpened),
-        (ActivationRequestStatus.SalesOrderOpened, ActivationRequestStatus.InProvisioning),
-        (ActivationRequestStatus.InProvisioning, ActivationRequestStatus.Completed),
+        (ActivationRequestStatus.SalesOrderOpened, ActivationRequestStatus.AwaitingOperatorConfirmation),
+        (ActivationRequestStatus.InProvisioning, ActivationRequestStatus.AwaitingOperatorConfirmation),
+        (ActivationRequestStatus.AwaitingOperatorConfirmation, ActivationRequestStatus.Completed),
+        (ActivationRequestStatus.AwaitingOperatorConfirmation, ActivationRequestStatus.WaitingForServiceDesk),
+        (ActivationRequestStatus.WaitingForServiceDesk, ActivationRequestStatus.Completed),
+        (ActivationRequestStatus.WaitingForServiceDesk, ActivationRequestStatus.ActivationFailed),
         (ActivationRequestStatus.IntegrationFailed, ActivationRequestStatus.PendingCrmSync)
     ];
 
@@ -56,16 +60,17 @@ public sealed class ActivationRequestTransitionsTests
     }
 
     [Fact]
-    public void Closed_and_Completed_are_terminal()
+    public void Closed_Completed_and_ActivationFailed_are_terminal()
     {
         Assert.Empty(ActivationRequestTransitions.PermittedFrom(ActivationRequestStatus.Closed));
         Assert.Empty(ActivationRequestTransitions.PermittedFrom(ActivationRequestStatus.Completed));
+        Assert.Empty(ActivationRequestTransitions.PermittedFrom(ActivationRequestStatus.ActivationFailed));
     }
 
     [Fact]
     public void Every_non_terminal_status_has_at_least_one_permitted_transition()
     {
-        var nonTerminal = AllStatuses.Except([ActivationRequestStatus.Closed, ActivationRequestStatus.Completed]);
+        var nonTerminal = AllStatuses.Except([ActivationRequestStatus.Closed, ActivationRequestStatus.Completed, ActivationRequestStatus.ActivationFailed]);
 
         Assert.All(nonTerminal, status => Assert.NotEmpty(ActivationRequestTransitions.PermittedFrom(status)));
     }

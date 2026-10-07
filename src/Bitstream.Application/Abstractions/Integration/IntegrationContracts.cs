@@ -114,6 +114,24 @@ public sealed record ClosureDecisionCommand(
 
 public sealed record ClosureDecisionResult(string CrmTicketStatus);
 
+// --- INT-CRM-10 Operator Confirmation (placeholder: no CRM contract yet) ------------
+
+/// <param name="Envelope">Message identity; the idempotency key is <c>{RequestPublicId}:operator-confirmation</c>.</param>
+/// <param name="RequestPublicId">Portal activation request identifier.</param>
+/// <param name="CrmTicketId">CRM ticket number (EV_TICKET_NO), when known.</param>
+/// <param name="Confirmed">"Y" when the operator confirmed the line works, "N" otherwise.</param>
+/// <param name="Comment">The operator's comment; always present when <paramref name="Confirmed"/> is "N".</param>
+/// <param name="DecidedAt">When the operator answered.</param>
+public sealed record OperatorConfirmationCommand(
+    IntegrationEnvelope Envelope,
+    string RequestPublicId,
+    string? CrmTicketId,
+    string Confirmed,
+    string? Comment,
+    DateTimeOffset DecidedAt);
+
+public sealed record OperatorConfirmationResult(string? CrmReference);
+
 // --- INT-CRM-09 Service Change ---------------------------------------------------
 
 public sealed record ServiceChangeCommand(

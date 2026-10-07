@@ -76,6 +76,16 @@ public sealed class FakeCrmGateway : ICrmGateway
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by these tests.");
 
+    public List<OperatorConfirmationCommand> OperatorConfirmationCalls { get; } = [];
+
+    public Task<IntegrationResult<OperatorConfirmationResult>> SubmitOperatorConfirmationAsync(
+        OperatorConfirmationCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        OperatorConfirmationCalls.Add(command);
+        return Task.FromResult(IntegrationResult<OperatorConfirmationResult>.Success(new OperatorConfirmationResult(null)));
+    }
+
     public Task<IntegrationResult<ServiceChangeResult>> SubmitServiceChangeAsync(
         ServiceChangeCommand command,
         CancellationToken cancellationToken = default) =>

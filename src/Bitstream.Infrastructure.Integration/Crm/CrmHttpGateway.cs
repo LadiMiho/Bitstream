@@ -325,6 +325,30 @@ public sealed class CrmHttpGateway : ICrmGateway
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// INT-CRM-10 placeholder: CRM has not defined the operation that receives the operator's
+    /// decision yet. Returns a non-retryable failure so the outbox message goes straight to the
+    /// dead letter, visibly (GET /api/v1/ops/integration/dead-letter), instead of pretending it
+    /// was delivered. Once the contract exists, implement the call here and replay the
+    /// dead-lettered messages.
+    /// </summary>
+    public Task<IntegrationResult<OperatorConfirmationResult>> SubmitOperatorConfirmationAsync(
+        OperatorConfirmationCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        _logger.LogWarning(
+            "INT-CRM-10 operator confirmation for {RequestPublicId} not sent: the CRM contract is not yet defined.",
+            command.RequestPublicId);
+
+        return Task.FromResult(IntegrationResult<OperatorConfirmationResult>.BusinessRejection(
+            OperatorConfirmationContractMissing, "INT-CRM-10 contract not yet defined: the operator confirmation was not sent to CRM."));
+    }
+
+    /// <summary>Error code of the INT-CRM-10 placeholder failure.</summary>
+    public const string OperatorConfirmationContractMissing = "CONTRACT_NOT_DEFINED";
+
     public async Task<IntegrationResult<ServiceChangeResult>> SubmitServiceChangeAsync(
         ServiceChangeCommand command,
         CancellationToken cancellationToken = default)

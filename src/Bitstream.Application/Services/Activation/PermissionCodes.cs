@@ -21,4 +21,10 @@ public static class ActivationPermissionCodes
 
     /// <summary>Maintain package offers — the package + contract duration codes (db/mssql/0020_catalogue_manage_permission.sql).</summary>
     public const string CatalogueManage = "catalogue.manage";
+
+    /// <summary>Confirm whether a line CRM activated actually works — the ISP's operator, or an Administrator on their behalf (db/mssql/0021_activation_confirmation.sql).</summary>
+    public const string ActivationConfirm = "activation.confirm";
+
+    /// <summary>Record the service desk's final outcome after the operator reported the line not working (db/mssql/0021_activation_confirmation.sql).</summary>
+    public const string ActivationServiceDeskDecide = "activation.servicedesk.decide";
 }

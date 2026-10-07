@@ -120,6 +120,10 @@ public sealed class OutboxDispatcher : BackgroundService
                         await DispatchClosureDecisionAsync(services, message, cancellationToken).ConfigureAwait(false);
                         break;
 
+                    case (TargetSystem.Crm, "INT-CRM-10"):
+                        await DispatchOperatorConfirmationAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
                     case (TargetSystem.Crm, "INT-CRM-09"):
                         await DispatchServiceChangeAsync(services, message, cancellationToken).ConfigureAwait(false);
                         break;
@@ -295,6 +299,27 @@ public sealed class OutboxDispatcher : BackgroundService
             message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
     }
 
+    private async Task DispatchOperatorConfirmationAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<OperatorConfirmationCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.SubmitOperatorConfirmationAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            // The request's status already changed when the operator answered; a failure here
+            // only concerns telling CRM, so it must not mark the request IntegrationFailed.
+            await HandleFailureAsync(
+                services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken,
+                markActivationFailed: false).ConfigureAwait(false);
+            return;
+        }
+
+        await services.GetRequiredService<IIntegrationOutbox>().MarkSucceededAsync(
+            message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task DispatchServiceChangeAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
     {
         var command = Deserialize<ServiceChangeCommand>(message);
@@ -327,7 +352,8 @@ public sealed class OutboxDispatcher : BackgroundService
         IntegrationMessage message,
         string error,
         bool isRetryable,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool markActivationFailed = true)
     {
         var options = services.GetRequiredService<IOptionsMonitor<OutboxDispatcherOptions>>().CurrentValue;
         var attemptsAfterThis = message.Attempts + 1;
@@ -336,7 +362,7 @@ public sealed class OutboxDispatcher : BackgroundService
         var outbox = services.GetRequiredService<IIntegrationOutbox>();
         await outbox.MarkFailedAsync(message.MessageId, error, retryable, cancellationToken).ConfigureAwait(false);
 
-        if (!retryable && message.RelatedPublicId is { } relatedPublicId)
+        if (!retryable && markActivationFailed && message.RelatedPublicId is { } relatedPublicId)
         {
             var activationService = services.GetRequiredService<IActivationRequestService>();
 

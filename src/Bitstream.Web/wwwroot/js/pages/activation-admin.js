@@ -1,7 +1,8 @@
 /**
  * Activation request administration: search/filter/browse grid, plus a drawer form for
  * submitting a new request (its form fetched from Controllers/ActivationRequestsController.cs)
- * and, for an eligible request, recording the GIS verification outcome — mirrors
+ * and, for an eligible request, recording the GIS verification outcome, the operator's
+ * confirmation that the activated line works, and the service desk's final decision — mirrors
  * user-admin.js/isp-admin.js's pattern. Every write is a direct call back to that same
  * controller's JSON actions — this script never validates or authorises anything itself, it only
  * renders what the server and the drawer partials return.
@@ -77,6 +78,8 @@ let currentTotalCount = 0;
 const ICONS = {
   view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
   gis: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M10 17s6-5.5 6-9.5A6 6 0 1 0 4 7.5C4 11.5 10 17 10 17Z"/><circle cx="10" cy="7.5" r="2"/></svg>',
+  confirm: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="m6.5 10 2.5 2.5 4.5-5"/></svg>',
+  serviceDesk: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M4 11V9a6 6 0 0 1 12 0v2"/><rect x="2.5" y="11" width="3.5" height="5" rx="1"/><rect x="14" y="11" width="3.5" height="5" rx="1"/></svg>',
   kebab: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
 };
 
@@ -149,6 +152,8 @@ function statusPill(status) {
 function renderResults(items) {
   const root = el('[data-role="activation-admin-page"]');
   const canRecordGis = root.dataset.canRecordGis === 'true';
+  const canConfirm = root.dataset.canConfirm === 'true';
+  const canServiceDeskDecide = root.dataset.canServiceDeskDecide === 'true';
 
   const body = el('#activation-search-results');
   body.replaceChildren();
@@ -210,6 +215,16 @@ function renderResults(items) {
       if (canRecordGis && request.status === 'AwaitingGisVerification') {
         menu.appendChild(menuItem('Record GIS outcome', ICONS.gis, () =>
           openDrawer(`GIS outcome — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/GisOutcomeDrawer`)));
+      }
+
+      if (canConfirm && request.status === 'AwaitingOperatorConfirmation') {
+        menu.appendChild(menuItem('Confirm activation', ICONS.confirm, () =>
+          openDrawer(`Confirm activation — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/OperatorConfirmationDrawer`)));
+      }
+
+      if (canServiceDeskDecide && request.status === 'WaitingForServiceDesk') {
+        menu.appendChild(menuItem('Service desk decision', ICONS.serviceDesk, () =>
+          openDrawer(`Service desk decision — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/ServiceDeskDecisionDrawer`)));
       }
 
       openRowMenu(trigger, menu);
@@ -367,7 +382,35 @@ drawerBody.addEventListener('change', (event) => {
   if (event.target.matches('[data-role="package-select"]')) {
     syncDurationOptions(event.target.form);
   }
+
+  // Operator "No" makes the comment required; show that next to the label.
+  if (event.target.matches('input[name="decision"]')) {
+    const marker = event.target.form?.querySelector('[data-role="comment-required"]');
+    if (marker && event.target.form.dataset.commentAlwaysRequired !== 'true') {
+      marker.hidden = event.target.value !== 'false';
+    }
+  }
 });
+
+/** Reads a yes/no decision form (operator confirmation / service desk decision); null when nothing is selected. */
+function readDecision(form, chooseMessage, commentRequiredMessage) {
+  const selected = form.querySelector('input[name="decision"]:checked');
+  if (!selected) {
+    showError(form.querySelector('[data-field-error="decision"]'), chooseMessage);
+    return null;
+  }
+
+  const decision = selected.value === 'true';
+  const comment = form.querySelector('[name=comment]').value.trim() || null;
+  const commentRequired = form.dataset.commentAlwaysRequired === 'true' || !decision;
+
+  if (commentRequired && !comment) {
+    showError(form.querySelector('[data-field-error="comment"]'), commentRequiredMessage);
+    return null;
+  }
+
+  return { decision, comment };
+}
 
 // --- Drawer form submission (delegated: forms are injected dynamically) ----------------
 drawerBody.addEventListener('submit', async (event) => {
@@ -408,6 +451,20 @@ drawerBody.addEventListener('submit', async (event) => {
       }
 
       await api.patch(`/ActivationRequests/${form.dataset.requestId}/gis-outcome`, { lineAvailable, reason });
+    } else if (action === 'operator-confirmation') {
+      const result = readDecision(form, 'Choose yes or no.', 'A comment is required when the line is not working.');
+      if (!result) {
+        return;
+      }
+
+      await api.patch(`/ActivationRequests/${form.dataset.requestId}/operator-confirmation`, { working: result.decision, comment: result.comment });
+    } else if (action === 'service-desk-decision') {
+      const result = readDecision(form, 'Choose success or fail.', 'A comment is required.');
+      if (!result) {
+        return;
+      }
+
+      await api.patch(`/ActivationRequests/${form.dataset.requestId}/service-desk-decision`, { success: result.decision, comment: result.comment });
     }
 
     closeDrawer();

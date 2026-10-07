@@ -20,7 +20,9 @@ namespace Bitstream.Web.Controllers;
 /// Search and the read action enforce ownership the same way as everywhere else in the portal:
 /// an Administrator/Auditor (<c>activation.read.all</c>) sees every ISP's requests; anyone else
 /// sees only their own ISP's, decided from identity alone before the repository is touched
-/// (TR-SEC-18, TR-SEC-19). Recording a GIS outcome needs <c>activation.gis.record</c>.
+/// (TR-SEC-18, TR-SEC-19). Recording a GIS outcome needs <c>activation.gis.record</c>; the
+/// operator's confirmation <c>activation.confirm</c>; the service desk's final decision
+/// <c>activation.servicedesk.decide</c>.
 /// </para>
 /// </summary>
 [Route("ActivationRequests")]
@@ -43,6 +45,8 @@ public sealed class ActivationRequestsController : Controller
         ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationCreate);
         ViewBag.CanRecordGis = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationGisRecord);
         ViewBag.CanManageCatalogue = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.CatalogueManage);
+        ViewBag.CanConfirm = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationConfirm);
+        ViewBag.CanServiceDeskDecide = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationServiceDeskDecide);
 
         return View();
     }
@@ -93,6 +97,30 @@ public sealed class ActivationRequestsController : Controller
         var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
 
         return request is null ? NotFound() : PartialView("_GisOutcomeDrawer", request);
+    }
+
+    /// <summary>
+    /// The operator's confirmation drawer: after CRM reports the line activated, the request's
+    /// own ISP (or an Administrator) answers whether it works. <see cref="IActivationRequestService.GetByPublicIdAsync"/>
+    /// already hides another ISP's request.
+    /// </summary>
+    [HttpGet("{publicId}/OperatorConfirmationDrawer")]
+    [RequirePermission(ActivationPermissionCodes.ActivationConfirm)]
+    public async Task<IActionResult> OperatorConfirmationDrawer(string publicId, CancellationToken cancellationToken)
+    {
+        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
+
+        return request is null ? NotFound() : PartialView("_OperatorConfirmationDrawer", request);
+    }
+
+    /// <summary>The service desk's final decision drawer, for a request the operator reported not working.</summary>
+    [HttpGet("{publicId}/ServiceDeskDecisionDrawer")]
+    [RequirePermission(ActivationPermissionCodes.ActivationServiceDeskDecide)]
+    public async Task<IActionResult> ServiceDeskDecisionDrawer(string publicId, CancellationToken cancellationToken)
+    {
+        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
+
+        return request is null ? NotFound() : PartialView("_ServiceDeskDecisionDrawer", request);
     }
 
     // --- JSON support endpoints for the grid + drawer forms above (activation-admin.js) -----
@@ -155,6 +183,43 @@ public sealed class ActivationRequestsController : Controller
             await _activationRequestService.RecordGisOutcomeAsync(requestId, request.LineAvailable, request.Reason, cancellationToken)
                 .ConfigureAwait(false);
 
+            return NoContent();
+        }
+        catch (ActivationRequestNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (ActivationRequestValidationException exception)
+        {
+            return ValidationProblemFor(exception);
+        }
+        catch (ActivationRequestConflictException exception)
+        {
+            return Problem(
+                title: "Invalid state transition",
+                detail: exception.Message,
+                statusCode: StatusCodes.Status409Conflict);
+        }
+    }
+
+    [HttpPatch("{requestId:long}/operator-confirmation")]
+    [RequireJsonPermission(ActivationPermissionCodes.ActivationConfirm)]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public Task<IActionResult> RecordOperatorConfirmation(long requestId, [FromBody] OperatorConfirmationRequest request, CancellationToken cancellationToken) =>
+        RunDecisionAsync(() => _activationRequestService.RecordOperatorConfirmationAsync(requestId, request.Working, request.Comment, cancellationToken));
+
+    [HttpPatch("{requestId:long}/service-desk-decision")]
+    [RequireJsonPermission(ActivationPermissionCodes.ActivationServiceDeskDecide)]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public Task<IActionResult> RecordServiceDeskDecision(long requestId, [FromBody] ServiceDeskDecisionRequest request, CancellationToken cancellationToken) =>
+        RunDecisionAsync(() => _activationRequestService.RecordServiceDeskDecisionAsync(requestId, request.Success, request.Comment, cancellationToken));
+
+    /// <summary>Runs a status-changing decision and maps its exceptions the same way as <see cref="RecordGisOutcome"/>.</summary>
+    private async Task<IActionResult> RunDecisionAsync(Func<Task> decision)
+    {
+        try
+        {
+            await decision().ConfigureAwait(false);
             return NoContent();
         }
         catch (ActivationRequestNotFoundException)

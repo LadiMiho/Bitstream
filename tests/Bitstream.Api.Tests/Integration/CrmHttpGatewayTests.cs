@@ -365,4 +365,21 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal(IntegrationOutcome.TechnicalFailure, result.Outcome);
         Assert.True(result.IsRetryable);
     }
+
+    [Fact]
+    public async Task Operator_confirmation_is_a_visible_non_retryable_failure_until_the_contract_exists()
+    {
+        var handler = new RecordingHandler();
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.SubmitOperatorConfirmationAsync(new OperatorConfirmationCommand(
+            new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "ISP_1:operator-confirmation", DateTimeOffset.UtcNow),
+            "ISP_1", "8009521719", "N", "Not working", DateTimeOffset.UtcNow));
+
+        Assert.False(result.IsSuccess);
+        Assert.False(result.IsRetryable);
+        Assert.Equal(CrmHttpGateway.OperatorConfirmationContractMissing, result.ErrorCode);
+        Assert.Contains("contract not yet defined", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Null(handler.LastRequest);
+    }
 }

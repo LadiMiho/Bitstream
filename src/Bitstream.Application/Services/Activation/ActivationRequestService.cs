@@ -76,8 +76,10 @@ public sealed class ActivationRequestNotFoundException : Exception
 /// (Services/Integration) claims it, calls <c>ICrmGateway</c>, enqueues INT-CRM-02 once it has
 /// the Business Partner, and — on success — calls <see cref="MarkCrmSyncSucceededAsync"/> here
 /// to drive PendingCrmSync to AwaitingGisVerification. The remaining CRM-driven transitions
-/// (SalesOrderOpened onward) are applied the same way, from Direction B inbound events via
-/// <c>InboundEventService</c>.
+/// (SalesOrderOpened, LINE_ACTIVATED) are applied the same way, from Direction B inbound events
+/// via <c>InboundEventService</c>; after LINE_ACTIVATED the operator confirms the line
+/// (<see cref="RecordOperatorConfirmationAsync"/>) and, if it does not work, the service desk
+/// decides the final outcome (<see cref="RecordServiceDeskDecisionAsync"/>).
 /// </para>
 /// </summary>
 public sealed partial class ActivationRequestService : IActivationRequestService
@@ -485,32 +487,133 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task StartProvisioningAsync(string requestPublicId, CancellationToken cancellationToken = default)
+    public async Task MarkLineActivatedAsync(string requestPublicId, CancellationToken cancellationToken = default)
     {
         var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
-        RequireTransition(request, ActivationRequestStatus.InProvisioning, requestPublicId);
+        var previousStatus = RequireTransition(request, ActivationRequestStatus.AwaitingOperatorConfirmation, requestPublicId);
 
-        Transition(request, ActivationRequestStatus.InProvisioning, _clock.UtcNow);
+        var now = _clock.UtcNow;
+        request.LineActivatedAt = now;
+        Transition(request, ActivationRequestStatus.AwaitingOperatorConfirmation, now);
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
-            "ActivationRequest.ProvisioningStarted", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
-            "{\"status\":\"SalesOrderOpened\"}", "{\"status\":\"InProvisioning\"}",
+            "ActivationRequest.LineActivated", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}", "{\"status\":\"AwaitingOperatorConfirmation\"}",
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default)
+    public async Task RecordOperatorConfirmationAsync(long requestId, bool working, string? comment, CancellationToken cancellationToken = default)
     {
-        var request = await RequireByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false);
-        RequireTransition(request, ActivationRequestStatus.Completed, requestPublicId);
+        var request = await RequireByIdAsync(requestId, cancellationToken).ConfigureAwait(false);
 
-        Transition(request, ActivationRequestStatus.Completed, _clock.UtcNow);
+        // The operator is the request's own ISP; an Administrator (activation.read.all) may
+        // answer on their behalf. Anyone else is told the request does not exist (TR-SEC-19).
+        if (!_currentUser.HasPermission(ActivationPermissionCodes.ActivationReadAll) && _currentUser.IspId != request.IspId)
+        {
+            throw new ActivationRequestNotFoundException($"Activation request {requestId} does not exist.");
+        }
+
+        var cleanComment = ValidateDecisionComment(comment, required: !working,
+            "A comment is required when the line is not working.");
+
+        var target = working ? ActivationRequestStatus.Completed : ActivationRequestStatus.WaitingForServiceDesk;
+
+        if (request.Status != ActivationRequestStatus.AwaitingOperatorConfirmation)
+        {
+            throw new ActivationRequestConflictException(
+                $"Cannot confirm activation of request {requestId}: it is in status '{request.Status}', not 'AwaitingOperatorConfirmation'.");
+        }
+
+        var previousStatus = RequireTransition(request, target, requestId);
+        var now = _clock.UtcNow;
+
+        request.OperatorConfirmed = working;
+        request.OperatorComment = cleanComment;
+        request.OperatorDecidedAt = now;
+        request.OperatorDecidedBy = _currentUser.UserId;
+        request.StatusReason = working ? null : cleanComment;
+        Transition(request, target, now);
+
+        // INT-CRM-10: CRM is told the operator's answer. Enqueued in the same unit of work as the
+        // status change, so neither happens without the other. No contract exists yet, so the
+        // real gateway dead-letters it; the status change here does not depend on it.
+        var idempotencyKey = $"{request.PublicId}:operator-confirmation";
+        var envelope = new IntegrationEnvelope(Guid.NewGuid(), _currentUser.CorrelationId, idempotencyKey, now);
+        var command = new OperatorConfirmationCommand(
+            envelope, request.PublicId, request.CrmTicketId, working ? "Y" : "N", cleanComment, now);
+
+        await _outbox.EnqueueOutboundAsync(
+            TargetSystem.Crm, "INT-CRM-10", "OPERATOR_CONFIRMATION", idempotencyKey,
+            JsonSerializer.Serialize(command), _currentUser.CorrelationId, request.PublicId, cancellationToken)
+            .ConfigureAwait(false);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         await _auditWriter.WriteAsync(
-            "ActivationRequest.Completed", "ActivationRequest", request.RequestId.ToString(CultureInfo.InvariantCulture),
-            "{\"status\":\"InProvisioning\"}", "{\"status\":\"Completed\"}",
+            "ActivationRequest.OperatorConfirmationRecorded", "ActivationRequest", requestId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}",
+            $"{{\"status\":\"{target}\",\"working\":{(working ? "true" : "false")}}}",
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RecordServiceDeskDecisionAsync(long requestId, bool success, string? comment, CancellationToken cancellationToken = default)
+    {
+        var request = await RequireByIdAsync(requestId, cancellationToken).ConfigureAwait(false);
+
+        var cleanComment = ValidateDecisionComment(comment, required: true, "A comment is required.");
+
+        if (request.Status != ActivationRequestStatus.WaitingForServiceDesk)
+        {
+            throw new ActivationRequestConflictException(
+                $"Cannot record a service desk decision for request {requestId}: it is in status '{request.Status}', not 'WaitingForServiceDesk'.");
+        }
+
+        var target = success ? ActivationRequestStatus.Completed : ActivationRequestStatus.ActivationFailed;
+        var previousStatus = RequireTransition(request, target, requestId);
+        var now = _clock.UtcNow;
+
+        request.ServiceDeskSucceeded = success;
+        request.ServiceDeskComment = cleanComment;
+        request.ServiceDeskDecidedAt = now;
+        request.ServiceDeskDecidedBy = _currentUser.UserId;
+        request.StatusReason = success ? null : cleanComment;
+        Transition(request, target, now);
+
+        // Portal only: the service desk's decision is not sent to CRM.
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.ServiceDeskDecisionRecorded", "ActivationRequest", requestId.ToString(CultureInfo.InvariantCulture),
+            $"{{\"status\":\"{previousStatus}\"}}",
+            $"{{\"status\":\"{target}\",\"success\":{(success ? "true" : "false")}}}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>HTML-stripped, at most 2000 characters, and present when <paramref name="required"/>; field errors keyed "comment".</summary>
+    private static string? ValidateDecisionComment(string? comment, bool required, string requiredMessage)
+    {
+        var clean = StripHtml(comment);
+
+        if (string.IsNullOrWhiteSpace(clean))
+        {
+            if (required)
+            {
+                throw CommentError(requiredMessage);
+            }
+
+            return null;
+        }
+
+        if (clean.Length > 2000)
+        {
+            throw CommentError("Comment must not exceed 2000 characters.");
+        }
+
+        return clean;
+
+        static ActivationRequestValidationException CommentError(string message) =>
+            new([message], new Dictionary<string, IReadOnlyList<string>> { ["comment"] = [message] });
     }
 
     private async Task<ActivationRequest> RequireByIdAsync(long requestId, CancellationToken cancellationToken) =>

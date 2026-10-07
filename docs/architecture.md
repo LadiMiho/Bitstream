@@ -190,7 +190,8 @@ end to end, Submitted through Completed, including the steps CRM drives — see
 | State machine | `ActivationRequestTransitions` (Domain) is the single source of truth; every status change in the service goes through it | TRD 5.3 |
 | GIS verification | `RecordGisOutcomeAsync` — the no-line and line-exists branches, only permitted from `AwaitingGisVerification` | TR-ACT-12 to TR-ACT-19 |
 | CRM sync outcome | `MarkCrmSyncSucceededAsync` / `MarkCrmSyncFailedAsync` — PendingCrmSync to AwaitingGisVerification or IntegrationFailed, called by `OutboxDispatcher` | TRD 5.3 |
-| Sales order, provisioning, completion | `ApplySalesOrderAsync`, `StartProvisioningAsync`, `CompleteAsync` — called by `InboundEventService` from Direction B events | TR-ACT-18, TRD 5.3 |
+| Sales order, line activated | `ApplySalesOrderAsync`, `MarkLineActivatedAsync` — called by `InboundEventService` from Direction B events | TR-ACT-18, TRD 5.3 |
+| Operator confirmation, service desk decision | `RecordOperatorConfirmationAsync` (enqueues INT-CRM-10), `RecordServiceDeskDecisionAsync` (portal only) — from the Activation Requests drawers | TRD 5.3 |
 
 **The state machine is proven exhaustively, not just at the paths any one caller drives.**
 `ActivationRequestTransitionsTests` checks every ordered pair of the ten statuses against an
@@ -263,7 +264,7 @@ persists the raw event through `IIntegrationOutbox.RecordInboundAsync` before an
 outcome without calling into interpretation again (TR-INT-25). A new event is handed to
 `InboundEventService.ApplyAsync`, which discards (but still acknowledges) an event no later than
 the request's `LastAppliedEventAt` (TR-INT-25, TR-PAS-17), then routes by event type:
-`SALES_ORDER_OPENED`, `PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` call the matching
+`LINE_AVAILABLE`, `NO_LINE`, `SALES_ORDER_OPENED` and `LINE_ACTIVATED` call the matching
 `ActivationRequestService` method after trying an activation-request lookup first; if the
 identifier instead resolves to a complaint ticket, `STATUS_CHANGED`, `COMMENT_ADDED`,
 `CLOSED_WITH_CLEARING_CODE`, `AUTO_COMPLETED` and `REOPENED` route to

@@ -80,4 +80,26 @@ public sealed class ActivationRequest
     /// (TRD 7.3.2). An event older than this is discarded rather than applied (TR-INT-25).
     /// </summary>
     public DateTimeOffset? LastAppliedEventAt { get; set; }
+
+    /// <summary>When CRM reported the line activated (LINE_ACTIVATED inbound event).</summary>
+    public DateTimeOffset? LineActivatedAt { get; set; }
+
+    /// <summary>The operator's answer to "is the line working?": true = yes, false = no, null = not answered yet.</summary>
+    public bool? OperatorConfirmed { get; set; }
+
+    /// <summary>The operator's comment — required when <see cref="OperatorConfirmed"/> is false.</summary>
+    public string? OperatorComment { get; set; }
+
+    public DateTimeOffset? OperatorDecidedAt { get; set; }
+
+    public long? OperatorDecidedBy { get; set; }
+
+    /// <summary>The service desk's final decision after the operator answered no: true = success, false = failed.</summary>
+    public bool? ServiceDeskSucceeded { get; set; }
+
+    public string? ServiceDeskComment { get; set; }
+
+    public DateTimeOffset? ServiceDeskDecidedAt { get; set; }
+
+    public long? ServiceDeskDecidedBy { get; set; }
 }

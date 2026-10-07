@@ -52,12 +52,29 @@ waits in **AwaitingGisVerification**. From there CRM reports each step:
 |---|---|---|---|---|---|
 | 1a | Line check: line available | `LINE_AVAILABLE` | AwaitingGisVerification | LineAvailable | `{}` |
 | 1b | Line check: no line | `NO_LINE` | AwaitingGisVerification | RejectedNoLine | `reason` (required) |
-| 2 | Sales order opened | `SALES_ORDER_OPENED` | LineAvailable | SalesOrderOpened | `salesOrderId` (required), `businessPartner` (optional) |
-| 3 | Provisioning started | `PROVISIONING_STARTED` | SalesOrderOpened | InProvisioning | `{}` |
-| 4 | Line live | `TECHNICALLY_COMPLETED` | InProvisioning | Completed | `{}` |
+| 2 | Sales order opened ("Activation in progress") | `SALES_ORDER_OPENED` | LineAvailable | SalesOrderOpened | `salesOrderId` (required), `businessPartner` (optional) |
+| 3 | Line activated in CRM | `LINE_ACTIVATED` | SalesOrderOpened | AwaitingOperatorConfirmation | `{}` |
 
 Steps must arrive in this order. An administrator can still record the line check in the portal
 as a fallback; whichever arrives first applies, and the other is then refused with 409.
+
+`PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` are no longer accepted for activation
+requests (422): `LINE_ACTIVATED` replaces both.
+
+### After LINE_ACTIVATED (in the portal, not CRM events)
+
+1. The ISP's operator (or an Administrator) answers **"Is the line working?"** with Yes or No.
+   A comment is required for No.
+   - **Yes** → **Completed**.
+   - **No** → **WaitingForServiceDesk**.
+2. The operator's answer and comment are sent to CRM as **INT-CRM-10**. CRM has not defined
+   that operation yet, so for now the message is queued and dead-lettered on purpose, with the
+   error "INT-CRM-10 contract not yet defined" (`GET /api/v1/ops/integration/dead-letter`). It
+   will be replayed once the contract exists. Proposed fields: `requestPublicId`,
+   `crmTicketId`, `confirmed` (`Y`/`N`), `comment`, `decidedAt`.
+3. For **WaitingForServiceDesk**, a service desk user chooses **Success** (→ Completed) or
+   **Fail** (→ **ActivationFailed**), with a required comment. That is the final status. It is
+   recorded in the portal only and not sent to CRM.
 
 ### Examples
 
@@ -82,13 +99,7 @@ POST /api/v1/tickets/8009521719/events
 
 ```json
 POST /api/v1/tickets/8009521719/events
-{ "eventId": "crm-evt-1004", "eventType": "PROVISIONING_STARTED",
-  "occurredAt": "2026-10-06T07:30:00Z", "payload": {} }
-```
-
-```json
-POST /api/v1/tickets/8009521719/events
-{ "eventId": "crm-evt-1005", "eventType": "TECHNICALLY_COMPLETED",
+{ "eventId": "crm-evt-1004", "eventType": "LINE_ACTIVATED",
   "occurredAt": "2026-10-08T14:00:00Z", "payload": {} }
 ```
 

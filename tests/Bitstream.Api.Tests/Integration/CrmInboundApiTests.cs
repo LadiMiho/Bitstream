@@ -12,7 +12,7 @@ namespace Bitstream.Api.Tests.Integration;
 
 /// <summary>
 /// The CRM inbound API's access rule (X-Api-Key), lookup by CRM's ticket number, and the GIS line
-/// check reported by CRM (LINE_AVAILABLE / NO_LINE) — through the real pipeline of
+/// check reported by CRM (LINE_AVAILABLE / NO_LINE) and LINE_ACTIVATED — through the real pipeline of
 /// <c>Bitstream.Api</c>.
 /// </summary>
 public sealed class CrmInboundApiTests
@@ -125,10 +125,51 @@ public sealed class CrmInboundApiTests
         await SeedAwaitingGisAsync(factory, "TRING_001");
         using var client = factory.CreateClient();
 
-        // Still AwaitingGisVerification: provisioning can't start before the line check and sales order.
+        // Still AwaitingGisVerification: the line can't be activated before the line check and sales order.
         using var response = await client.PostAsJsonAsync(
-            new Uri("/api/v1/tickets/TRING_001/events", UriKind.Relative), Event("PROVISIONING_STARTED", "TRING_001"));
+            new Uri("/api/v1/tickets/TRING_001/events", UriKind.Relative), Event("LINE_ACTIVATED", "TRING_001"));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LINE_ACTIVATED_moves_the_request_to_AwaitingOperatorConfirmation()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING_001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.SalesOrderOpened);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{CrmTicketNumber}/events", UriKind.Relative), Event("LINE_ACTIVATED", identifier: null));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ActivationRequestStatus.AwaitingOperatorConfirmation, (await ReadAsync(factory, requestId)).Status);
+    }
+
+    [Theory]
+    [InlineData("PROVISIONING_STARTED")]
+    [InlineData("TECHNICALLY_COMPLETED")]
+    public async Task The_retired_provisioning_events_are_rejected_with_422(string eventType)
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING_001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.SalesOrderOpened);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            new Uri("/api/v1/tickets/TRING_001/events", UriKind.Relative), Event(eventType, "TRING_001"));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
+    }
+
+    private static async Task SetStatusAsync(CrmApiFactory factory, long requestId, ActivationRequestStatus status)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        var request = await db.ActivationRequests.FindAsync(requestId);
+        request!.Status = status;
+        await db.SaveChangesAsync();
     }
 }

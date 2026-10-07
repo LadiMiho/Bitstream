@@ -34,6 +34,11 @@ internal sealed class ActivationRequestConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastUpdatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastAppliedEventAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.LineActivatedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.OperatorComment).HasMaxLength(2000);
+        builder.Property(x => x.OperatorDecidedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ServiceDeskComment).HasMaxLength(2000);
+        builder.Property(x => x.ServiceDeskDecidedAt).HasColumnType("datetimeoffset(7)");
 
         // TR-DAT-04 / TR-DAT-05: unique, immutable and indexed for BI extraction.
         builder.HasIndex(x => x.PublicId).IsUnique().HasDatabaseName("UX_ActivationRequest_PublicId");

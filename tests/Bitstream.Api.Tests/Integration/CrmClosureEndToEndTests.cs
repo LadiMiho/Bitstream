@@ -16,8 +16,8 @@ namespace Bitstream.Api.Tests.Integration;
 /// End-to-end reproduction of TRD §7.3.3's closure example: an activation request goes from
 /// submission to Completed through both CRM directions — Direction A (customer and ticket
 /// creation, dispatched from the outbox to <see cref="FakeCrmGateway"/>) and Direction B (sales
-/// order, provisioning and completion, delivered on the inbound event API) — with the GIS
-/// verification admin screen in between, exactly as TRD 5.3 requires.
+/// order and line activated, delivered on the inbound event API) — with the GIS verification
+/// admin screen in between and the operator's confirmation at the end.
 /// <para>
 /// Also proves the two mechanics Direction B is built on: a repeated eventId is a no-op
 /// (TR-INT-25) and an event no later than the one already applied is discarded, not applied
@@ -40,7 +40,7 @@ public sealed class CrmClosureEndToEndTests
         {
             var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
 
-            var ispRole = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create", "activation.read.own");
+            var ispRole = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.create", "activation.read.own", "activation.confirm");
             var adminRole = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.gis.record", "activation.read.all");
 
             var isp = await IdentitySeeder.AddIspAsync(db, "Closure Example ISP", "L00000900");
@@ -147,21 +147,117 @@ public sealed class CrmClosureEndToEndTests
         // event, is discarded — accepted (200), not applied.
         using var staleResponse = await client.PostAsJsonAsync(
             new Uri($"/api/v1/tickets/{publicId}/events", UriKind.Relative),
-            ProvisioningStartedEvent("evt-provisioning-stale", publicId, t0.AddMinutes(1)));
+            LineActivatedEvent("evt-line-activated-stale", publicId, t0.AddMinutes(1)));
         Assert.Equal(HttpStatusCode.OK, staleResponse.StatusCode);
         await AssertStatusAsync(factory, requestId, ActivationRequestStatus.SalesOrderOpened);
 
-        using var provisioningResponse = await client.PostAsJsonAsync(
+        using var lineActivatedResponse = await client.PostAsJsonAsync(
             new Uri($"/api/v1/tickets/{publicId}/events", UriKind.Relative),
-            ProvisioningStartedEvent("evt-provisioning-1", publicId, t0.AddMinutes(2)));
-        Assert.Equal(HttpStatusCode.OK, provisioningResponse.StatusCode);
-        await AssertStatusAsync(factory, requestId, ActivationRequestStatus.InProvisioning);
+            LineActivatedEvent("evt-line-activated-1", publicId, t0.AddMinutes(2)));
+        Assert.Equal(HttpStatusCode.OK, lineActivatedResponse.StatusCode);
+        await AssertStatusAsync(factory, requestId, ActivationRequestStatus.AwaitingOperatorConfirmation);
 
-        using var completedResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/tickets/{publicId}/events", UriKind.Relative),
-            TechnicallyCompletedEvent("evt-completed-1", publicId, t0.AddMinutes(3)));
-        Assert.Equal(HttpStatusCode.OK, completedResponse.StatusCode);
+        // --- Operator confirmation in the portal: the ISP user says the line works ----------
+        using (var logoutResponse = await portalClient.PostAsync(new Uri("/Auth/Logout", UriKind.Relative), content: null))
+        {
+            logoutResponse.EnsureSuccessStatusCode();
+        }
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, ispUserEmail);
+
+        using var confirmResponse = await portalClient.PatchAsJsonAsync(
+            new Uri($"/ActivationRequests/{requestId}/operator-confirmation", UriKind.Relative),
+            new OperatorConfirmationRequest(true, null));
+        Assert.Equal(HttpStatusCode.NoContent, confirmResponse.StatusCode);
         await AssertStatusAsync(factory, requestId, ActivationRequestStatus.Completed);
+
+        // INT-CRM-10 carries the answer to CRM through the outbox.
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchBatchAsync();
+        }
+
+        var confirmation = Assert.Single(factory.CrmGateway.OperatorConfirmationCalls);
+        Assert.Equal(publicId, confirmation.RequestPublicId);
+        Assert.Equal("Y", confirmation.Confirmed);
+    }
+
+    [Fact]
+    public async Task Operator_no_then_service_desk_fail_ends_in_ActivationFailed()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        const string ispUserEmail = "operator@example.com";
+        const string serviceDeskEmail = "servicedesk@example.com";
+        long requestId;
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+
+            var ispRole = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.read.own", "activation.confirm");
+            var serviceDeskRole = await IdentitySeeder.AddRoleAsync(db, "ServiceDesk", "activation.read.all", "activation.servicedesk.decide");
+
+            var isp = await IdentitySeeder.AddIspAsync(db, "Operator ISP", "L00000901", "OPER");
+            await IdentitySeeder.AddUserAsync(db, ispRole, isp.IspId, ispUserEmail);
+            await IdentitySeeder.AddUserAsync(db, serviceDeskRole, ispId: null, serviceDeskEmail);
+
+            var request = await Bitstream.Api.Tests.Activation.ActivationSeeder.AddRequestAsync(
+                db, isp.IspId, "OPER_001", ActivationRequestStatus.AwaitingOperatorConfirmation);
+            requestId = request.RequestId;
+        }
+
+        using var portalClient = portal.CreateClient();
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, ispUserEmail);
+
+        // No without a comment: a field error on "comment", nothing changes.
+        using (var missingComment = await portalClient.PatchAsJsonAsync(
+            new Uri($"/ActivationRequests/{requestId}/operator-confirmation", UriKind.Relative),
+            new OperatorConfirmationRequest(false, null)))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, missingComment.StatusCode);
+            Assert.Contains("\"comment\"", await missingComment.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+        await AssertStatusAsync(factory, requestId, ActivationRequestStatus.AwaitingOperatorConfirmation);
+
+        using (var no = await portalClient.PatchAsJsonAsync(
+            new Uri($"/ActivationRequests/{requestId}/operator-confirmation", UriKind.Relative),
+            new OperatorConfirmationRequest(false, "No sync on the ONT")))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, no.StatusCode);
+        }
+        await AssertStatusAsync(factory, requestId, ActivationRequestStatus.WaitingForServiceDesk);
+
+        // The ISP user cannot make the service desk's decision.
+        using (var forbidden = await portalClient.PatchAsJsonAsync(
+            new Uri($"/ActivationRequests/{requestId}/service-desk-decision", UriKind.Relative),
+            new ServiceDeskDecisionRequest(true, "x")))
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        }
+
+        using (var logoutResponse = await portalClient.PostAsync(new Uri("/Auth/Logout", UriKind.Relative), content: null))
+        {
+            logoutResponse.EnsureSuccessStatusCode();
+        }
+        await IdentitySeeder.AuthenticateAsync(portalClient, portal.Services, serviceDeskEmail);
+
+        using (var fail = await portalClient.PatchAsJsonAsync(
+            new Uri($"/ActivationRequests/{requestId}/service-desk-decision", UriKind.Relative),
+            new ServiceDeskDecisionRequest(false, "Fault in the street cabinet; cancelled")))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, fail.StatusCode);
+        }
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var request = await scope.ServiceProvider.GetRequiredService<BitstreamDbContext>().ActivationRequests.FindAsync(requestId);
+
+            Assert.Equal(ActivationRequestStatus.ActivationFailed, request!.Status);
+            Assert.False(request.OperatorConfirmed);
+            Assert.Equal("No sync on the ONT", request.OperatorComment);
+            Assert.False(request.ServiceDeskSucceeded);
+            Assert.Equal("Fault in the street cabinet; cancelled", request.ServiceDeskComment);
+        }
     }
 
     [Fact]
@@ -298,11 +394,7 @@ public sealed class CrmClosureEndToEndTests
         new(eventId, "SALES_ORDER_OPENED", identifier, null, occurredAt,
             new TicketEventPayload(null, null, null, null, null, null, null, null, "SO-12345", "BP-000001"));
 
-    private static TicketEventRequest ProvisioningStartedEvent(string eventId, string identifier, DateTimeOffset occurredAt) =>
-        new(eventId, "PROVISIONING_STARTED", identifier, null, occurredAt,
-            new TicketEventPayload(null, null, null, null, null, null, null, null, null, null));
-
-    private static TicketEventRequest TechnicallyCompletedEvent(string eventId, string identifier, DateTimeOffset occurredAt) =>
-        new(eventId, "TECHNICALLY_COMPLETED", identifier, null, occurredAt,
+    private static TicketEventRequest LineActivatedEvent(string eventId, string identifier, DateTimeOffset occurredAt) =>
+        new(eventId, "LINE_ACTIVATED", identifier, null, occurredAt,
             new TicketEventPayload(null, null, null, null, null, null, null, null, null, null));
 }

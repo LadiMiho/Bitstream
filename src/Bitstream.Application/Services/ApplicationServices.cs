@@ -57,11 +57,19 @@ public interface IActivationRequestService
     /// <summary>Closes a rejected request once the ISP has been told (TRD 5.3: RejectedNoLine to Closed).</summary>
     Task CloseRejectedAsync(long requestId, CancellationToken cancellationToken = default);
 
-    /// <summary>Applies a PROVISIONING_STARTED inbound event (TRD 5.3: SalesOrderOpened to InProvisioning).</summary>
-    Task StartProvisioningAsync(string requestPublicId, CancellationToken cancellationToken = default);
+    /// <summary>Applies a LINE_ACTIVATED inbound event: SalesOrderOpened ("Activation in progress") to AwaitingOperatorConfirmation.</summary>
+    Task MarkLineActivatedAsync(string requestPublicId, CancellationToken cancellationToken = default);
 
-    /// <summary>Applies a TECHNICALLY_COMPLETED inbound event (TRD 5.3: InProvisioning to Completed).</summary>
-    Task CompleteAsync(string requestPublicId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The operator's answer to "is the line working?". Yes completes the request; No (comment
+    /// required) moves it to WaitingForServiceDesk. Only the request's own ISP, or a caller with
+    /// <c>activation.read.all</c> (Administrator); anyone else gets not found (TR-SEC-19). Enqueues
+    /// the decision to CRM as INT-CRM-10, whose contract is not defined yet.
+    /// </summary>
+    Task RecordOperatorConfirmationAsync(long requestId, bool working, string? comment, CancellationToken cancellationToken = default);
+
+    /// <summary>The service desk's final decision for a request in WaitingForServiceDesk: Completed or ActivationFailed. Comment required. Portal only — nothing is sent to CRM.</summary>
+    Task RecordServiceDeskDecisionAsync(long requestId, bool success, string? comment, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The active packages, classifications and contract durations offered on the submission

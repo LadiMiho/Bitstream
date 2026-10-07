@@ -20,7 +20,7 @@ namespace Bitstream.Api.Endpoints;
 /// lifecycle events), INT-CRM-07 (closure and clearing code) and the inbound half of
 /// INT-CRM-06 (comment replication) — one endpoint, distinguished by event type, exactly as
 /// TR-INT-22 requires. Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED,
-/// PROVISIONING_STARTED, TECHNICALLY_COMPLETED. Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
+/// LINE_ACTIVATED. Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
 /// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. The identifier in the route may be the
 /// portal's ID (e.g. TRING_001) or CRM's own ticket number.
 /// </para>
@@ -56,9 +56,12 @@ public static class CrmInboundEndpoints
                 Activation request steps (eventType: required status before -> status after):
                   LINE_AVAILABLE        AwaitingGisVerification -> LineAvailable
                   NO_LINE               AwaitingGisVerification -> RejectedNoLine (payload.reason required)
-                  SALES_ORDER_OPENED    LineAvailable -> SalesOrderOpened (payload.salesOrderId required)
-                  PROVISIONING_STARTED  SalesOrderOpened -> InProvisioning
-                  TECHNICALLY_COMPLETED InProvisioning -> Completed
+                  SALES_ORDER_OPENED    LineAvailable -> SalesOrderOpened ("Activation in progress"; payload.salesOrderId required)
+                  LINE_ACTIVATED        SalesOrderOpened -> AwaitingOperatorConfirmation
+
+                After LINE_ACTIVATED the ISP's operator confirms in the portal whether the line works
+                (Yes -> Completed; No -> WaitingForServiceDesk, where the service desk decides
+                Completed or ActivationFailed). Those steps are not CRM events.
 
                 Response codes:
                   200 — accepted: newly applied, applied-but-discarded-as-stale, or a duplicate

@@ -2,7 +2,7 @@ namespace Bitstream.Application.Abstractions.Integration;
 
 /// <summary>
 /// System-agnostic port for every portal-initiated CRM interaction
-/// (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09).
+/// (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09, and the portal's INT-CRM-10).
 /// <para>
 /// TR-ARC-02: application services depend on this interface only. The concrete adapter
 /// lives in Bitstream.Infrastructure.Integration and is the single place that knows the
@@ -40,6 +40,14 @@ public interface ICrmGateway
     /// <summary>INT-CRM-08. Transmits Confirm, No, or a system-initiated auto-confirmation.</summary>
     Task<IntegrationResult<ClosureDecisionResult>> SubmitClosureDecisionAsync(
         ClosureDecisionCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// INT-CRM-10. Tells CRM whether the ISP's operator confirmed the activated line works, with
+    /// their comment. CRM has not supplied a contract for this yet.
+    /// </summary>
+    Task<IntegrationResult<OperatorConfirmationResult>> SubmitOperatorConfirmationAsync(
+        OperatorConfirmationCommand command,
         CancellationToken cancellationToken = default);
 
     /// <summary>INT-CRM-09. Transmits an upgrade, downgrade or termination.</summary>

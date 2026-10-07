@@ -44,10 +44,8 @@ public static class ActivationEventTypes
     /// <summary>INT-CRM-03. Requires <see cref="InboundTicketEventPayload.SalesOrderId"/>.</summary>
     public const string SalesOrderOpened = "SALES_ORDER_OPENED";
 
-    public const string ProvisioningStarted = "PROVISIONING_STARTED";
-
-    /// <summary>Reused from the general ticket vocabulary: for an activation request in InProvisioning, this means the line went live (TRD 5.3: to Completed).</summary>
-    public const string TechnicallyCompleted = "TECHNICALLY_COMPLETED";
+    /// <summary>CRM has activated the line (SalesOrderOpened → AwaitingOperatorConfirmation); the ISP's operator must now confirm it works.</summary>
+    public const string LineActivated = "LINE_ACTIVATED";
 }
 
 /// <summary>Thrown when an event's identifier resolves to no known request or ticket. Maps to 404.</summary>

@@ -30,13 +30,25 @@ public enum ActivationRequestStatus
     AwaitingGisVerification,
     RejectedNoLine,
     LineAvailable,
+    /// <summary>Shown to users as "Activation in progress": CRM has opened the sales order and is activating the line.</summary>
     SalesOrderOpened,
+
+    /// <summary>Legacy: no longer entered. Kept so rows written before LINE_ACTIVATED existed still load.</summary>
     InProvisioning,
     Closed,
     Completed,
 
     /// <summary>Retry budget exhausted or CRM business rejection (TR-INT-19).</summary>
-    IntegrationFailed
+    IntegrationFailed,
+
+    /// <summary>CRM reported the line activated (LINE_ACTIVATED); the ISP's operator must confirm it works.</summary>
+    AwaitingOperatorConfirmation,
+
+    /// <summary>The operator reported the line not working; a service desk user decides the final outcome.</summary>
+    WaitingForServiceDesk,
+
+    /// <summary>Final: the service desk decided the activation failed.</summary>
+    ActivationFailed
 }
 
 /// <summary>Outcome of the ticket closure handshake, TRD 6.4 / 6.5.</summary>
@@ -151,11 +163,24 @@ public static class ActivationRequestTransitions
         ],
         [ActivationRequestStatus.RejectedNoLine] = [ActivationRequestStatus.Closed],
         [ActivationRequestStatus.LineAvailable] = [ActivationRequestStatus.SalesOrderOpened],
-        [ActivationRequestStatus.SalesOrderOpened] = [ActivationRequestStatus.InProvisioning],
-        [ActivationRequestStatus.InProvisioning] = [ActivationRequestStatus.Completed],
+        [ActivationRequestStatus.SalesOrderOpened] = [ActivationRequestStatus.AwaitingOperatorConfirmation],
+
+        // Legacy rows only: nothing moves into InProvisioning any more.
+        [ActivationRequestStatus.InProvisioning] = [ActivationRequestStatus.AwaitingOperatorConfirmation],
+        [ActivationRequestStatus.AwaitingOperatorConfirmation] =
+        [
+            ActivationRequestStatus.Completed,
+            ActivationRequestStatus.WaitingForServiceDesk
+        ],
+        [ActivationRequestStatus.WaitingForServiceDesk] =
+        [
+            ActivationRequestStatus.Completed,
+            ActivationRequestStatus.ActivationFailed
+        ],
         [ActivationRequestStatus.IntegrationFailed] = [ActivationRequestStatus.PendingCrmSync],
         [ActivationRequestStatus.Closed] = [],
-        [ActivationRequestStatus.Completed] = []
+        [ActivationRequestStatus.Completed] = [],
+        [ActivationRequestStatus.ActivationFailed] = []
     };
 
     /// <summary>Returns the states reachable from <paramref name="from"/>.</summary>

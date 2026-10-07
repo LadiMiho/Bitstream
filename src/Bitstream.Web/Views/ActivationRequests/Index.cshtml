@@ -3,11 +3,15 @@
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
     var canRecordGis = (bool)(ViewBag.CanRecordGis ?? false);
     var canManageCatalogue = (bool)(ViewBag.CanManageCatalogue ?? false);
+    var canConfirm = (bool)(ViewBag.CanConfirm ?? false);
+    var canServiceDeskDecide = (bool)(ViewBag.CanServiceDeskDecide ?? false);
 }
 
 <div class="grid gap-6"
      data-role="activation-admin-page"
-     data-can-record-gis="@canRecordGis.ToString().ToLowerInvariant()">
+     data-can-record-gis="@canRecordGis.ToString().ToLowerInvariant()"
+     data-can-confirm="@canConfirm.ToString().ToLowerInvariant()"
+     data-can-service-desk-decide="@canServiceDeskDecide.ToString().ToLowerInvariant()">
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-xl font-semibold">Activation Requests</h1>
@@ -57,10 +61,12 @@
                                     <option value="AwaitingGisVerification">Awaiting GIS Verification</option>
                                     <option value="RejectedNoLine">Rejected — No Line</option>
                                     <option value="LineAvailable">Line Available</option>
-                                    <option value="SalesOrderOpened">Sales Order Opened</option>
-                                    <option value="InProvisioning">In Provisioning</option>
+                                    <option value="SalesOrderOpened">Activation in progress</option>
+                                    <option value="AwaitingOperatorConfirmation">Waiting for operator confirmation</option>
+                                    <option value="WaitingForServiceDesk">Waiting for service desk</option>
                                     <option value="Closed">Closed</option>
                                     <option value="Completed">Completed</option>
+                                    <option value="ActivationFailed">Activation failed</option>
                                     <option value="IntegrationFailed">Integration Failed</option>
                                 </select>
                             </div>

@@ -12,11 +12,14 @@ const STATUS_PRESENTATION = {
   AwaitingGisVerification: { label: 'Awaiting GIS Verification', tone: 'progress' },
   RejectedNoLine: { label: 'Rejected — No Line', tone: 'blocked' },
   LineAvailable: { label: 'Line Available', tone: 'progress' },
-  SalesOrderOpened: { label: 'Sales Order Opened', tone: 'progress' },
+  SalesOrderOpened: { label: 'Activation in progress', tone: 'progress' },
   InProvisioning: { label: 'In Provisioning', tone: 'progress' },
   Closed: { label: 'Closed', tone: 'blocked' },
   Completed: { label: 'Completed', tone: 'done' },
-  IntegrationFailed: { label: 'Integration Failed', tone: 'blocked' }
+  IntegrationFailed: { label: 'Integration Failed', tone: 'blocked' },
+  AwaitingOperatorConfirmation: { label: 'Waiting for operator confirmation', tone: 'pending' },
+  WaitingForServiceDesk: { label: 'Waiting for service desk', tone: 'pending' },
+  ActivationFailed: { label: 'Activation failed', tone: 'blocked' }
 };
 
 const TONE_CLASSES = {

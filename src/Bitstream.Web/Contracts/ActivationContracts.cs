@@ -57,3 +57,13 @@ public sealed record ActivationRequestListResponse(
 public sealed record GisOutcomeRequest(
     [property: JsonPropertyName("lineAvailable")] bool LineAvailable,
     [property: JsonPropertyName("reason")] string? Reason);
+
+/// <summary>The operator's answer to "is the activated line working?"; comment required when <c>working</c> is false.</summary>
+public sealed record OperatorConfirmationRequest(
+    [property: JsonPropertyName("working")] bool Working,
+    [property: JsonPropertyName("comment")] string? Comment);
+
+/// <summary>The service desk's final outcome after the operator reported the line not working; comment required.</summary>
+public sealed record ServiceDeskDecisionRequest(
+    [property: JsonPropertyName("success")] bool Success,
+    [property: JsonPropertyName("comment")] string? Comment);

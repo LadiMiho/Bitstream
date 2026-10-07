@@ -1,0 +1,51 @@
+@model Bitstream.Domain.Entities.ActivationRequest
+@{
+    var eligible = Model.Status == Bitstream.Domain.Enums.ActivationRequestStatus.AwaitingOperatorConfirmation;
+}
+<dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Public ID</dt><dd class="mt-1 text-sm">@Model.PublicId</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt><dd class="mt-1 text-sm">@ActivationStatusLabels.For(Model.Status)</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@Model.Isp.Name (#@Model.IspId)</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@Model.PackageCode</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd class="mt-1 text-sm">@Model.LocationRaw</dd></div>
+    <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Line activated (CRM)</dt><dd class="mt-1 text-sm">@(Model.LineActivatedAt?.ToString("g") ?? "—")</dd></div>
+</dl>
+
+@if (!eligible)
+{
+    <p class="mt-6 text-sm text-ink-muted">This request is not waiting for operator confirmation, so nothing can be confirmed right now.</p>
+    <template data-drawer-footer>
+        <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+    </template>
+}
+else
+{
+    <form id="activation-operator-confirmation-form" class="mt-6 grid gap-4" novalidate data-action="operator-confirmation" data-request-id="@Model.RequestId" data-public-id="@Model.PublicId">
+        <p class="field-error" role="alert" data-field-error="request" hidden></p>
+
+        <fieldset class="grid gap-2">
+            <legend class="field-label">CRM has activated the line. Is it working correctly?</legend>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="decision" value="true" required /> Yes
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="radio" name="decision" value="false" required /> No
+                </label>
+            </div>
+            <p class="field-error" role="alert" data-field-error="decision" hidden></p>
+        </fieldset>
+
+        <div>
+            <label class="field-label" for="activation-operator-comment">
+                Comment <span data-role="comment-required" hidden>(required when the line is not working)</span>
+            </label>
+            <textarea class="field-input" id="activation-operator-comment" name="comment" rows="4" maxlength="2000"></textarea>
+            <p class="field-error" role="alert" data-field-error="comment" hidden></p>
+        </div>
+    </form>
+    <template data-drawer-footer>
+        <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+        <button type="submit" form="activation-operator-confirmation-form" class="btn-primary">Submit</button>
+    </template>
+}

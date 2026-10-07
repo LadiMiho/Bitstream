@@ -1,4 +1,5 @@
 using Bitstream.Api.Tests.Identity;
+using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Domain.Entities;
@@ -393,6 +394,161 @@ public sealed class ActivationRequestServiceTests
         var result = await service.GetByPublicIdAsync(request.PublicId);
 
         Assert.NotNull(result);
+    }
+
+    [Fact]
+    public async Task MarkLineActivatedAsync_moves_SalesOrderOpened_to_AwaitingOperatorConfirmation()
+    {
+        var request = SeedRequest(ActivationRequestStatus.SalesOrderOpened);
+        var service = CreateService();
+
+        await service.MarkLineActivatedAsync(request.PublicId);
+
+        Assert.Equal(ActivationRequestStatus.AwaitingOperatorConfirmation, request.Status);
+        Assert.NotNull(request.LineActivatedAt);
+    }
+
+    [Fact]
+    public async Task MarkLineActivatedAsync_before_the_sales_order_is_a_conflict()
+    {
+        var request = SeedRequest(ActivationRequestStatus.LineAvailable);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ActivationRequestConflictException>(() => service.MarkLineActivatedAsync(request.PublicId));
+        Assert.Equal(ActivationRequestStatus.LineAvailable, request.Status);
+    }
+
+    [Fact]
+    public async Task Operator_yes_completes_the_request_and_enqueues_INT_CRM_10()
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation);
+        request.CrmTicketId = "8009521719";
+        var service = CreateService();
+
+        await service.RecordOperatorConfirmationAsync(request.RequestId, working: true, comment: null);
+
+        Assert.Equal(ActivationRequestStatus.Completed, request.Status);
+        Assert.True(request.OperatorConfirmed);
+        Assert.Equal(1, request.OperatorDecidedBy);
+
+        var message = Assert.Single(_outbox.Outbound, m => m.InterfaceCode == "INT-CRM-10");
+        Assert.Equal(request.PublicId, message.RelatedPublicId);
+        var command = System.Text.Json.JsonSerializer.Deserialize<OperatorConfirmationCommand>(message.Payload)!;
+        Assert.Equal("Y", command.Confirmed);
+        Assert.Equal("8009521719", command.CrmTicketId);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    [InlineData("<b></b>")]
+    public async Task Operator_no_without_a_comment_is_a_field_error_and_changes_nothing(string? comment)
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ActivationRequestValidationException>(() =>
+            service.RecordOperatorConfirmationAsync(request.RequestId, working: false, comment));
+
+        Assert.True(exception.FieldErrors.ContainsKey("comment"));
+        Assert.Equal(ActivationRequestStatus.AwaitingOperatorConfirmation, request.Status);
+        Assert.Empty(_outbox.Outbound);
+    }
+
+    [Fact]
+    public async Task Operator_no_with_a_comment_moves_the_request_to_WaitingForServiceDesk()
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation);
+        var service = CreateService();
+
+        await service.RecordOperatorConfirmationAsync(request.RequestId, working: false, "No sync on the ONT");
+
+        Assert.Equal(ActivationRequestStatus.WaitingForServiceDesk, request.Status);
+        Assert.False(request.OperatorConfirmed);
+        Assert.Equal("No sync on the ONT", request.OperatorComment);
+
+        var message = Assert.Single(_outbox.Outbound, m => m.InterfaceCode == "INT-CRM-10");
+        var command = System.Text.Json.JsonSerializer.Deserialize<OperatorConfirmationCommand>(message.Payload)!;
+        Assert.Equal("N", command.Confirmed);
+        Assert.Equal("No sync on the ONT", command.Comment);
+    }
+
+    [Fact]
+    public async Task Operator_of_another_ISP_gets_not_found()
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation, ispId: 2);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ActivationRequestNotFoundException>(() =>
+            service.RecordOperatorConfirmationAsync(request.RequestId, working: true, comment: null));
+        Assert.Equal(ActivationRequestStatus.AwaitingOperatorConfirmation, request.Status);
+    }
+
+    [Fact]
+    public async Task Administrator_may_confirm_for_any_ISP()
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation, ispId: 2);
+        _currentUser.IspId = null;
+        _currentUser.Permissions.Add(ActivationPermissionCodes.ActivationReadAll);
+        var service = CreateService();
+
+        await service.RecordOperatorConfirmationAsync(request.RequestId, working: true, comment: null);
+
+        Assert.Equal(ActivationRequestStatus.Completed, request.Status);
+    }
+
+    [Theory]
+    [InlineData(ActivationRequestStatus.SalesOrderOpened)]
+    [InlineData(ActivationRequestStatus.WaitingForServiceDesk)]
+    [InlineData(ActivationRequestStatus.Completed)]
+    public async Task Operator_confirmation_outside_AwaitingOperatorConfirmation_is_a_conflict(ActivationRequestStatus status)
+    {
+        var request = SeedRequest(status);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ActivationRequestConflictException>(() =>
+            service.RecordOperatorConfirmationAsync(request.RequestId, working: true, comment: null));
+        Assert.Equal(status, request.Status);
+    }
+
+    [Theory]
+    [InlineData(true, ActivationRequestStatus.Completed)]
+    [InlineData(false, ActivationRequestStatus.ActivationFailed)]
+    public async Task Service_desk_decision_sets_the_final_status(bool success, ActivationRequestStatus expected)
+    {
+        var request = SeedRequest(ActivationRequestStatus.WaitingForServiceDesk);
+        var service = CreateService();
+
+        await service.RecordServiceDeskDecisionAsync(request.RequestId, success, "Checked on site");
+
+        Assert.Equal(expected, request.Status);
+        Assert.Equal(success, request.ServiceDeskSucceeded);
+        Assert.Equal("Checked on site", request.ServiceDeskComment);
+        // Portal only: nothing goes to CRM.
+        Assert.Empty(_outbox.Outbound);
+    }
+
+    [Fact]
+    public async Task Service_desk_decision_without_a_comment_is_a_field_error()
+    {
+        var request = SeedRequest(ActivationRequestStatus.WaitingForServiceDesk);
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ActivationRequestValidationException>(() =>
+            service.RecordServiceDeskDecisionAsync(request.RequestId, success: true, comment: ""));
+
+        Assert.True(exception.FieldErrors.ContainsKey("comment"));
+        Assert.Equal(ActivationRequestStatus.WaitingForServiceDesk, request.Status);
+    }
+
+    [Fact]
+    public async Task Service_desk_decision_outside_WaitingForServiceDesk_is_a_conflict()
+    {
+        var request = SeedRequest(ActivationRequestStatus.AwaitingOperatorConfirmation);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ActivationRequestConflictException>(() =>
+            service.RecordServiceDeskDecisionAsync(request.RequestId, success: true, "x"));
     }
 
     private ActivationRequest SeedRequest(ActivationRequestStatus status, long ispId = 1)
