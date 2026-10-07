@@ -126,3 +126,31 @@ is not told about), `COMMENT_ADDED` (`payload.comment` required, `agent` optiona
 
 Every accepted call is stored before it is applied, so the portal can replay it later
 (`POST /api/v1/tickets/events/replay`, administrative use).
+
+## Trying it with Postman
+
+`docs/integration/postman/` contains:
+
+- `Bitstream-CRM-Inbound.postman_collection.json` holds every call above. It is grouped into
+  activation steps (in flow order), complaint ticket events, error examples (401, 400, 404, 409,
+  422 and duplicate) and operations (replay, health, OpenAPI).
+- `Bitstream-Local.postman_environment.json` points `baseUrl` at the local API host and sets
+  `apiKey` to the Development key from `src/Bitstream.Api/appsettings.Development.json`.
+
+To use them:
+
+1. In Postman, use **Import** and choose both files. Then select the
+   *Bitstream – Local (Development)* environment.
+2. Run **Bitstream.Api** (`dotnet run --project src/Bitstream.Api`). It listens on
+   `https://localhost:7292` and `http://localhost:5292`. If Postman rejects the development
+   certificate, either turn off *SSL certificate verification* in Postman's settings or set
+   `baseUrl` to `http://localhost:5292`.
+3. Set the `identifier` variable to a real request, for example `TRING_001`. To address the
+   request by CRM's number instead, set `crmTicketNumber` to its CRM ticket number.
+4. Send the steps in order.
+   - `eventId` and `occurredAt` are generated fresh before each send, so a repeated click is a
+     new, later event.
+   - The *Duplicate eventId* example deliberately reuses one fixed ID.
+
+For another environment, create a separate Postman environment with that host and its key.
+Never commit a production key.

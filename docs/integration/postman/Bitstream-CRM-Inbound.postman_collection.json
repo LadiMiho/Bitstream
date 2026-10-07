@@ -1,0 +1,1126 @@
+{
+  "info": {
+    "name": "Bitstream – CRM inbound API",
+    "_postman_id": "6f1c0d4e-6a57-4d0e-9a2f-3b8e4c1d2a90",
+    "description": "Calls CRM makes to the Bitstream integration host (Bitstream.Api). See docs/integration/crm-inbound-api.md.\n\nEvery call needs the `X-Api-Key` header (collection auth, from `{{apiKey}}`). `eventId` and `occurredAt` are generated fresh before each request, so each send is a new, newer event. Set `identifier` to the request you are testing (e.g. TRING_001).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Api-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// A new eventId per send (a repeated one is treated as a duplicate and ignored),",
+          "// and occurredAt = now, so each later step is newer than the last one applied.",
+          "pm.variables.set('eventId', 'crm-evt-' + Date.now());",
+          "pm.variables.set('occurredAt', new Date().toISOString());"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:7292"
+    },
+    {
+      "key": "apiKey",
+      "value": "dev-crm-inbound-key"
+    },
+    {
+      "key": "identifier",
+      "value": "TRING_001"
+    },
+    {
+      "key": "crmTicketNumber",
+      "value": "8009521719"
+    },
+    {
+      "key": "salesOrderId",
+      "value": "SO-4500123"
+    },
+    {
+      "key": "complaintIdentifier",
+      "value": "TRING_002"
+    }
+  ],
+  "item": [
+    {
+      "name": "Activation request steps",
+      "description": "In flow order. The portal itself does submission, Business Partner and ticket creation; the request then waits in AwaitingGisVerification.",
+      "item": [
+        {
+          "name": "1a. LINE_AVAILABLE (line check: line exists)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**AwaitingGisVerification → LineAvailable.** CRM's GIS line check found a line."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1b. NO_LINE (line check: no line)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"NO_LINE\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"reason\": \"No fibre in this street\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**AwaitingGisVerification → RejectedNoLine.** `payload.reason` is required (422 without it) and is shown on the request as its status reason. Use either 1a or 1b, not both."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. SALES_ORDER_OPENED (\"Activation in progress\")",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"SALES_ORDER_OPENED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"{{salesOrderId}}\",\n    \"businessPartner\": \"1102017112\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**LineAvailable → SalesOrderOpened**, shown in the portal as *Activation in progress*. `payload.salesOrderId` is required."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. LINE_ACTIVATED (operator must confirm)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**SalesOrderOpened → AwaitingOperatorConfirmation.** The line is active on CRM's side; the ISP's operator now confirms in the portal whether it works (Yes → Completed; No → Waiting for service desk). Those portal steps are not API calls."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Addressed by CRM ticket number (LINE_AVAILABLE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{crmTicketNumber}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{crmTicketNumber}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Same as 1a, but the URL carries CRM's own ticket number (EV_TICKET_NO) instead of the portal ID. The body's `identifier` is omitted: when present it must equal the URL."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Complaint ticket events",
+      "item": [
+        {
+          "name": "STATUS_CHANGED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{complaintIdentifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{complaintIdentifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"STATUS_CHANGED\",\n  \"identifier\": \"{{complaintIdentifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"status\": \"In Progress\",\n    \"forwardingGroup\": null\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`payload.status` required. `forwardingGroup` marks an internal forward the ISP is not told about."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "COMMENT_ADDED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{complaintIdentifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{complaintIdentifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"COMMENT_ADDED\",\n  \"identifier\": \"{{complaintIdentifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"comment\": \"Technician scheduled for tomorrow.\",\n    \"agent\": \"crm.agent\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`payload.comment` required; `agent` optional."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CLOSED_WITH_CLEARING_CODE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{complaintIdentifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{complaintIdentifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"CLOSED_WITH_CLEARING_CODE\",\n  \"identifier\": \"{{complaintIdentifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"clearingCode\": \"FIXED\",\n    \"clearingText\": \"Connector replaced\",\n    \"closedBy\": \"FM Contractor\",\n    \"requiresIspConfirmation\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`payload.clearingCode` required; `clearingText` optional. The ISP then confirms or rejects the closure in the portal."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AUTO_COMPLETED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{complaintIdentifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{complaintIdentifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"AUTO_COMPLETED\",\n  \"identifier\": \"{{complaintIdentifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CRM completed the ticket without asking the ISP."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "REOPENED",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{complaintIdentifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{complaintIdentifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"REOPENED\",\n  \"identifier\": \"{{complaintIdentifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CRM reopened the ticket."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Error examples",
+      "item": [
+        {
+          "name": "401 – missing API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "No `X-Api-Key` header: refused with 401, nothing changes.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 – wrong API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Wrong key: refused with 401.",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-Api-Key",
+                  "type": "string"
+                },
+                {
+                  "key": "value",
+                  "value": "not-the-key",
+                  "type": "string"
+                },
+                {
+                  "key": "in",
+                  "value": "header",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 – body identifier does not match URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"SOMETHING_ELSE\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The body's `identifier` must equal the one in the URL."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 – unknown identifier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/UNKNOWN_999/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "UNKNOWN_999",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"UNKNOWN_999\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "No activation request or complaint ticket with this identifier."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "409 – step out of order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Send while the request is still AwaitingGisVerification: LINE_ACTIVATED is only allowed from SalesOrderOpened."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 – retired event type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"TECHNICALLY_COMPLETED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "PROVISIONING_STARTED and TECHNICALLY_COMPLETED are no longer accepted for activation requests; LINE_ACTIVATED replaces them."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate eventId – send twice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{identifier}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"crm-evt-duplicate-demo\",\n  \"eventType\": \"LINE_AVAILABLE\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Uses a fixed eventId. The first send is applied (or refused by status); every later send returns 200 with `\"duplicate\": true` and changes nothing."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Second send is a duplicate', () => { if (pm.response.code === 200) { pm.expect(pm.response.json()).to.have.property('duplicate'); } });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "Replay persisted events (recovery)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/events/replay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "events",
+                "replay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"ticketIdentifier\": \"{{identifier}}\",\n  \"fromUtc\": \"2026-10-01T00:00:00Z\",\n  \"toUtc\": \"2026-10-31T23:59:59Z\"\n}"
+            },
+            "description": "Reprocesses events already received (it does not ask CRM to resend). `ticketIdentifier` null replays the whole window. Idempotent."
+          }
+        },
+        {
+          "name": "Health – live",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            },
+            "description": "Process is up. No API key needed.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Health – ready",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Dependencies (database) reachable. 503 when not ready.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "OpenAPI document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/openapi/v1.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "openapi",
+                "v1.json"
+              ]
+            },
+            "description": "Machine-readable contract of this API.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
