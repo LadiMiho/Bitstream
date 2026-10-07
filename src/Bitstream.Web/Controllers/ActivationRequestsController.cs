@@ -4,6 +4,7 @@ using Bitstream.Domain.Entities;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
 using Bitstream.Web.Contracts;
+using Bitstream.Web.Presentation;
 using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -79,9 +80,18 @@ public sealed class ActivationRequestsController : Controller
     [RequireSession]
     public async Task<IActionResult> ViewDrawer(string publicId, CancellationToken cancellationToken)
     {
-        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
+        // The main details, then the timeline of everything exchanged with CRM and every portal
+        // user's action. Raw payloads only for activation.read.all.
+        var details = await _activationRequestService.GetWithTimelineAsync(publicId, cancellationToken).ConfigureAwait(false);
 
-        return request is null ? NotFound() : PartialView("_ViewDrawer", request);
+        if (details is not { } found)
+        {
+            return NotFound();
+        }
+
+        var showRaw = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationReadAll);
+
+        return PartialView("_ViewDrawer", new ActivationRequestDetailsViewModel(found.Request, found.Timeline, showRaw));
     }
 
     /// <summary>

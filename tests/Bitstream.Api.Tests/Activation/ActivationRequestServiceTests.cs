@@ -54,7 +54,8 @@ public sealed class ActivationRequestServiceTests
             new FakeUnitOfWork(),
             _auditWriter,
             _clock,
-            _currentUser);
+            _currentUser,
+            new FakeActivationHistoryReader());
 
     private Isp AddActiveIsp(long ispId = 1, string? ticketCode = "ALPHA")
     {

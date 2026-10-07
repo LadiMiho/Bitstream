@@ -1,4 +1,5 @@
 using Bitstream.Application.Identity.Entities;
+using Bitstream.Application.Services.Activation;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 
@@ -30,6 +31,13 @@ public interface IActivationRequestService
     Task ApplySalesOrderAsync(string requestPublicId, string salesOrderId, CancellationToken cancellationToken = default);
 
     Task<ActivationRequest?> GetByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The request and its timeline — every call to CRM, every CRM event and every portal user's
+    /// action — oldest first. Same ownership rule as <see cref="GetByPublicIdAsync"/>: null when
+    /// the request does not exist or belongs to another ISP.
+    /// </summary>
+    Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline)?> GetWithTimelineAsync(string publicId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Administrator/Auditor (<c>activation.read.all</c>) searches every request; anyone else's

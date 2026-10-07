@@ -198,3 +198,11 @@ public sealed class FakeIntegrationOutbox : IIntegrationOutbox
     public Task<IReadOnlyList<IntegrationMessage>> FindInboundAsync(string? relatedPublicId, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by the activation request tests.");
 }
+
+public sealed class FakeActivationHistoryReader : IActivationHistoryReader
+{
+    public ActivationHistory History { get; set; } = new([], [], new Dictionary<long, string>());
+
+    public Task<ActivationHistory> GetAsync(ActivationRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(History);
+}

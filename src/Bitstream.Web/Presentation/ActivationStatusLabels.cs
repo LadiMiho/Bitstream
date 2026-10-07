@@ -25,4 +25,18 @@ public static class ActivationStatusLabels
         ActivationRequestStatus.ActivationFailed => "Activation failed",
         _ => status.ToString()
     };
+
+    /// <summary>The status-pill colour classes, same tones as <c>status-presentation.js</c>.</summary>
+    public static string PillClass(ActivationRequestStatus status) => "status-pill " + status switch
+    {
+        ActivationRequestStatus.PendingCrmSync
+            or ActivationRequestStatus.AwaitingOperatorConfirmation
+            or ActivationRequestStatus.WaitingForServiceDesk => "bg-state-pending/15 text-state-pending",
+        ActivationRequestStatus.Completed => "bg-state-done/15 text-state-done",
+        ActivationRequestStatus.RejectedNoLine
+            or ActivationRequestStatus.Closed
+            or ActivationRequestStatus.IntegrationFailed
+            or ActivationRequestStatus.ActivationFailed => "bg-state-blocked/15 text-state-blocked",
+        _ => "bg-state-progress/15 text-state-progress"
+    };
 }

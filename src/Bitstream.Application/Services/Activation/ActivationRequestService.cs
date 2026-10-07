@@ -93,6 +93,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
     private readonly IAuditWriter _auditWriter;
     private readonly IClock _clock;
     private readonly ICurrentUserContext _currentUser;
+    private readonly IActivationHistoryReader _historyReader;
 
     public ActivationRequestService(
         IActivationRequestRepository requestRepository,
@@ -103,7 +104,8 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         IUnitOfWork unitOfWork,
         IAuditWriter auditWriter,
         IClock clock,
-        ICurrentUserContext currentUser)
+        ICurrentUserContext currentUser,
+        IActivationHistoryReader historyReader)
     {
         _requestRepository = requestRepository;
         _ispRepository = ispRepository;
@@ -114,6 +116,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         _auditWriter = auditWriter;
         _clock = clock;
         _currentUser = currentUser;
+        _historyReader = historyReader;
     }
 
     public async Task<ActivationCatalogue> GetCatalogueAsync(CancellationToken cancellationToken = default)
@@ -330,6 +333,21 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         }
 
         return request;
+    }
+
+    public async Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline)?> GetWithTimelineAsync(
+        string publicId, CancellationToken cancellationToken = default)
+    {
+        var request = await GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
+
+        if (request is null)
+        {
+            return null;
+        }
+
+        var history = await _historyReader.GetAsync(request, cancellationToken).ConfigureAwait(false);
+
+        return (request, ActivationTimeline.Build(request, history));
     }
 
     public async Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default)

@@ -69,3 +69,21 @@ public interface IActivationCatalogueRepository
     /// <summary>Stages a new contract duration; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
     Task AddContractDurationAsync(ContractDuration duration, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Everything stored about one activation request's history, for its timeline: the integration
+/// messages exchanged with CRM (both directions) and the portal users' audited actions on it.
+/// </summary>
+/// <param name="Messages">Outbound calls and inbound CRM events related to the request, by portal ID or CRM ticket number.</param>
+/// <param name="AuditEntries">Audit rows for the request that a signed-in user caused (system and CRM-driven rows excluded).</param>
+/// <param name="ActorNames">Full name of each user in <paramref name="AuditEntries"/>, by user ID.</param>
+public sealed record ActivationHistory(
+    IReadOnlyList<IntegrationMessage> Messages,
+    IReadOnlyList<AuditLog> AuditEntries,
+    IReadOnlyDictionary<long, string> ActorNames);
+
+/// <summary>Reads <see cref="ActivationHistory"/> for the View drawer's timeline.</summary>
+public interface IActivationHistoryReader
+{
+    Task<ActivationHistory> GetAsync(ActivationRequest request, CancellationToken cancellationToken = default);
+}

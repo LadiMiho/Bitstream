@@ -130,6 +130,13 @@ public sealed class CrmInboundApiTests
             new Uri("/api/v1/tickets/TRING_001/events", UriKind.Relative), Event("LINE_ACTIVATED", "TRING_001"));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        // The refusal is recorded on the stored event, for the request's timeline and the dead letter list.
+        await using var scope = factory.CreateAsyncScope();
+        var stored = Assert.Single(scope.ServiceProvider.GetRequiredService<BitstreamDbContext>().IntegrationMessages,
+            m => m.Direction == IntegrationDirection.Inbound);
+        Assert.Equal(IntegrationMessageStatus.DeadLettered, stored.Status);
+        Assert.StartsWith("409 Invalid state transition", stored.LastError, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -162,23 +162,40 @@ public static class CrmInboundEndpoints
             }
             catch (InboundEventNotFoundException exception)
             {
-                return Results.Problem(title: "Ticket not found", detail: exception.Message, statusCode: StatusCodes.Status404NotFound);
+                return await RejectAsync(outbox, message.MessageId, "Ticket not found", exception.Message, StatusCodes.Status404NotFound, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (InboundEventNotApplicableException exception)
             {
-                return Results.Problem(title: "Event not applicable", detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+                return await RejectAsync(outbox, message.MessageId, "Event not applicable", exception.Message, StatusCodes.Status422UnprocessableEntity, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (ActivationRequestValidationException exception)
             {
-                return Results.Problem(title: "Invalid event payload", detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+                return await RejectAsync(outbox, message.MessageId, "Invalid event payload", exception.Message, StatusCodes.Status422UnprocessableEntity, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (ActivationRequestConflictException exception)
             {
-                return Results.Problem(title: "Invalid state transition", detail: exception.Message, statusCode: StatusCodes.Status409Conflict);
+                return await RejectAsync(outbox, message.MessageId, "Invalid state transition", exception.Message, StatusCodes.Status409Conflict, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
 
         return Results.Ok(new TicketEventAccepted(request.EventId, identifier, isDuplicate, message.CreatedAt));
+    }
+
+    /// <summary>
+    /// Records why an event was refused on its stored message (dead-lettered, with the reason as
+    /// its last error) so the refusal is visible on the request's timeline and in the dead letter
+    /// list (TR-INT-27), then returns the problem response CRM gets.
+    /// </summary>
+    private static async Task<IResult> RejectAsync(
+        IIntegrationOutbox outbox, long messageId, string title, string detail, int statusCode, CancellationToken cancellationToken)
+    {
+        await outbox.MarkFailedAsync(messageId, $"{statusCode} {title}: {detail}", retryable: false, cancellationToken).ConfigureAwait(false);
+
+        return Results.Problem(title: title, detail: detail, statusCode: statusCode);
     }
 
     /// <summary>POST /api/v1/tickets/events/replay — TR-INT-31.</summary>
