@@ -32,24 +32,54 @@ export class ApiError extends Error {
 }
 
 /**
+ * A v4 UUID for the correlation header. crypto.randomUUID exists only on secure pages (https or
+ * http://localhost); on a site opened over plain http it is undefined, so fall back to
+ * crypto.getRandomValues, which every page has.
+ * @returns {string}
+ */
+export function newCorrelationId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * @param {string} path
  * @param {{ method?: string, body?: unknown }} [options]
  * @returns {Promise<unknown>} Parsed JSON body, or null for a 204.
  */
 export async function apiRequest(path, options = {}) {
+  // Built before the try below, so a script error here keeps its own message instead of being
+  // reported as a network failure.
+  const init = {
+    method: options.method || 'GET',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      [CORRELATION_HEADER]: newCorrelationId(),
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' })
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+  };
+
   let response;
 
   try {
-    response = await fetch(path, {
-      method: options.method || 'GET',
-      credentials: 'same-origin',
-      headers: {
-        Accept: 'application/json',
-        [CORRELATION_HEADER]: crypto.randomUUID(),
-        ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' })
-      },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
-    });
+    response = await fetch(path, init);
   } catch (error) {
     // No answer at all (server down, wrong address, TLS/certificate problem, connection reset):
     // status 0, with the browser's own reason kept for the log.

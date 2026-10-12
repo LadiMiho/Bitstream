@@ -59,12 +59,20 @@ builder.Services.AddScoped<IUserClaimsPrincipalFactory<User>, BitstreamClaimsPri
 var sessionOptions = builder.Configuration.GetSection(Bitstream.Application.Configuration.SessionOptions.SectionName)
     .Get<Bitstream.Application.Configuration.SessionOptions>() ?? new Bitstream.Application.Configuration.SessionOptions();
 
+// Test servers without an HTTPS binding only: session cookie not marked Secure, no HSTS.
+const string AllowInsecureHttpKey = "Security:AllowInsecureHttp";
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = sessionOptions.CookieName;
     options.Cookie.HttpOnly = true;
     // TR-SEC-26: the portal is TLS-only, so the session cookie never travels in the clear.
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    // Security:AllowInsecureHttp (test servers without an HTTPS binding only) relaxes this so
+    // the browser keeps the cookie over plain http://; read here, when the options are built,
+    // so the final configuration decides.
+    options.Cookie.SecurePolicy = builder.Configuration.GetValue<bool>(AllowInsecureHttpKey)
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
     // Same-origin, single-page frontend served by this same host — Strict is safe and is the
     // tightest setting available.
     options.Cookie.SameSite = SameSiteMode.Strict;
@@ -201,7 +209,16 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-if (!app.Environment.IsDevelopment())
+var allowInsecureHttp = app.Configuration.GetValue<bool>(AllowInsecureHttpKey);
+
+if (allowInsecureHttp)
+{
+    app.Logger.LogWarning(
+        "{Setting} is on: the sign-in cookie is not marked Secure and plain HTTP is accepted. " +
+        "Use this only on a test server; production must run over HTTPS (TR-SEC-26).",
+        AllowInsecureHttpKey);
+}
+else if (!app.Environment.IsDevelopment())
 {
     // TR-SEC-26: TLS 1.2 or higher; plain HTTP is refused.
     app.UseHsts();

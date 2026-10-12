@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,20 +27,41 @@ public sealed class SchemaVersionGuard : IHostedService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<DatabaseOptions> _options;
     private readonly ILogger<SchemaVersionGuard> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
     public SchemaVersionGuard(
         IServiceScopeFactory scopeFactory,
         IOptions<DatabaseOptions> options,
-        ILogger<SchemaVersionGuard> logger)
+        ILogger<SchemaVersionGuard> logger,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         _scopeFactory = scopeFactory;
         _options = options;
         _logger = logger;
+        _configuration = configuration;
+        _environment = environment;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var options = _options.Value;
+
+        // A missing connection string otherwise surfaces as SqlClient's bare "The ConnectionString
+        // property has not been initialized" on the first database call — say which setting is
+        // missing and how to supply it on the server instead.
+        if (string.IsNullOrWhiteSpace(_configuration.GetConnectionString(options.ConnectionStringName)))
+        {
+            _logger.LogCritical(
+                "No database connection string: ConnectionStrings:{ConnectionStringName} is empty for environment '{Environment}'. " +
+                "Set it on the server, either as an environment variable in web.config " +
+                "(<environmentVariable name=\"ConnectionStrings__{ConnectionStringName}\" value=\"Server=...;Database=...;...\" />) " +
+                "or in appsettings.{Environment}.json next to the application dll. Every database call will fail until it is set.",
+                options.ConnectionStringName, _environment.EnvironmentName, options.ConnectionStringName, _environment.EnvironmentName);
+
+            return;
+        }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
