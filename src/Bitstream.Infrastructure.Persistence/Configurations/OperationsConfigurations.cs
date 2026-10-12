@@ -78,3 +78,14 @@ internal sealed class SyncStateConfiguration : IEntityTypeConfiguration<SyncStat
         builder.Property(x => x.ChangeMarker).HasMaxLength(200);
     }
 }
+
+/// <summary>The shared Data Protection key ring, db/mssql/0022_data_protection_keys.sql.</summary>
+internal sealed class DataProtectionKeyConfiguration : IEntityTypeConfiguration<Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey>
+{
+    public void Configure(EntityTypeBuilder<Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey> builder)
+    {
+        builder.ToTable("DataProtectionKeys", Schemas.Operations);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+    }
+}

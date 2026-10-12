@@ -47,6 +47,11 @@
          otherwise resolve to has GHSA-9mv3-2cwr-p262 (CVE-2026-40372, critical). -->
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
 
+    <!-- Stores the Data Protection key ring in the shared database (ops.DataProtectionKeys), so
+         every host and machine can read what another encrypted — the TOTP authenticator keys in
+         dbo.UserTokens among them. Same 10.0.0 line as the EF Core packages it builds on. -->
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.0" />
+
     <!-- Transitive dependency pulled in by Microsoft.AspNetCore.Identity.EntityFrameworkCore.
          Pinned explicitly (CentralPackageTransitivePinningEnabled) because the version it would
          otherwise resolve to, 9.0.0, has several known high-severity advisories (NU1903, Warning

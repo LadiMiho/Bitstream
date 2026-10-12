@@ -25,6 +25,7 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0019_package_offer.sql` | `portal.PackageOffer` (package + contract duration → CRM code, sent as CLASS_3) and `ActivationRequest.OfferCode`; created empty |
 | `0020_catalogue_manage_permission.sql` | `catalogue.manage` permission (Package offers screen), granted to Administrator |
 | `0021_activation_confirmation.sql` | Operator confirmation / service desk decision: new statuses (`AwaitingOperatorConfirmation`, `WaitingForServiceDesk`, `ActivationFailed`), decision columns on `ActivationRequest`, `activation.confirm` and `activation.servicedesk.decide` permissions (schema version 14) |
+| `0022_data_protection_keys.sql` | `ops.DataProtectionKeys`: the Data Protection key ring shared by every host and machine, so the TOTP keys in `dbo.UserTokens` and sign-in cookies written on one can be read on another (schema version 15) |
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |

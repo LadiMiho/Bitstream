@@ -60,3 +60,14 @@ public interface IIspRepository
     Task<(IReadOnlyList<Isp> Items, int TotalCount)> SearchAsync(
         string? search, IspStatus? status, int skip, int take, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Clears a user's stored two-factor authenticator key and recovery codes without reading them.
+/// Used when the stored key can no longer be decrypted (the Data Protection key that encrypted it
+/// is gone), which would otherwise make every sign-in for that user fail.
+/// </summary>
+public interface IAuthenticatorKeyRepair
+{
+    /// <returns>How many stored tokens were removed.</returns>
+    Task<int> ClearAsync(long userId, CancellationToken cancellationToken = default);
+}

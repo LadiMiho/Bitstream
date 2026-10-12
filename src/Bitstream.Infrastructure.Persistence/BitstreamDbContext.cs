@@ -1,5 +1,6 @@
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Domain.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence;
@@ -22,7 +23,7 @@ namespace Bitstream.Infrastructure.Persistence;
 /// migration existed.
 /// </para>
 /// </summary>
-public sealed class BitstreamDbContext : DbContext
+public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
 {
     /// <summary>
     /// Schema version this build is written against; see <c>ops.SchemaVersion</c>. Bumped from 1
@@ -47,9 +48,10 @@ public sealed class BitstreamDbContext : DbContext
     /// db/mssql/0020_catalogue_manage_permission.sql (the catalogue.manage permission behind the
     /// Package offers screen) was added, and from 13 to 14 when
     /// db/mssql/0021_activation_confirmation.sql (operator confirmation and service desk decision
-    /// statuses, columns and permissions) was added.
+    /// statuses, columns and permissions) was added, and from 14 to 15 when
+    /// db/mssql/0022_data_protection_keys.sql (the shared Data Protection key ring) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 14;
+    public const int ExpectedSchemaVersion = 15;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -94,6 +96,13 @@ public sealed class BitstreamDbContext : DbContext
     public DbSet<IntegrationMessage> IntegrationMessages => Set<IntegrationMessage>();
 
     public DbSet<SyncState> SyncStates => Set<SyncState>();
+
+    /// <summary>
+    /// The ASP.NET Core Data Protection key ring (db/mssql/0022_data_protection_keys.sql), shared
+    /// by every host and machine using this database, so what one encrypts (the TOTP keys in
+    /// dbo.UserTokens, sign-in cookies) another can read.
+    /// </summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

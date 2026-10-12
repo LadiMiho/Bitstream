@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Bitstream.Application.Abstractions;
 using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
@@ -109,6 +110,7 @@ public sealed class AuthController : Controller
         [FromServices] UserManager<User> userManager,
         [FromServices] SignInManager<User> signInManager,
         [FromServices] IAuditWriter auditWriter,
+        [FromServices] IAuthenticatorKeyRepair authenticatorKeyRepair,
         [FromServices] IEmailGateway emailGateway,
         [FromServices] ICorrelationContext correlationContext,
         [FromServices] IClock clock,
@@ -163,8 +165,41 @@ public sealed class AuthController : Controller
         // Totp-channel user would sign straight in, skipping 2FA entirely, unless a key exists
         // before that call. A non-mutating password check (no lockout side effect) gates this so
         // an attacker probing a valid email doesn't cause a key to be minted on a wrong guess.
-        var wasNeverEnrolledInTotp = channel == TwoFactorChannel.Totp
-            && await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false) is null;
+        var wasNeverEnrolledInTotp = false;
+
+        if (channel == TwoFactorChannel.Totp)
+        {
+            try
+            {
+                wasNeverEnrolledInTotp = await userManager.GetAuthenticatorKeyAsync(user).ConfigureAwait(false) is null;
+            }
+            catch (CryptographicException exception)
+            {
+                // The stored authenticator key was encrypted with a Data Protection key this
+                // server no longer has (e.g. written on another machine before the key ring was
+                // shared). It can never be read again, so the user must enrol afresh — but only
+                // once the password is proven, so a stranger cannot wipe someone's second factor.
+                if (await userManager.CheckPasswordAsync(user, request.Password).ConfigureAwait(false))
+                {
+                    var removed = await authenticatorKeyRepair.ClearAsync(user.Id, cancellationToken).ConfigureAwait(false);
+
+                    logger.LogWarning(
+                        exception,
+                        "Authenticator key of user {UserId} could not be decrypted (the Data Protection key that encrypted it is gone); " +
+                        "removed {Removed} stored token(s), re-enrollment required.",
+                        user.Id, removed);
+
+                    await auditWriter.WriteAsync(
+                        "Security.TwoFactor.KeyReset", "User", user.Id.ToString(CultureInfo.InvariantCulture),
+                        null, "{\"reason\":\"UndecryptableAuthenticatorKey\"}", cancellationToken).ConfigureAwait(false);
+
+                    wasNeverEnrolledInTotp = true;
+                }
+
+                // Wrong password: leave it; PasswordSignInAsync below rejects the password before
+                // it ever looks at the second factor.
+            }
+        }
 
         if (wasNeverEnrolledInTotp && await userManager.CheckPasswordAsync(user, request.Password).ConfigureAwait(false))
         {

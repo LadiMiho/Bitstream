@@ -6,6 +6,7 @@ using Bitstream.Infrastructure.Persistence.HealthChecks;
 using Bitstream.Infrastructure.Persistence.Identity;
 using Bitstream.Infrastructure.Persistence.Repositories;
 #pragma warning disable IDE0005 // dotnet-format's analyzer misreports this as unused (see AddIdentity<User, Role>() below) — CI has proven the build fails without it.
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 #pragma warning restore IDE0005
 using Microsoft.EntityFrameworkCore;
@@ -80,12 +81,31 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAuthenticatorKeyRepair, AuthenticatorKeyRepair>();
         services.AddScoped<IIspRepository, IspRepository>();
 
         // Encrypts BitstreamIdentityDbContext's UserTokens.Value column (the TOTP authenticator
-        // key, among other Identity-generated tokens) at rest. Explicit even though AddIdentity
-        // below would register it too, so this registration is never load-bearing on ordering.
-        services.AddDataProtection();
+        // key, among other Identity-generated tokens) at rest, and the sign-in cookies. The key
+        // ring lives in the shared database (ops.DataProtectionKeys) under one application name,
+        // so Bitstream.Web, Bitstream.Api and every machine pointed at the same database can read
+        // what another wrote; per-machine keys made a key written on one PC unreadable on the IIS
+        // server ("The key {...} was not found in the key ring").
+        var keyRing = configuration.GetSection(KeyRingOptions.SectionName).Get<KeyRingOptions>() ?? new KeyRingOptions();
+        var dataProtection = services.AddDataProtection().PersistKeysToDbContext<BitstreamDbContext>();
+
+        // The application name (what SetApplicationName sets) is read when the options are
+        // built, so the final configuration — environment variables, a test host's overrides —
+        // decides it.
+        services.AddOptions<DataProtectionOptions>().Configure<IConfiguration>((options, finalConfiguration) =>
+            options.ApplicationDiscriminator =
+                finalConfiguration[$"{KeyRingOptions.SectionName}:{nameof(KeyRingOptions.ApplicationName)}"] is { Length: > 0 } name
+                    ? name
+                    : new KeyRingOptions().ApplicationName);
+
+        if (!string.IsNullOrWhiteSpace(keyRing.CertificateThumbprint))
+        {
+            dataProtection.ProtectKeysWithCertificate(keyRing.CertificateThumbprint);
+        }
 
         // User/role credential storage and CRUD, lockout (TR-SEC-06/12), and two-factor
         // (TR-SEC-04) all run through ASP.NET Core Identity's own EF store

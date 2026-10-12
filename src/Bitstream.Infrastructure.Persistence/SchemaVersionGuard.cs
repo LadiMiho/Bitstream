@@ -48,6 +48,17 @@ public sealed class SchemaVersionGuard : IHostedService
     {
         var options = _options.Value;
 
+        // The shared key ring (ops.DataProtectionKeys) protects the TOTP keys and sign-in cookies;
+        // without a certificate the key material itself sits unencrypted in the database.
+        if (!_environment.IsDevelopment()
+            && string.IsNullOrWhiteSpace(_configuration[$"{KeyRingOptions.SectionName}:{nameof(KeyRingOptions.CertificateThumbprint)}"]))
+        {
+            _logger.LogWarning(
+                "Data Protection keys in ops.DataProtectionKeys are not encrypted at rest. Set {Setting} to a certificate " +
+                "in LocalMachine\\My whose private key the application pool can read.",
+                $"{KeyRingOptions.SectionName}:{nameof(KeyRingOptions.CertificateThumbprint)}");
+        }
+
         // A missing connection string otherwise surfaces as SqlClient's bare "The ConnectionString
         // property has not been initialized" on the first database call — say which setting is
         // missing and how to supply it on the server instead.
