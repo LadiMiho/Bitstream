@@ -59,5 +59,31 @@ public sealed class InsecureHttpCookieTests
             verify.Headers.GetValues("Set-Cookie"), cookie => cookie.StartsWith("bitstream_session", StringComparison.Ordinal));
 
         Assert.Equal(expectSecure, sessionCookie.Contains("secure", StringComparison.OrdinalIgnoreCase));
+
+        if (!expectSecure)
+        {
+            // What login.js checks before leaving the page: the session is really there.
+            using var me = await client.GetAsync(new Uri("/Auth/Me", UriKind.Relative));
+            Assert.Equal(System.Net.HttpStatusCode.OK, me.StatusCode);
+        }
+    }
+
+    [Fact]
+    public void Development_settings_allow_the_sign_in_cookie_over_plain_HTTP()
+    {
+        // A test IIS site runs as Development over http://; without this every login ends back
+        // on the login page. Production settings must never carry it.
+        var root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "Bitstream.sln")))
+        {
+            root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
+        }
+
+        IConfiguration Load(string file) => new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(root, "src", "Bitstream.Web", file), optional: false)
+            .Build();
+
+        Assert.True(Load("appsettings.Development.json").GetValue<bool>("Security:AllowInsecureHttp"));
+        Assert.False(Load("appsettings.json").GetValue<bool>("Security:AllowInsecureHttp"));
     }
 }

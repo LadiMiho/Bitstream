@@ -94,6 +94,23 @@ function init() {
 
     try {
       await api.post('/Auth/Login/Verify', { code });
+
+      // The sign-in cookie was just set; if the browser refused to keep it (a Secure-only cookie
+      // on a plain http:// page), going on would only land back on this page. Check first.
+      try {
+        await api.get('/Auth/Me');
+      } catch (sessionError) {
+        if (sessionError instanceof ApiError && sessionError.status === 401) {
+          reportClientError('login-session', new Error('Signed in, but the browser did not keep the session cookie (page opened over ' + window.location.protocol + ').'));
+          showError(codeError, 'You were signed in, but your browser did not keep the session. The site is opened over '
+            + window.location.protocol.replace(':', '') + ' and the session requires https. Open the site over https, '
+            + 'or ask the administrator to allow http on this test server.');
+          submitButton.disabled = false;
+          return;
+        }
+        throw sessionError;
+      }
+
       window.location.href = returnUrl;
     } catch (error) {
       console.error('Verification failed', error);

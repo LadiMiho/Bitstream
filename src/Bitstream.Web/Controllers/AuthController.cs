@@ -14,6 +14,7 @@ using Bitstream.Hosting.Security;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web.Contracts;
 using Bitstream.Web.Security;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -250,6 +251,7 @@ public sealed class AuthController : Controller
         if (result.Succeeded)
         {
             logger.LogInformation("User {UserId} signed in without a second factor.", user.Id);
+            WarnIfSessionCookieWillBeDropped(user.Id, logger);
 
             // Every user has TwoFactorEnabled = true (AdministrationService.CreateUserAsync) —
             // this branch is not the normal path, but PasswordSignInAsync already completed the
@@ -404,6 +406,7 @@ public sealed class AuthController : Controller
         await userManager.UpdateAsync(user).ConfigureAwait(false);
 
         logger.LogInformation("User {UserId} signed in.", user.Id);
+        WarnIfSessionCookieWillBeDropped(user.Id, logger);
 
         return Ok(new SessionResponse(
             await BuildCurrentUserResponseAsync(user, cancellationToken).ConfigureAwait(false),
@@ -504,6 +507,26 @@ public sealed class AuthController : Controller
         {
             throw new TwoFactorDeliveryException(
                 $"Could not send the verification code to user {user.Id}: {result.ErrorMessage}");
+        }
+    }
+
+    /// <summary>
+    /// A Secure-only session cookie set on a plain-HTTP request is silently discarded by the
+    /// browser: the sign-in succeeds here and the very next page sends the user back to the login
+    /// page. Nothing else would ever record why, so say it in the log.
+    /// </summary>
+    private void WarnIfSessionCookieWillBeDropped(long userId, ILogger logger)
+    {
+        var cookieOptions = HttpContext.RequestServices
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+
+        if (!Request.IsHttps && cookieOptions.Cookie.SecurePolicy == CookieSecurePolicy.Always)
+        {
+            logger.LogWarning(
+                "User {UserId} signed in over plain HTTP, but the session cookie is Secure-only: the browser will drop it and " +
+                "the user will be sent back to the login page. Use HTTPS, or set Security:AllowInsecureHttp=true on a test server.",
+                userId);
         }
     }
 
