@@ -14,7 +14,7 @@
  * navigation (`window.location.href`), the same outcome a server-rendered redirect would
  * produce — this script does not intercept clicks or own routing beyond that one redirect.
  */
-import { api, ApiError } from '../api-client.js';
+import { api, ApiError, reportClientError } from '../api-client.js';
 
 function el(selector) {
   return document.querySelector(selector);
@@ -53,6 +53,13 @@ function init() {
 
     try {
       const challenge = await api.post('/Auth/Login', { email, password });
+
+      if (!challenge.channel) {
+        // Signed in without a second factor: the session cookie is already set.
+        window.location.href = returnUrl;
+        return;
+      }
+
       codeChannel.textContent = describeChannel(challenge.channel, Boolean(challenge.qrCodeDataUri));
 
       if (challenge.qrCodeDataUri) {
@@ -67,6 +74,10 @@ function init() {
       codeForm.hidden = false;
       el('#login-code').focus();
     } catch (error) {
+      console.error('Login failed', error);
+      if (!isExpectedLoginFailure(error)) {
+        reportClientError('login', error);
+      }
       showError(credentialsError, describeLoginError(error));
     } finally {
       submitButton.disabled = false;
@@ -85,6 +96,10 @@ function init() {
       await api.post('/Auth/Login/Verify', { code });
       window.location.href = returnUrl;
     } catch (error) {
+      console.error('Verification failed', error);
+      if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) {
+        reportClientError('login-verify', error);
+      }
       showError(codeError, describeVerifyError(error));
       submitButton.disabled = false;
     }
@@ -106,22 +121,32 @@ function describeChannel(channel, needsEnrollment) {
   }
 }
 
+/** Wrong password, unknown account or locked account: the normal "no", not a fault worth reporting. */
+function isExpectedLoginFailure(error) {
+  return error instanceof ApiError && [400, 401, 423].includes(error.status);
+}
+
 function describeLoginError(error) {
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    // A script error after the server answered; the details are in the log file.
+    return `Something went wrong (${error && error.message ? error.message : error}). Please try again.`;
   }
-  if (error.status === 423) {
+  if (error.status === 0 || error.status >= 500 || (error.status >= 200 && error.status < 300)) {
+    // Not a credentials problem: say what actually happened rather than "wrong password".
     return error.message;
   }
-  if (error.status === 503) {
+  if (error.status === 423 || error.status === 503) {
     return error.message;
+  }
+  if (error.status === 429) {
+    return 'Too many attempts. Please wait a moment and try again.';
   }
   return 'The email or password is incorrect.';
 }
 
 function describeVerifyError(error) {
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return `Something went wrong (${error && error.message ? error.message : error}). Please try again.`;
   }
   return error.message || 'The code is incorrect.';
 }

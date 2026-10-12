@@ -136,6 +136,8 @@ public sealed class AuthController : Controller
                 "Security.Login.Failed", "User", MaskEmail(request.Email), null, "{\"reason\":\"NoSuchAccount\"}",
                 cancellationToken).ConfigureAwait(false);
 
+            logger.LogInformation("Login refused for {Email}: no account with this email.", MaskEmail(request.Email));
+
             return InvalidCredentialsProblem();
         }
 
@@ -147,6 +149,8 @@ public sealed class AuthController : Controller
             await auditWriter.WriteAsync(
                 "Security.Login.DeniedLocked", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, null, cancellationToken).ConfigureAwait(false);
+
+            logger.LogInformation("Login refused for user {UserId}: the account is locked.", user.Id);
 
             return AccountLockedProblem();
         }
@@ -199,6 +203,8 @@ public sealed class AuthController : Controller
                 "Security.Login.Failed", "User", user.Id.ToString(CultureInfo.InvariantCulture), null,
                 "{\"reason\":\"InvalidPassword\",\"locked\":false}", cancellationToken).ConfigureAwait(false);
 
+            logger.LogInformation("Login refused for user {UserId}: wrong password ({Result}).", user.Id, result);
+
             return InvalidCredentialsProblem();
         }
 
@@ -208,6 +214,8 @@ public sealed class AuthController : Controller
 
         if (result.Succeeded)
         {
+            logger.LogInformation("User {UserId} signed in without a second factor.", user.Id);
+
             // Every user has TwoFactorEnabled = true (AdministrationService.CreateUserAsync) —
             // this branch is not the normal path, but PasswordSignInAsync already completed the
             // full sign-in (cookie set) if it is somehow reached, so just report success.
@@ -270,6 +278,10 @@ public sealed class AuthController : Controller
                 throw new NotSupportedException($"Unknown two-factor channel '{channel}'.");
         }
 
+        logger.LogInformation(
+            "Password verified for user {UserId}; second factor required via {Channel}{Enrollment}.",
+            user.Id, channel, provisioningUri is null ? string.Empty : " (first sign-in: authenticator enrollment shown)");
+
         return Ok(new TwoFactorRequiredResponse(channel.ToString(), provisioningUri is null ? null : BuildQrCodeDataUri(provisioningUri)));
     }
 
@@ -282,6 +294,7 @@ public sealed class AuthController : Controller
         [FromServices] IClock clock,
         [FromServices] IOptionsMonitor<TwoFactorOptions> twoFactorOptions,
         [FromServices] IOptionsMonitor<Bitstream.Application.Configuration.SessionOptions> sessionOptions,
+        [FromServices] ILogger<Program> logger,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Code))
@@ -298,6 +311,10 @@ public sealed class AuthController : Controller
 
         if (user is null)
         {
+            // No two-factor cookie came back: it expired, or the browser did not keep it (for
+            // example a cookie blocked over plain HTTP, or a different host name than step one).
+            logger.LogWarning("Two-factor verification refused: no sign-in in progress (two-factor cookie missing or expired).");
+
             return Problem(
                 title: "Verification failed",
                 detail: "This sign-in attempt has expired. Start again.",
@@ -339,6 +356,8 @@ public sealed class AuthController : Controller
                 "Security.TwoFactor.Failed", "User", user.Id.ToString(CultureInfo.InvariantCulture),
                 null, "{\"locked\":false}", cancellationToken).ConfigureAwait(false);
 
+            logger.LogInformation("Two-factor verification failed for user {UserId}: wrong code.", user.Id);
+
             return Problem(title: "Verification failed", detail: "The code is incorrect.", statusCode: StatusCodes.Status401Unauthorized);
         }
 
@@ -348,6 +367,8 @@ public sealed class AuthController : Controller
 
         user.LastLoginAt = clock.UtcNow;
         await userManager.UpdateAsync(user).ConfigureAwait(false);
+
+        logger.LogInformation("User {UserId} signed in.", user.Id);
 
         return Ok(new SessionResponse(
             await BuildCurrentUserResponseAsync(user, cancellationToken).ConfigureAwait(false),

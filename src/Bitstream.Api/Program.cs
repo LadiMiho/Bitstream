@@ -5,6 +5,7 @@ using Bitstream.Application.Abstractions.Configuration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Endpoints;
+using Bitstream.Hosting.Logging;
 using Bitstream.Hosting.Middleware;
 using Bitstream.Hosting.Security;
 using Bitstream.Infrastructure.Integration;
@@ -26,6 +27,9 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Configuration ---------------------------------------------------------------------
 // TR-ARC-06 / TR-ARC-08, as in the portal host.
 builder.Configuration.AddEnvironmentVariables(prefix: "BITSTREAM_");
+
+// Plain-text log file per day (Logging:File), alongside the console: logs/bitstream-api-yyyyMMdd.log.
+builder.AddBitstreamFileLogging("bitstream-api");
 
 // --- Composition root ------------------------------------------------------------------
 builder.Services.AddBitstreamApplication(builder.Configuration);

@@ -49,6 +49,8 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Database:FailFastOnSchemaMismatch"] = "false",
+                // No log files from test runs.
+                ["Logging:File:Enabled"] = "false",
                 ["WorkingCalendar:TimeZoneId"] = "UTC",
                 ["Integration:OutboxDispatcher:Enabled"] = "false",
                 ["Secrets:CrmInboundApiKey"] = ApiKey

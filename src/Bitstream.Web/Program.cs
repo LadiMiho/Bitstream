@@ -5,6 +5,7 @@ using Bitstream.Application.Abstractions.Time;
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Endpoints;
+using Bitstream.Hosting.Logging;
 using Bitstream.Hosting.Middleware;
 using Bitstream.Infrastructure.Integration;
 using Bitstream.Infrastructure.Persistence;
@@ -30,6 +31,9 @@ var builder = WebApplication.CreateBuilder(args);
 // added last so that IIS application-pool settings override the shipped defaults without any
 // file on the server being edited by hand (TR-ARC-08).
 builder.Configuration.AddEnvironmentVariables(prefix: "BITSTREAM_");
+
+// Plain-text log file per day (Logging:File), alongside the console: logs/bitstream-web-yyyyMMdd.log.
+builder.AddBitstreamFileLogging("bitstream-web");
 
 // --- Composition root ------------------------------------------------------------------
 builder.Services.AddBitstreamApplication(builder.Configuration);

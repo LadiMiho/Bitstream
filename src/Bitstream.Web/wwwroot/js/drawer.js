@@ -18,6 +18,7 @@
  * opening, closing, and the two behaviours every drawer needs regardless of what it contains:
  * relocating the footer template, and the password show/hide toggle.
  */
+import { reportClientError } from './api-client.js';
 
 function el(selector) {
   return document.querySelector(selector);
@@ -58,7 +59,8 @@ export async function openDrawer(title, url) {
     }
 
     drawerBody.querySelector('input, select, textarea')?.focus();
-  } catch {
+  } catch (error) {
+    reportClientError(`drawer ${url}`, error);
     drawerBody.innerHTML = '<p class="text-sm text-ink-muted">Something went wrong loading this form.</p>';
   }
 }
