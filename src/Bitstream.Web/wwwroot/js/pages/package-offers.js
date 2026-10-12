@@ -4,7 +4,7 @@
  * simply reloads the page. Validation and authorisation are the server's; this script only shows
  * what it returns.
  */
-import { api, ApiError } from '../api-client.js';
+import { api, ApiError, reportClientError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
 
 const BASE = '/ActivationRequests/PackageOffers';
@@ -27,6 +27,7 @@ function showFieldErrors(form, error) {
   form.querySelectorAll('[data-field-error]').forEach((target) => showError(target, ''));
 
   if (!(error instanceof ApiError)) {
+    reportClientError('package-offers', error);
     showError(generalTarget, 'Something went wrong. Please try again.');
     return;
   }
@@ -95,6 +96,9 @@ async function setActive(button, isActive) {
     await api.patch(`${offerPath(button)}/status`, { isActive });
     window.location.reload();
   } catch (error) {
+    if (!(error instanceof ApiError)) {
+      reportClientError('package-offers', error);
+    }
     showError(el('#offers-error'), error instanceof ApiError ? error.message : 'Something went wrong. Please try again.');
   }
 }

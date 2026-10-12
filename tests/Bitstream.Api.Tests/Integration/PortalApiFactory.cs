@@ -48,6 +48,8 @@ public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Database:FailFastOnSchemaMismatch"] = "false",
+                // No log files from test runs.
+                ["Logging:File:Enabled"] = "false",
                 ["WorkingCalendar:TimeZoneId"] = "UTC",
                 // Belt and braces: the portal host does not register the background jobs at all
                 // (only the API host calls AddBitstreamBackgroundJobs), so this documents the

@@ -37,16 +37,24 @@ export class ApiError extends Error {
  * @returns {Promise<unknown>} Parsed JSON body, or null for a 204.
  */
 export async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
-    method: options.method || 'GET',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      [CORRELATION_HEADER]: crypto.randomUUID(),
-      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' })
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body)
-  });
+  let response;
+
+  try {
+    response = await fetch(path, {
+      method: options.method || 'GET',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        [CORRELATION_HEADER]: crypto.randomUUID(),
+        ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' })
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    });
+  } catch (error) {
+    // No answer at all (server down, wrong address, TLS/certificate problem, connection reset):
+    // status 0, with the browser's own reason kept for the log.
+    throw new ApiError(`Could not reach the server: ${error && error.message ? error.message : error}`, 0, null);
+  }
 
   if (response.status === 204) {
     return null;
@@ -60,7 +68,43 @@ export async function apiRequest(path, options = {}) {
     throw new ApiError(detail, response.status, payload);
   }
 
+  if (payload === null) {
+    // A success status but not the JSON this call expects — typically a redirect that ended on
+    // an HTML page (sign-in page, IIS error page, proxy page).
+    const where = response.redirected ? ` after a redirect to ${response.url}` : '';
+    throw new ApiError(`Unexpected response from the server (HTTP ${response.status}, ${contentType || 'no content type'}${where}).`, response.status, null);
+  }
+
   return payload;
+}
+
+/**
+ * Sends a browser-side failure to the server log (Controllers/ClientLogController.cs), so it
+ * ends up in the log file next to the server's own entries. Fire-and-forget: never throws and
+ * never sends form values — only the error itself.
+ * @param {string} page
+ * @param {unknown} error
+ */
+export function reportClientError(page, error) {
+  try {
+    const body = JSON.stringify({
+      page,
+      message: error && error.message ? String(error.message) : String(error),
+      status: error instanceof ApiError ? error.status : null,
+      url: window.location.pathname,
+      detail: error instanceof ApiError ? null : (error && error.stack ? String(error.stack).slice(0, 500) : null)
+    });
+
+    fetch('/ClientLog', {
+      method: 'POST',
+      credentials: 'same-origin',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body
+    }).catch(() => {});
+  } catch {
+    // Reporting must never cause an error of its own.
+  }
 }
 
 export const api = {

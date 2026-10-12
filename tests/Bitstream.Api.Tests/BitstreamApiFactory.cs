@@ -43,6 +43,8 @@ public sealed class BitstreamApiFactory : WebApplicationFactory<WebHostEntryPoin
                 // that an unreachable database is not a mismatch, and these tests exercise the
                 // endpoints, not the guard.
                 ["Database:FailFastOnSchemaMismatch"] = "false",
+                // No log files from test runs.
+                ["Logging:File:Enabled"] = "false",
 
                 ["Integration:Crm:HealthCheckTimeout"] = "00:00:01",
                 ["Integration:Bi:HealthCheckTimeout"] = "00:00:01",

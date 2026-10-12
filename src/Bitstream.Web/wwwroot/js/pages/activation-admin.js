@@ -7,7 +7,7 @@
  * controller's JSON actions — this script never validates or authorises anything itself, it only
  * renders what the server and the drawer partials return.
  */
-import { api, ApiError } from '../api-client.js';
+import { api, ApiError, reportClientError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
 import { presentStatus } from '../status-presentation.js';
 
@@ -35,6 +35,7 @@ function showFieldErrors(form, error) {
   form.querySelectorAll('[data-field-error]').forEach((target) => showError(target, ''));
 
   if (!(error instanceof ApiError)) {
+    reportClientError('activation-requests', error);
     showError(generalTarget, 'Something went wrong. Please try again.');
     return;
   }
@@ -59,6 +60,7 @@ function showFieldErrors(form, error) {
 
 function describeError(error) {
   if (!(error instanceof ApiError)) {
+    reportClientError('activation-requests', error);
     return 'Something went wrong. Please try again.';
   }
   const fieldMessages = Object.values(error.errors).flat();
