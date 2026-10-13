@@ -347,7 +347,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         var history = await _historyReader.GetAsync(request, cancellationToken).ConfigureAwait(false);
 
-        return (request, ActivationTimeline.Build(request, history));
+        return (request, ActivationTimeline.Build(request, history, _clock.UtcNow));
     }
 
     public async Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default)

@@ -67,7 +67,16 @@ public static class ActivationTimeline
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 
-    public static IReadOnlyList<ActivationTimelineEntry> Build(ActivationRequest request, ActivationHistory history)
+    /// <summary>
+    /// A message to CRM is normally picked up within seconds (the dispatcher polls every 5 s).
+    /// Still untouched after this long, the integration service is almost certainly not running.
+    /// </summary>
+    private static readonly TimeSpan NotPickedUpAfter = TimeSpan.FromMinutes(2);
+
+    /// <param name="request">The activation request.</param>
+    /// <param name="history">Its stored messages and audit entries.</param>
+    /// <param name="now">Current time; when given, a message to CRM still waiting long after it was queued is explained.</param>
+    public static IReadOnlyList<ActivationTimelineEntry> Build(ActivationRequest request, ActivationHistory history, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(history);
@@ -76,7 +85,7 @@ public static class ActivationTimeline
 
         foreach (var message in history.Messages)
         {
-            entries.Add(message.Direction == IntegrationDirection.Outbound ? FromOutbound(message) : FromInbound(message));
+            entries.Add(message.Direction == IntegrationDirection.Outbound ? FromOutbound(message, now) : FromInbound(message));
         }
 
         foreach (var audit in history.AuditEntries)
@@ -90,7 +99,7 @@ public static class ActivationTimeline
         return [.. entries.OrderBy(entry => entry.At)];
     }
 
-    private static ActivationTimelineEntry FromOutbound(IntegrationMessage message)
+    private static ActivationTimelineEntry FromOutbound(IntegrationMessage message, DateTimeOffset? now)
     {
         using var payload = TryParse(message.Payload);
         using var response = TryParse(message.ResponsePayload);
@@ -118,9 +127,16 @@ public static class ActivationTimeline
             _ => ActivationTimelineOutcome.Pending
         };
 
+        var error = message.LastError;
+
+        if (outcome == ActivationTimelineOutcome.Pending && message.Attempts == 0 && now is { } current && current - message.CreatedAt > NotPickedUpAfter)
+        {
+            error = "Not picked up yet. Messages to CRM are sent by the integration service (Bitstream.Api) — check that its IIS site is running.";
+        }
+
         return new ActivationTimelineEntry(
             message.CreatedAt, ActivationTimelineKind.Outbound, title, summary, outcome, "Portal",
-            message.LastError, message.Attempts, message.ProcessedAt, Pretty(message.Payload), Pretty(message.ResponsePayload));
+            error, message.Attempts, message.ProcessedAt, Pretty(message.Payload), Pretty(message.ResponsePayload));
     }
 
     private static ActivationTimelineEntry FromInbound(IntegrationMessage message)

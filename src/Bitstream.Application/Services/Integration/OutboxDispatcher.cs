@@ -46,6 +46,22 @@ public sealed class OutboxDispatcher : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Logged once, so the log shows whether this worker is running at all: on IIS the host
+        // only starts on its first request and stops when the app pool idles, and nothing is
+        // sent to CRM while it is down.
+        var startOptions = _options.CurrentValue;
+
+        if (startOptions.Enabled)
+        {
+            _logger.LogInformation(
+                "Outbox dispatcher started: polling every {PollInterval}, batch {BatchSize}, max {MaxAttempts} attempts per message.",
+                startOptions.PollInterval, startOptions.BatchSize, startOptions.MaxAttempts);
+        }
+        else
+        {
+            _logger.LogWarning("Outbox dispatcher is disabled (Integration:OutboxDispatcher:Enabled=false): nothing will be sent to CRM.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             if (_options.CurrentValue.Enabled)
@@ -85,6 +101,15 @@ public sealed class OutboxDispatcher : BackgroundService
         foreach (var message in claimed)
         {
             await DispatchOneAsync(scope.ServiceProvider, message, cancellationToken).ConfigureAwait(false);
+
+            // Failures are logged where they are handled (HandleFailureAsync); record success too,
+            // so the log tells the whole story of each message.
+            if (await outbox.FindByIdAsync(message.MessageId, cancellationToken).ConfigureAwait(false) is { Status: IntegrationMessageStatus.Succeeded } sent)
+            {
+                _logger.LogInformation(
+                    "{InterfaceCode} {MessageType} for {RelatedPublicId} sent (attempt {Attempt}).",
+                    sent.InterfaceCode, sent.MessageType, sent.RelatedPublicId, sent.Attempts + 1);
+            }
         }
 
         return claimed.Count;
@@ -361,6 +386,21 @@ public sealed class OutboxDispatcher : BackgroundService
 
         var outbox = services.GetRequiredService<IIntegrationOutbox>();
         await outbox.MarkFailedAsync(message.MessageId, error, retryable, cancellationToken).ConfigureAwait(false);
+
+        var logger = services.GetRequiredService<ILogger<OutboxDispatcher>>();
+
+        if (retryable)
+        {
+            logger.LogWarning(
+                "{InterfaceCode} {MessageType} for {RelatedPublicId} failed (attempt {Attempt} of {MaxAttempts}); will retry: {Error}",
+                message.InterfaceCode, message.MessageType, message.RelatedPublicId, attemptsAfterThis, options.MaxAttempts, error);
+        }
+        else
+        {
+            logger.LogError(
+                "{InterfaceCode} {MessageType} for {RelatedPublicId} failed (attempt {Attempt}) and was dead-lettered: {Error}",
+                message.InterfaceCode, message.MessageType, message.RelatedPublicId, attemptsAfterThis, error);
+        }
 
         if (!retryable && markActivationFailed && message.RelatedPublicId is { } relatedPublicId)
         {

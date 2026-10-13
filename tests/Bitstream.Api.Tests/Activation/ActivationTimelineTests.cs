@@ -99,6 +99,22 @@ public sealed class ActivationTimelineTests
         Assert.Equal(ActivationTimelineKind.Outbound, timeline[7].Kind);
     }
 
+    [Theory]
+    [InlineData(5, true)]
+    [InlineData(0.5, false)]
+    public void A_message_to_CRM_still_waiting_after_two_minutes_says_the_integration_service_may_be_down(double minutesWaiting, bool expectHint)
+    {
+        var history = new ActivationHistory(
+            [Message(IntegrationDirection.Outbound, "INT-CRM-01", "CREATE_CUSTOMER", "{}", IntegrationMessageStatus.Pending, T0)],
+            [],
+            new Dictionary<long, string>());
+
+        var entry = Assert.Single(ActivationTimeline.Build(Request(), history, T0.AddMinutes(minutesWaiting)));
+
+        Assert.Equal(ActivationTimelineOutcome.Pending, entry.Outcome);
+        Assert.Equal(expectHint, entry.Error?.Contains("Bitstream.Api", StringComparison.Ordinal) == true);
+    }
+
     [Fact]
     public void Unknown_audit_actions_are_left_out()
     {

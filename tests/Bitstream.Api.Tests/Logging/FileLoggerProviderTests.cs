@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using Bitstream.Api.Tests.Identity;
@@ -105,27 +104,5 @@ public sealed class FileLoggerProviderTests : IDisposable
         var entry = Assert.Single(captured.Entries, e => e.Category.EndsWith("ClientLogController", StringComparison.Ordinal));
         Assert.Equal(LogLevel.Warning, entry.Level);
         Assert.Contains("Client error on login: Could not reach the server: Failed to fetch (HTTP 0, /Login) line1 line2", entry.Message, StringComparison.Ordinal);
-    }
-
-    private sealed class CapturingLoggerProvider : ILoggerProvider
-    {
-        public ConcurrentBag<(string Category, LogLevel Level, string Message)> Entries { get; } = [];
-
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, this);
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class CapturingLogger(string category, CapturingLoggerProvider owner) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                owner.Entries.Add((category, logLevel, formatter(state, exception)));
-        }
     }
 }
