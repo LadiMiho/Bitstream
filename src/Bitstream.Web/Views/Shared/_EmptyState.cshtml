@@ -1,0 +1,22 @@
+@model Bitstream.Web.Presentation.EmptyStateModel
+@* The placeholder for a grid with no rows. Script-driven grids render it hidden, with an id, and toggle it. *@
+<div class="empty-state" id="@Model.Id" hidden="@Model.Hidden" role="status">
+    <span class="empty-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="h-7 w-7">
+            <path d="@Model.Icon" />
+        </svg>
+    </span>
+    <p class="mt-4 text-base font-semibold text-ink">@Model.Title</p>
+    <p class="mt-1 max-w-md text-sm text-ink-muted">@Model.Message</p>
+    @if (Model.ActionLabel is not null)
+    {
+        if (Model.ActionHref is not null)
+        {
+            <a href="@Model.ActionHref" class="btn-primary mt-5">@Model.ActionLabel</a>
+        }
+        else
+        {
+            <button type="button" class="btn-secondary mt-5" @Html.Raw(Model.ActionAttributes ?? string.Empty)>@Model.ActionLabel</button>
+        }
+    }
+</div>

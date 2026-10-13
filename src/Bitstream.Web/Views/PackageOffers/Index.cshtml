@@ -29,7 +29,7 @@
         <p id="offers-error" class="field-error" role="alert" hidden></p>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
+            <table class="w-full text-left text-sm" hidden="@(Model.Offers.Count == 0)">
                 <thead>
                     <tr>
                         <th class="table-head">Package</th>
@@ -82,7 +82,9 @@
 
             @if (Model.Offers.Count == 0)
             {
-                <p class="mt-3 text-sm text-ink-muted">No package offers yet. Until one is added, no activation request can be submitted.</p>
+                <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Tag, "No package offers yet",
+                    "Each package and contract duration combination needs an offer with its CRM code. Until one is added, no activation request can be submitted.",
+                    ActionLabel: "Add offer", ActionAttributes: "data-offer-add"))" />
             }
         </div>
     </section>

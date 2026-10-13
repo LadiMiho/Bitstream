@@ -289,7 +289,7 @@ async function search() {
     currentTotalCount = result.totalCount;
 
     renderResults(result.items);
-    el('#isp-search-empty').hidden = result.items.length > 0;
+    showEmptyState(result.items.length === 0);
 
     const shown = result.items.length === 0 ? 0 : currentSkip + 1;
     const shownTo = currentSkip + result.items.length;
@@ -466,3 +466,25 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// --- Empty grid placeholders (Views/Shared/_EmptyState.cshtml) ------------------------
+// "Nothing yet" when no search or filter is active, "nothing matches" otherwise; the table
+// itself is hidden while there are no rows.
+function showEmptyState(isEmpty) {
+  const filtered = Boolean(currentSearch || currentStatus);
+  el('#isp-search-results').closest('table').hidden = isEmpty;
+  el('#isp-empty-none').hidden = !(isEmpty && !filtered);
+  el('#isp-empty-filtered').hidden = !(isEmpty && filtered);
+}
+
+el('#isp-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
+  currentSearch = '';
+  el('#isp-search-query').value = '';
+  currentStatus = '';
+  el('#isp-filter-status').value = '';
+  currentSkip = 0;
+  renderFilterChips();
+  search();
+});
+
+el('#isp-empty-none [data-empty-add]')?.addEventListener('click', () => el('#isp-add-button')?.click());

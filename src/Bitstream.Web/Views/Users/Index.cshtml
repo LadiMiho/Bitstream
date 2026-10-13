@@ -90,7 +90,13 @@
                 </thead>
                 <tbody id="user-search-results"></tbody>
             </table>
-            <p id="user-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No users match.</p>
+            @* Two placeholders for an empty grid; the page script shows the one that fits. *@
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Users, "No users yet",
+                "Users sign in to the portal for an ISP or for the operator. Add the first one.",
+                ActionLabel: canCreate ? "Add user" : null, ActionAttributes: "data-empty-add", Id: "user-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Search, "No users match",
+                "Try a different search, or clear the search and filters.",
+                ActionLabel: "Clear search and filters", ActionAttributes: "data-empty-clear", Id: "user-empty-filtered", Hidden: true))" />
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-muted">

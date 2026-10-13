@@ -137,7 +137,8 @@
             </div>
             @if (Model.RecentRequests.Count == 0)
             {
-                <p class="mt-4 text-sm text-ink-muted">No activation requests yet.</p>
+                <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "No activation requests yet",
+                    "Submitted requests and their progress will appear here.", ActionLabel: "Go to activation requests", ActionHref: "/ActivationRequests"))" />
             }
             else
             {

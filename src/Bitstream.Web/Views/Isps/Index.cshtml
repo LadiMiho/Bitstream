@@ -77,7 +77,13 @@
                 </thead>
                 <tbody id="isp-search-results"></tbody>
             </table>
-            <p id="isp-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No ISPs match.</p>
+            @* Two placeholders for an empty grid; the page script shows the one that fits. *@
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Building, "No ISPs yet",
+                "ISPs are the companies that request lines. Add the first one to give its users access.",
+                ActionLabel: canCreate ? "Add ISP" : null, ActionAttributes: "data-empty-add", Id: "isp-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Search, "No ISPs match",
+                "Try a different search, or clear the search and filters.",
+                ActionLabel: "Clear search and filters", ActionAttributes: "data-empty-clear", Id: "isp-empty-filtered", Hidden: true))" />
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-muted">

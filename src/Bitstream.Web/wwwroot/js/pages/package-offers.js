@@ -138,6 +138,8 @@ function init() {
   }
 
   el('#offer-add-button').addEventListener('click', () => openDrawer('Add package offer', `${BASE}/AddDrawer`));
+  // The empty-state placeholder's button does the same.
+  el('[data-offer-add]')?.addEventListener('click', () => openDrawer('Add package offer', `${BASE}/AddDrawer`));
 
   root.addEventListener('click', (event) => {
     const button = event.target.closest('[data-offer-action]');

@@ -152,6 +152,19 @@
            focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
   }
 
+  /* Placeholder for a grid with no rows (Views/Shared/_EmptyState.cshtml). */
+  .empty-state {
+    @apply mt-3 flex flex-col items-center rounded-lg border border-dashed border-line px-6 py-12 text-center;
+  }
+
+  .empty-state[hidden] {
+    @apply hidden;
+  }
+
+  .empty-state-icon {
+    @apply flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-brand-600;
+  }
+
   .nav-link-active {
     @apply bg-brand-50 text-brand-700;
   }

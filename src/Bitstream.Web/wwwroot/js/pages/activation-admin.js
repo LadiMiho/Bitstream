@@ -251,7 +251,7 @@ async function search() {
     currentTotalCount = result.totalCount;
 
     renderResults(result.items);
-    el('#activation-search-empty').hidden = result.items.length > 0;
+    showEmptyState(result.items.length === 0);
 
     const shown = result.items.length === 0 ? 0 : currentSkip + 1;
     const shownTo = currentSkip + result.items.length;
@@ -520,3 +520,25 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// --- Empty grid placeholders (Views/Shared/_EmptyState.cshtml) ------------------------
+// "Nothing yet" when no search or filter is active, "nothing matches" otherwise; the table
+// itself is hidden while there are no rows.
+function showEmptyState(isEmpty) {
+  const filtered = Boolean(currentSearch || currentStatus);
+  el('#activation-search-results').closest('table').hidden = isEmpty;
+  el('#activation-empty-none').hidden = !(isEmpty && !filtered);
+  el('#activation-empty-filtered').hidden = !(isEmpty && filtered);
+}
+
+el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
+  currentSearch = '';
+  el('#activation-search-query').value = '';
+  currentStatus = '';
+  el('#activation-filter-status').value = '';
+  currentSkip = 0;
+  renderFilterChips();
+  search();
+});
+
+el('#activation-empty-none [data-empty-add]')?.addEventListener('click', () => el('#activation-add-button')?.click());

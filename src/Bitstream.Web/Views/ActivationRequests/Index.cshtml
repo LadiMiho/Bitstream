@@ -97,7 +97,13 @@
                 </thead>
                 <tbody id="activation-search-results"></tbody>
             </table>
-            <p id="activation-search-empty" class="mt-3 text-sm text-ink-muted" hidden>No activation requests match.</p>
+            @* Two placeholders for an empty grid; the page script shows the one that fits. *@
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "No activation requests yet",
+                "Requests submitted for a new line will appear here, with their progress up to activation.",
+                ActionLabel: canCreate ? "New request" : null, ActionAttributes: "data-empty-add", Id: "activation-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Search, "No activation requests match",
+                "Try a different search, or clear the search and filters.",
+                ActionLabel: "Clear search and filters", ActionAttributes: "data-empty-clear", Id: "activation-empty-filtered", Hidden: true))" />
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-muted">
