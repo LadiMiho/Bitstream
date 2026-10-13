@@ -144,7 +144,7 @@
   }
 
   .nav-dropdown-item-active {
-    @apply font-medium text-brand-700 shadow-[inset_3px_0_0_0_var(--color-accent-500)];
+    @apply bg-brand-50 font-medium text-brand-700;
   }
 
   .user-trigger {
@@ -153,7 +153,7 @@
   }
 
   .nav-link-active {
-    @apply bg-brand-50 text-brand-700 shadow-[inset_0_-3px_0_0_var(--color-accent-500)];
+    @apply bg-brand-50 text-brand-700;
   }
 
   /*
