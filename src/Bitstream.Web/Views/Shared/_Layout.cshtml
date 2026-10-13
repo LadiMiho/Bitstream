@@ -13,6 +13,14 @@
 
     // The login page shows only the logo above its box (Views/Auth/Login.cshtml), no header.
     var hideHeader = ViewData["HideHeader"] is true;
+
+    // Initials for the account menu's avatar, e.g. "Vladimir Miho" -> "VM".
+    var nameParts = (displayName ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var initials = nameParts.Length == 0 ? "?" : (nameParts[0][..1] + (nameParts.Length > 1 ? nameParts[^1][..1] : string.Empty)).ToUpperInvariant();
+}
+@functions {
+    private static Microsoft.AspNetCore.Html.IHtmlContent Chevron() => new Microsoft.AspNetCore.Html.HtmlString(
+        "<svg viewBox=\"0 0 20 20\" fill=\"currentColor\" class=\"h-4 w-4 opacity-60\" aria-hidden=\"true\"><path fill-rule=\"evenodd\" d=\"M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z\" clip-rule=\"evenodd\"/></svg>");
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -51,10 +59,31 @@
                  RequireSessionAttribute (TR-SEC-20), not by this list being short. -->
             @if (isAuthenticated)
             {
-                <nav aria-label="Main" class="hidden gap-1 md:flex">
-                    <a class="nav-link @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-current="@(IsActive("/AccessManagement") ? "page" : null)" href="/AccessManagement">Access Management</a>
-                    <a class="nav-link @(IsActive("/ActivationRequests") ? "nav-link-active" : "")" aria-current="@(IsActive("/ActivationRequests") ? "page" : null)" href="/ActivationRequests">Activation Requests</a>
-                    <a class="nav-link @(IsActive("/PostActivation") ? "nav-link-active" : "")" aria-current="@(IsActive("/PostActivation") ? "page" : null)" href="/PostActivation">Post-Activation Support</a>
+                <nav aria-label="Main" class="hidden items-center gap-1 md:flex">
+                    <a class="nav-link @(IsActive("/Dashboard") ? "nav-link-active" : "")" aria-current="@(IsActive("/Dashboard") ? "page" : null)" href="/Dashboard">Dashboard</a>
+
+                    @* Dropdown groups: wwwroot/js/nav.js opens and closes them. *@
+                    <div class="nav-menu" data-nav-menu>
+                        <button type="button" class="nav-link nav-trigger @(IsActive("/ActivationRequests") || IsActive("/PostActivation") ? "nav-link-active" : "")" aria-haspopup="true" aria-expanded="false" data-nav-trigger>
+                            Activations @Chevron()
+                        </button>
+                        <div class="nav-dropdown" hidden data-nav-panel>
+                            <a class="nav-dropdown-item @(IsActive("/ActivationRequests") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/ActivationRequests") ? "page" : null)" href="/ActivationRequests">Activation Requests</a>
+                            <a class="nav-dropdown-item @(IsActive("/PostActivation") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/PostActivation") ? "page" : null)" href="/PostActivation">Post-Activation Support</a>
+                        </div>
+                    </div>
+
+                    <div class="nav-menu" data-nav-menu>
+                        <button type="button" class="nav-link nav-trigger @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-haspopup="true" aria-expanded="false" data-nav-trigger>
+                            Access Management @Chevron()
+                        </button>
+                        <div class="nav-dropdown" hidden data-nav-panel>
+                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/Isps") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Isps") ? "page" : null)" href="/AccessManagement/Isps">ISP Administration</a>
+                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/Users") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Users") ? "page" : null)" href="/AccessManagement/Users">User Administration</a>
+                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
+                        </div>
+                    </div>
+
                     <a class="nav-link @(IsActive("/Reporting") ? "nav-link-active" : "")" aria-current="@(IsActive("/Reporting") ? "page" : null)" href="/Reporting">Reporting</a>
                 </nav>
             }
@@ -62,10 +91,26 @@
             <div class="flex shrink-0 items-center gap-3">
                 @if (isAuthenticated)
                 {
-                    <span class="hidden whitespace-nowrap text-sm text-ink-muted 2xl:inline">@displayName · @roleName</span>
-                    <form method="post" asp-controller="Auth" asp-action="LogoutPage">
-                        <button type="submit" class="btn-secondary whitespace-nowrap">Sign out</button>
-                    </form>
+                    @* User menu: name, role and sign out, as the usual account dropdown. *@
+                    <div class="nav-menu" data-nav-menu>
+                        <button type="button" class="user-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Account menu for @displayName" data-nav-trigger>
+                            <span class="avatar-circle" aria-hidden="true">@initials</span>
+                            <span class="hidden max-w-40 truncate text-sm font-medium text-ink lg:inline">@displayName</span>
+                            @Chevron()
+                        </button>
+                        <div class="nav-dropdown nav-dropdown-right" hidden data-nav-panel>
+                            <div class="border-b border-line px-4 py-3">
+                                <div class="truncate text-sm font-semibold text-ink">@displayName</div>
+                                @if (!string.IsNullOrEmpty(roleName))
+                                {
+                                    <div class="mt-1"><span class="status-pill bg-brand-50 text-brand-700">@roleName</span></div>
+                                }
+                            </div>
+                            <form method="post" asp-controller="Auth" asp-action="LogoutPage">
+                                <button type="submit" class="nav-dropdown-item w-full text-left">Sign out</button>
+                            </form>
+                        </div>
+                    </div>
                 }
             </div>
         </div>
@@ -103,6 +148,7 @@
         </div>
     </div>
 
+    <script type="module" src="~/js/nav.js"></script>
     <script type="module" src="~/js/drawer.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

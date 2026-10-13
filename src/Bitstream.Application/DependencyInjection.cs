@@ -85,6 +85,7 @@ public static class DependencyInjection
 
         // TRD 5 — activation request lifecycle (TR-ACT-01 to TR-ACT-19).
         services.AddScoped<IActivationRequestService, ActivationRequestService>();
+        services.AddScoped<Services.Dashboard.IDashboardService, Services.Dashboard.DashboardService>();
         services.AddScoped<IPackageOfferService, PackageOfferService>();
         services.AddScoped<ICatalogueService, CatalogueService>();
 

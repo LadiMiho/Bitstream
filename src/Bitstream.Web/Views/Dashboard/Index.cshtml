@@ -1,0 +1,217 @@
+@model Bitstream.Application.Services.Dashboard.DashboardSummary
+@using System.Globalization
+@using Bitstream.Domain.Enums
+@{
+    var culture = CultureInfo.InvariantCulture;
+
+    // Status groups for the donut: what the ISP cares about at a glance.
+    var groups = new (string Label, string Color, int Count)[]
+    {
+        ("In progress", "var(--color-brand-600)", Model.InProgress - Model.AwaitingOperator - Model.WaitingForServiceDesk),
+        ("Needs action", "var(--color-accent-500)", Model.AwaitingOperator + Model.WaitingForServiceDesk),
+        ("Completed", "var(--color-state-done)", Model.Completed),
+        ("Failed / rejected", "var(--color-state-blocked)", Model.Failed),
+    };
+    var groupTotal = groups.Sum(g => g.Count);
+    const double radius = 60;
+    var circumference = 2 * Math.PI * radius;
+
+    var maxMonth = Math.Max(1, Model.SubmittedPerMonth.Max(m => m.Count));
+    var maxIsp = Model.TopIsps.Count == 0 ? 1 : Math.Max(1, Model.TopIsps.Max(i => i.Count));
+
+    int Outbound(IntegrationMessageStatus status) => Model.OutboundByStatus.GetValueOrDefault(status);
+}
+
+<div class="grid gap-6">
+    <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+            <h1 class="text-xl font-semibold">Dashboard</h1>
+            <p class="mt-1 text-sm text-ink-muted">
+                @(Model.IsAllIsps ? "All ISPs" : Model.IspName is null ? "No ISP linked to your account" : Model.IspName) · activation requests and support at a glance
+            </p>
+        </div>
+        <a href="/ActivationRequests" class="btn-primary">Activation requests</a>
+    </div>
+
+    @* --- Key figures ------------------------------------------------------------------- *@
+    <section aria-label="Key figures" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        @foreach (var (label, value, hint) in new (string, string, string)[]
+        {
+            ("Activation requests", Model.TotalRequests.ToString(culture), "all time"),
+            ("In progress", Model.InProgress.ToString(culture), "not finished yet"),
+            ("Completed", Model.Completed.ToString(culture), "line working"),
+            ("Avg. days to complete", Model.AverageDaysToComplete?.ToString("0.0", culture) ?? "—", "last 6 months"),
+            ("Open tickets", Model.OpenTickets.ToString(culture), $"{Model.ClosedTickets.ToString(culture)} closed"),
+            ("Active lines", Model.ActiveLines.ToString(culture), "from BI"),
+        })
+        {
+            <div class="card !p-4">
+                <div class="text-xs font-semibold uppercase tracking-wide text-ink-muted">@label</div>
+                <div class="mt-2 text-2xl font-semibold text-brand-700">@value</div>
+                <div class="mt-1 text-xs text-ink-muted">@hint</div>
+            </div>
+        }
+    </section>
+
+    @if (Model.AwaitingOperator + Model.WaitingForServiceDesk > 0)
+    {
+        <section class="flex flex-wrap items-center gap-3 rounded-lg border border-accent-500 bg-accent-500/10 px-4 py-3 text-sm" aria-label="Needs action">
+            <span class="h-2.5 w-2.5 rounded-full bg-accent-500" aria-hidden="true"></span>
+            @if (Model.AwaitingOperator > 0)
+            {
+                <span><strong>@Model.AwaitingOperator</strong> waiting for the operator to confirm the line works</span>
+            }
+            @if (Model.WaitingForServiceDesk > 0)
+            {
+                <span><strong>@Model.WaitingForServiceDesk</strong> waiting for the service desk</span>
+            }
+            <a href="/ActivationRequests" class="ml-auto font-medium text-brand-700 underline">Open activation requests</a>
+        </section>
+    }
+
+    <div class="grid gap-6 lg:grid-cols-3">
+        @* --- Submitted per month (bar chart) -------------------------------------------- *@
+        <section class="card lg:col-span-2" aria-labelledby="chart-months">
+            <h2 id="chart-months" class="text-sm font-semibold">Requests submitted per month</h2>
+            <svg viewBox="0 0 600 220" class="mt-4 h-56 w-full" role="img" aria-label="Activation requests submitted in each of the last six months">
+                <line x1="40" y1="180" x2="590" y2="180" stroke="var(--color-line)" />
+                @for (var i = 0; i < Model.SubmittedPerMonth.Count; i++)
+                {
+                    var (month, count) = Model.SubmittedPerMonth[i];
+                    var slot = 550.0 / Model.SubmittedPerMonth.Count;
+                    var barWidth = slot * 0.55;
+                    var x = 40 + i * slot + (slot - barWidth) / 2;
+                    var height = 150.0 * count / maxMonth;
+                    var y = 180 - height;
+                    <rect x="@x.ToString("0.#", culture)" y="@y.ToString("0.#", culture)" width="@barWidth.ToString("0.#", culture)" height="@height.ToString("0.#", culture)" rx="4" fill="var(--color-brand-600)" opacity="@(i == Model.SubmittedPerMonth.Count - 1 ? "1" : "0.75")">
+                        <title>@month.ToString("MMMM yyyy", culture): @count</title>
+                    </rect>
+                    @* Razor reserves <text> inside code blocks, so the SVG labels are written as markup strings. *@
+                    @Html.Raw($"<text x=\"{(x + barWidth / 2).ToString("0.#", culture)}\" y=\"{(y - 6).ToString("0.#", culture)}\" text-anchor=\"middle\" font-size=\"13\" font-weight=\"600\" fill=\"var(--color-ink)\">{count.ToString(culture)}</text>")
+                    @Html.Raw($"<text x=\"{(x + barWidth / 2).ToString("0.#", culture)}\" y=\"200\" text-anchor=\"middle\" font-size=\"12\" fill=\"var(--color-ink-muted)\">{month.ToString("MMM", culture)}</text>")
+                }
+            </svg>
+        </section>
+
+        @* --- Status breakdown (donut) ---------------------------------------------------- *@
+        <section class="card" aria-labelledby="chart-status">
+            <h2 id="chart-status" class="text-sm font-semibold">Where requests are</h2>
+            <div class="mt-4 flex items-center gap-6">
+                <svg viewBox="0 0 160 160" class="h-36 w-36 shrink-0" role="img" aria-label="Activation requests by stage">
+                    <circle cx="80" cy="80" r="@radius" fill="none" stroke="var(--color-surface-muted)" stroke-width="22" />
+                    @{
+                        var offset = 0.0;
+                    }
+                    @foreach (var group in groups.Where(g => g.Count > 0))
+                    {
+                        var length = circumference * group.Count / Math.Max(1, groupTotal);
+                        <circle cx="80" cy="80" r="@radius" fill="none" stroke="@group.Color" stroke-width="22"
+                                stroke-dasharray="@length.ToString("0.##", culture) @((circumference - length).ToString("0.##", culture))"
+                                stroke-dashoffset="@((-offset).ToString("0.##", culture))" transform="rotate(-90 80 80)">
+                            <title>@group.Label: @group.Count</title>
+                        </circle>
+                        offset += length;
+                    }
+                    @Html.Raw($"<text x=\"80\" y=\"88\" text-anchor=\"middle\" font-size=\"26\" font-weight=\"700\" fill=\"var(--color-ink)\">{groupTotal.ToString(culture)}</text>")
+                </svg>
+                <ul class="grid gap-2 text-sm">
+                    @foreach (var group in groups)
+                    {
+                        <li class="flex items-center gap-2">
+                            <span class="h-3 w-3 rounded-sm" style="background:@group.Color" aria-hidden="true"></span>
+                            <span class="text-ink-muted">@group.Label</span>
+                            <span class="ml-auto pl-3 font-semibold">@group.Count</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <div class="grid gap-6 @(Model.IsAllIsps ? "lg:grid-cols-3" : "")">
+        @* --- Recent requests -------------------------------------------------------------- *@
+        <section class="card @(Model.IsAllIsps ? "lg:col-span-2" : "")" aria-labelledby="recent-requests">
+            <div class="flex items-center justify-between">
+                <h2 id="recent-requests" class="text-sm font-semibold">Latest activation requests</h2>
+                <a href="/ActivationRequests" class="text-sm font-medium text-brand-700 underline">View all</a>
+            </div>
+            @if (Model.RecentRequests.Count == 0)
+            {
+                <p class="mt-4 text-sm text-ink-muted">No activation requests yet.</p>
+            }
+            else
+            {
+                <div class="mt-3 overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="text-xs uppercase tracking-wide text-ink-muted">
+                                <th class="py-2 pr-4 font-semibold">Request</th>
+                                @if (Model.IsAllIsps)
+                                {
+                                    <th class="py-2 pr-4 font-semibold">ISP</th>
+                                }
+                                <th class="py-2 pr-4 font-semibold">Package</th>
+                                <th class="py-2 pr-4 font-semibold">Status</th>
+                                <th class="py-2 font-semibold">Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in Model.RecentRequests)
+                            {
+                                <tr class="border-t border-line">
+                                    <td class="py-2 pr-4 font-medium">@request.PublicId</td>
+                                    @if (Model.IsAllIsps)
+                                    {
+                                        <td class="py-2 pr-4">@request.IspName</td>
+                                    }
+                                    <td class="py-2 pr-4 text-ink-muted">@request.PackageCode</td>
+                                    <td class="py-2 pr-4"><span class="@ActivationStatusLabels.PillClass(request.Status)">@ActivationStatusLabels.For(request.Status)</span></td>
+                                    <td class="py-2 text-ink-muted">@request.CreatedAt.ToString("dd MMM yyyy", culture)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        @if (Model.IsAllIsps)
+        {
+            <div class="grid content-start gap-6">
+                @* --- Top ISPs ------------------------------------------------------------- *@
+                <section class="card" aria-labelledby="top-isps">
+                    <h2 id="top-isps" class="text-sm font-semibold">ISPs with most requests</h2>
+                    @if (Model.TopIsps.Count == 0)
+                    {
+                        <p class="mt-4 text-sm text-ink-muted">No requests yet.</p>
+                    }
+                    else
+                    {
+                        <ul class="mt-4 grid gap-3">
+                            @foreach (var (name, count) in Model.TopIsps)
+                            {
+                                <li>
+                                    <div class="flex justify-between text-sm"><span>@name</span><span class="font-semibold">@count</span></div>
+                                    <div class="mt-1 h-2 rounded-full bg-surface-muted">
+                                        <div class="h-2 rounded-full bg-brand-600" style="width:@((100.0 * count / maxIsp).ToString("0.#", culture))%"></div>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                @* --- CRM integration health ------------------------------------------------- *@
+                <section class="card" aria-labelledby="crm-health">
+                    <h2 id="crm-health" class="text-sm font-semibold">Messages to CRM</h2>
+                    <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div class="rounded-md bg-state-done/10 p-3"><dt class="text-ink-muted">Sent</dt><dd class="text-lg font-semibold text-state-done">@Outbound(IntegrationMessageStatus.Succeeded)</dd></div>
+                        <div class="rounded-md bg-state-pending/10 p-3"><dt class="text-ink-muted">Waiting</dt><dd class="text-lg font-semibold text-state-pending">@(Outbound(IntegrationMessageStatus.Pending) + Outbound(IntegrationMessageStatus.InFlight))</dd></div>
+                        <div class="rounded-md bg-state-pending/10 p-3"><dt class="text-ink-muted">Retrying</dt><dd class="text-lg font-semibold text-state-pending">@Outbound(IntegrationMessageStatus.Failed)</dd></div>
+                        <div class="rounded-md bg-state-blocked/10 p-3"><dt class="text-ink-muted">Failed</dt><dd class="text-lg font-semibold text-state-blocked">@Outbound(IntegrationMessageStatus.DeadLettered)</dd></div>
+                    </dl>
+                </section>
+            </div>
+        }
+    </div>
+</div>

@@ -8,5 +8,5 @@ public sealed class HomeController : Controller
 {
     [HttpGet("/")]
     [RequireSession]
-    public IActionResult Index() => Redirect("/AccessManagement");
+    public IActionResult Index() => Redirect("/Dashboard");
 }

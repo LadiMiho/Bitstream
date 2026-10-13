@@ -120,6 +120,38 @@
            focus-visible:outline-offset-2 focus-visible:outline-brand-600;
   }
 
+  /* Header dropdowns (wwwroot/js/nav.js): menu groups and the account menu. */
+  .nav-menu {
+    @apply relative;
+  }
+
+  .nav-trigger {
+    @apply inline-flex items-center gap-1;
+  }
+
+  .nav-dropdown {
+    @apply absolute left-0 top-full z-30 mt-2 min-w-56 overflow-hidden rounded-lg border border-line bg-surface
+           py-1 shadow-lg;
+  }
+
+  .nav-dropdown-right {
+    @apply left-auto right-0;
+  }
+
+  .nav-dropdown-item {
+    @apply block whitespace-nowrap px-4 py-2 text-sm text-ink transition-colors hover:bg-brand-50
+           hover:text-brand-700 focus-visible:bg-brand-50 focus-visible:outline-none;
+  }
+
+  .nav-dropdown-item-active {
+    @apply font-medium text-brand-700 shadow-[inset_3px_0_0_0_var(--color-accent-500)];
+  }
+
+  .user-trigger {
+    @apply inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-muted
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+  }
+
   .nav-link-active {
     @apply bg-brand-50 text-brand-700 shadow-[inset_0_-3px_0_0_var(--color-accent-500)];
   }

@@ -103,7 +103,7 @@ public sealed class AuthController : Controller
 
     /// <summary>The return URL to hand to the client script, after an open-redirect check — an unrecognised or external value falls back to the module landing page.</summary>
     private string SafeReturnUrl(string? returnUrl) =>
-        !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/AccessManagement";
+        !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/Dashboard";
 
     [HttpPost("Login")]
     public async Task<IActionResult> Login(

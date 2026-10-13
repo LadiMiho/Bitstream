@@ -87,3 +87,14 @@ public interface IActivationHistoryReader
 {
     Task<ActivationHistory> GetAsync(ActivationRequest request, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Read-only aggregates for the dashboard.</summary>
+public interface IDashboardQueries
+{
+    /// <param name="ispId">One ISP's figures, or null for every ISP.</param>
+    /// <param name="monthsFrom">First day of the oldest month in <see cref="Services.Dashboard.DashboardData.SubmittedPerMonth"/>.</param>
+    /// <param name="months">How many months to return, ending with the current one.</param>
+    /// <param name="recent">How many recent requests to return.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    Task<Services.Dashboard.DashboardData> GetAsync(long? ispId, DateTime monthsFrom, int months, int recent, CancellationToken cancellationToken = default);
+}
