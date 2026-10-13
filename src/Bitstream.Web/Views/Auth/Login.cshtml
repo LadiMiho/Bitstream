@@ -1,8 +1,14 @@
 @{
     var safeReturnUrl = (string)(ViewBag.SafeReturnUrl ?? "/AccessManagement");
+
+    // No page header here: only the logo above the sign-in box, centred on the screen.
+    ViewData["HideHeader"] = true;
 }
 
-<section class="card mx-auto max-w-md" aria-labelledby="login-heading" data-role="login-page" data-return-url="@safeReturnUrl">
+<div class="flex min-h-screen flex-col items-center justify-center px-4 py-8">
+<img src="~/img/one-logo.png" alt="one" width="148" height="80" class="mb-8 h-20 w-auto" />
+
+<section class="card w-full max-w-md border-t-4 border-t-brand-600" aria-labelledby="login-heading" data-role="login-page" data-return-url="@safeReturnUrl">
     <h1 id="login-heading" class="text-xl font-semibold">Sign in</h1>
 
     <form id="login-credentials-form" class="mt-6 grid gap-4" novalidate>
@@ -42,6 +48,7 @@
         </div>
     </form>
 </section>
+</div>
 
 @section Scripts {
     <script type="module" src="~/js/pages/login.js"></script>

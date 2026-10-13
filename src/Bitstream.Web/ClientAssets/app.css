@@ -28,21 +28,30 @@
   must be checked the same way rather than picked by eye.
 */
 @theme {
-  --color-brand-50: oklch(0.97 0.02 250);
-  --color-brand-100: oklch(0.93 0.04 250);
-  --color-brand-500: oklch(0.62 0.15 250);
-  --color-brand-600: oklch(0.54 0.15 250);
-  --color-brand-700: oklch(0.46 0.13 250);
+  /*
+    Brand: the "one" logo (wwwroot/img/one-logo.png). 600 is the logo purple #66318E exactly;
+    the accent is the logo yellow #F4B01C. Contrast checked (WCAG AA, 4.5:1): white on 600
+    8.8:1, 700 on 50 10.5:1, ink-muted on surface 6.0:1. The yellow fails as text on white, so
+    it is used only for decoration (borders and underlines), never for text.
+  */
+  --color-brand-50: oklch(0.97 0.02 307);
+  --color-brand-100: oklch(0.93 0.045 307);
+  --color-brand-500: oklch(0.52 0.15 307);
+  --color-brand-600: oklch(0.429 0.151 307.4);
+  --color-brand-700: oklch(0.36 0.13 307);
+
+  --color-accent-400: oklch(0.86 0.14 80);
+  --color-accent-500: oklch(0.801 0.161 79.6);
 
   --color-surface: oklch(1 0 0);
-  --color-surface-muted: oklch(0.97 0.005 250);
-  --color-ink: oklch(0.25 0.02 250);
-  --color-ink-muted: oklch(0.5 0.02 250);
-  --color-line: oklch(0.9 0.01 250);
+  --color-surface-muted: oklch(0.975 0.006 307);
+  --color-ink: oklch(0.25 0.02 307);
+  --color-ink-muted: oklch(0.5 0.02 307);
+  --color-line: oklch(0.9 0.012 307);
 
   /* Request and ticket state colours, used by the status pill component below. */
   --color-state-pending: oklch(0.55 0.13 85);
-  --color-state-progress: oklch(0.55 0.13 250);
+  --color-state-progress: oklch(0.429 0.151 307.4);
   --color-state-done: oklch(0.5 0.13 155);
   --color-state-blocked: oklch(0.52 0.18 25);
 
@@ -106,13 +115,13 @@
 
   /* Top-level navigation, active state set server-side by the layout comparing the current route. */
   .nav-link {
-    @apply rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors
+    @apply whitespace-nowrap rounded-md px-2 py-2 text-sm font-medium xl:px-3 text-ink-muted transition-colors
            hover:bg-surface-muted hover:text-ink focus-visible:outline-2
            focus-visible:outline-offset-2 focus-visible:outline-brand-600;
   }
 
   .nav-link-active {
-    @apply bg-brand-50 text-brand-700;
+    @apply bg-brand-50 text-brand-700 shadow-[inset_0_-3px_0_0_var(--color-accent-500)];
   }
 
   /*
