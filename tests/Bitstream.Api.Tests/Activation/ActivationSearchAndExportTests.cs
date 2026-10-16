@@ -33,6 +33,7 @@ public sealed class ActivationSearchAndExportTests
         var beta = await IdentitySeeder.AddIspAsync(db, "Beta", "L00000402");
         await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, AdminEmail);
         await IdentitySeeder.AddUserAsync(db, ispRole, alpha.IspId, IspUserEmail);
+        await ActivationSeeder.SeedCatalogueAsync(db);
 
         var old = await ActivationSeeder.AddRequestAsync(db, alpha.IspId, "ALPHA_1", ActivationRequestStatus.Completed);
         old.CreatedAt = DateTimeOffset.UtcNow.AddDays(-10);
@@ -95,6 +96,21 @@ public sealed class ActivationSearchAndExportTests
         var ispPage = await ispUser.GetStringAsync(new Uri("/ActivationRequests", UriKind.Relative));
         Assert.DoesNotContain("id=\"activation-filter-isp\"", ispPage, StringComparison.Ordinal);
         Assert.Contains("id=\"activation-filter-package\"", ispPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_grid_shows_the_package_name_falling_back_to_the_code_when_unknown()
+    {
+        await using var factory = new IdentityApiFactory();
+        await SeedAsync(factory);
+        using var admin = await SignInAsync(factory, AdminEmail);
+
+        var result = await admin.GetFromJsonAsync<ActivationRequestListResponse>(new Uri("/ActivationRequests/Search", UriKind.Relative));
+        var byId = result!.Items.ToDictionary(i => i.PublicId);
+
+        Assert.Equal("Standard", byId["BETA_1"].PackageName);
+        Assert.Equal(12, byId["BETA_1"].ContractDurationMonths);
+        Assert.Equal("BITSTREAM_PRO", byId["ALPHA_2"].PackageName); // not in the catalogue
     }
 
     [Fact]

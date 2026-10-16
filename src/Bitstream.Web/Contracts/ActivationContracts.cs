@@ -44,7 +44,8 @@ public sealed record ActivationRequestSummaryResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("contractDurationMonths")] int ContractDurationMonths,
-    [property: JsonPropertyName("crmTicketId")] string? CrmTicketId);
+    [property: JsonPropertyName("crmTicketId")] string? CrmTicketId,
+    [property: JsonPropertyName("packageName")] string PackageName);
 
 /// <param name="Items">At most <c>take</c> rows.</param>
 /// <param name="TotalCount">Every matching row, ignoring paging.</param>

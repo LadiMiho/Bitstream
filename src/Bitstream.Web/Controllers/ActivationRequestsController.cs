@@ -169,7 +169,13 @@ public sealed class ActivationRequestsController : Controller
         var result = await _activationRequestService.SearchAsync(
             ToFilter(query), skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
 
-        return Ok(new ActivationRequestListResponse([.. result.Items.Select(ToSummaryResponse)], result.TotalCount));
+        // Package names for display: every package, retired ones included, keyed by code.
+        var catalogue = await _catalogueService.GetOverviewAsync(cancellationToken).ConfigureAwait(false);
+        var packageNames = catalogue.Packages.ToDictionary(p => p.Code, p => p.Name, StringComparer.Ordinal);
+
+        return Ok(new ActivationRequestListResponse(
+            [.. result.Items.Select(r => ToSummaryResponse(r, packageNames.GetValueOrDefault(r.PackageCode, r.PackageCode)))],
+            result.TotalCount));
     }
 
     /// <summary>
@@ -348,7 +354,7 @@ public sealed class ActivationRequestsController : Controller
             request.Comments, request.Status.ToString(), request.StatusReason, request.SalesOrderId,
             request.CreatedAt, request.LastUpdatedAt);
 
-    private static ActivationRequestSummaryResponse ToSummaryResponse(ActivationRequest request) =>
+    private static ActivationRequestSummaryResponse ToSummaryResponse(ActivationRequest request, string packageName) =>
         new(request.RequestId, request.PublicId, request.IspId, request.Isp.Name, request.PackageCode,
-            request.Status.ToString(), request.CreatedAt, request.ContractDurationMonths, request.CrmTicketId);
+            request.Status.ToString(), request.CreatedAt, request.ContractDurationMonths, request.CrmTicketId, packageName);
 }

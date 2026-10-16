@@ -206,13 +206,13 @@ function renderResults(items) {
     }
 
     const packageCell = cell('');
-    const packageCode = document.createElement('div');
-    packageCode.className = 'text-ink';
-    packageCode.textContent = request.packageCode;
+    const packageName = document.createElement('div');
+    packageName.className = 'text-ink';
+    packageName.textContent = request.packageName || request.packageCode;
     const duration = document.createElement('div');
     duration.className = 'text-xs text-ink-muted';
     duration.textContent = `${request.contractDurationMonths} months`;
-    packageCell.append(packageCode, duration);
+    packageCell.append(packageName, duration);
     row.appendChild(packageCell);
 
     const statusCell = cell('whitespace-nowrap');
@@ -285,7 +285,16 @@ async function search() {
   }
 }
 
-// --- Filters bar (applied as they change) -------------------------------------------
+// --- Filters popover ---------------------------------------------------------------------
+const FILTER_LABELS = {
+  status: 'Status',
+  ispId: 'ISP',
+  packageCode: 'Package',
+  contractDurationMonths: 'Contract',
+  submittedFrom: 'Submitted from',
+  submittedTo: 'Submitted to'
+};
+
 /** Local midnight of a yyyy-mm-dd date, plus `addDays`, as an ISO instant. */
 function localMidnight(date, addDays = 0) {
   const [year, month, day] = date.split('-').map(Number);
@@ -313,57 +322,104 @@ function queryParams() {
   return params;
 }
 
-function updateActiveFilters() {
-  const count = Object.keys(currentFilters).length + (currentSearch ? 1 : 0);
-  el('#activation-filters-active').hidden = count === 0;
-  el('#activation-filters-count').textContent = count === 1 ? '1 filter' : `${count} filters`;
+function filterLabel(key, value) {
+  const field = el(`#activation-filters-form [name="${key}"]`);
+  if (field instanceof HTMLSelectElement) {
+    const option = [...field.options].find((candidate) => candidate.value === value);
+    return option ? option.textContent.trim() : value;
+  }
+  if (key === 'submittedFrom' || key === 'submittedTo') {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString();
+  }
+  return value;
 }
 
-function readFilters() {
-  const filters = {};
-  for (const [key, value] of new FormData(el('#activation-filters-form'))) {
-    if (String(value).trim()) {
-      filters[key] = String(value).trim();
+function applyFilters(filters) {
+  currentFilters = filters;
+  for (const field of el('#activation-filters-form').elements) {
+    if (field.name) {
+      field.value = currentFilters[field.name] ?? '';
     }
   }
-  return filters;
-}
-
-function applyFilters() {
-  currentSearch = el('#activation-search-query').value.trim();
-  currentFilters = readFilters();
   currentSkip = 0;
-  updateActiveFilters();
+  renderFilterChips();
   search();
 }
 
-function clearFilters() {
-  el('#activation-filters-form').reset();
-  applyFilters();
+function renderFilterChips() {
+  const container = el('#activation-filter-chips');
+  container.replaceChildren();
+
+  const active = Object.entries(currentFilters);
+
+  const countBadge = el('#activation-filters-count');
+  countBadge.hidden = active.length === 0;
+  countBadge.textContent = String(active.length);
+
+  for (const [key, value] of active) {
+    const label = `${FILTER_LABELS[key] ?? key}: ${filterLabel(key, value)}`;
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    const text = document.createElement('span');
+    text.textContent = label;
+    chip.appendChild(text);
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.setAttribute('aria-label', `Clear ${label}`);
+    clear.textContent = '×';
+    clear.addEventListener('click', () => {
+      const remaining = { ...currentFilters };
+      delete remaining[key];
+      applyFilters(remaining);
+    });
+    chip.appendChild(clear);
+    container.appendChild(chip);
+  }
+
+  if (active.length > 0) {
+    const clearAll = document.createElement('button');
+    clearAll.type = 'button';
+    clearAll.className = 'text-sm text-brand-600 underline';
+    clearAll.textContent = 'Clear';
+    clearAll.addEventListener('click', () => applyFilters({}));
+    container.appendChild(clearAll);
+  }
 }
 
 function initFilters() {
+  const button = el('#activation-filters-button');
+  const panel = el('#activation-filters-panel');
   const form = el('#activation-filters-form');
-  let searchTimer = null;
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const isHidden = panel.hidden;
+    panel.hidden = !isHidden;
+    button.setAttribute('aria-expanded', String(isHidden));
+  });
+
+  panel.addEventListener('click', (event) => event.stopPropagation());
+
+  document.addEventListener('click', () => {
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    clearTimeout(searchTimer);
-    applyFilters();
-  });
-
-  form.addEventListener('change', (event) => {
-    if (event.target.id !== 'activation-search-query') {
-      applyFilters();
+    const filters = {};
+    for (const [key, value] of new FormData(form)) {
+      if (String(value).trim()) {
+        filters[key] = String(value).trim();
+      }
     }
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    applyFilters(filters);
   });
 
-  el('#activation-search-query').addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(applyFilters, 300);
-  });
-
-  el('#activation-filters-clear').addEventListener('click', clearFilters);
+  el('#activation-filters-reset').addEventListener('click', () => form.reset());
 
   // All pages of the current search + filters, built server-side as an .xlsx download.
   el('#activation-export-button')?.addEventListener('click', () => {
@@ -514,6 +570,13 @@ function init() {
     syncDurationOptions(drawerBody.querySelector('#activation-add-form'));
   });
 
+  el('#activation-search-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    currentSearch = el('#activation-search-query').value.trim();
+    currentSkip = 0;
+    search();
+  });
+
   el('#activation-page-size').addEventListener('change', (event) => {
     currentPageSize = Number(event.target.value);
     currentSkip = 0;
@@ -552,6 +615,10 @@ function showEmptyState(isEmpty) {
   el('#activation-empty-filtered').hidden = !(isEmpty && filtered);
 }
 
-el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', clearFilters);
+el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
+  currentSearch = '';
+  el('#activation-search-query').value = '';
+  applyFilters({});
+});
 
 el('#activation-empty-none [data-empty-add]')?.addEventListener('click', () => el('#activation-add-button')?.click());

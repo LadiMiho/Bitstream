@@ -40,87 +40,101 @@
         </div>
     </div>
 
-    @* Filters: their own bar, always visible, applied as they change. *@
+    @* Search, the Filters popup and the applied-filter pills, in their own card above the grid. *@
     <section class="card min-w-0 px-5 py-4" aria-labelledby="activation-filters-heading">
         <h2 id="activation-filters-heading" class="sr-only">Search and filters</h2>
-        <form id="activation-filters-form" class="grid gap-4" novalidate role="search">
-            <div class="flex flex-wrap items-center gap-3">
-                <div class="search-input-group min-w-[16rem] flex-1">
-                    <label class="sr-only" for="activation-search-query">Search by request ID or package</label>
-                    <span class="search-input-icon" aria-hidden="true">
-                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><circle cx="9" cy="9" r="6" /><path d="m17 17-3.5-3.5" stroke-linecap="round" /></svg>
-                    </span>
-                    <input class="field-input mt-0" id="activation-search-query" type="search" placeholder="Search by request ID or package" autocomplete="off" />
-                </div>
-                <div class="flex items-center gap-3" id="activation-filters-active" hidden>
-                    <span id="activation-filters-count" class="badge bg-brand-50 text-brand-700">0 filters</span>
-                    <button type="button" id="activation-filters-clear" class="text-sm font-medium text-brand-600 hover:underline">Clear filters</button>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <form id="activation-search-form" class="search-input-group flex-1 min-w-[16rem] max-w-sm" novalidate>
+                <label class="sr-only" for="activation-search-query">Search by public ID or package</label>
+                <span class="search-input-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><circle cx="9" cy="9" r="6" /><path d="m17 17-3.5-3.5" stroke-linecap="round" /></svg>
+                </span>
+                <input class="field-input mt-0" id="activation-search-query" name="search" type="search" placeholder="Search by public ID or package" />
+            </form>
+
+            <div class="relative">
+                <button type="button" id="activation-filters-button" class="btn-secondary" aria-expanded="false" aria-controls="activation-filters-panel">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="M3 4h14M6 10h8M9 16h2" stroke-linecap="round" /></svg>
+                    Filters
+                    <span id="activation-filters-count" class="badge bg-brand-50 text-brand-700" hidden>0</span>
+                </button>
+
+                <div id="activation-filters-panel" class="popover-panel" hidden>
+                    <form id="activation-filters-form" novalidate>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="activation-filter-status">Status</label>
+                                <select class="field-input" id="activation-filter-status" name="status">
+                                    <option value="">All</option>
+                                    <option value="Submitted">Submitted</option>
+                                    <option value="PendingCrmSync">Pending CRM Sync</option>
+                                    <option value="AwaitingGisVerification">Awaiting GIS Verification</option>
+                                    <option value="RejectedNoLine">Rejected — No Line</option>
+                                    <option value="LineAvailable">Line Available</option>
+                                    <option value="SalesOrderOpened">Activation in progress</option>
+                                    <option value="AwaitingOperatorConfirmation">Waiting for operator confirmation</option>
+                                    <option value="WaitingForServiceDesk">Waiting for service desk</option>
+                                    <option value="Closed">Closed</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="ActivationFailed">Activation failed</option>
+                                    <option value="IntegrationFailed">Integration Failed</option>
+                                </select>
+                            </div>
+                            @if (filterIsps is not null)
+                            {
+                                <div class="sm:col-span-2">
+                                    <label class="field-label" for="activation-filter-isp">ISP</label>
+                                    <select class="field-input" id="activation-filter-isp" name="ispId">
+                                        <option value="">All</option>
+                                        @foreach (var isp in filterIsps)
+                                        {
+                                            <option value="@isp.IspId">@isp.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            <div>
+                                <label class="field-label" for="activation-filter-package">Package</label>
+                                <select class="field-input" id="activation-filter-package" name="packageCode">
+                                    <option value="">All</option>
+                                    @foreach (var package in filterPackages)
+                                    {
+                                        <option value="@package.Code">@package.Name@(package.IsActive ? "" : " (retired)")</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-duration">Contract</label>
+                                <select class="field-input" id="activation-filter-duration" name="contractDurationMonths">
+                                    <option value="">All</option>
+                                    @foreach (var duration in filterDurations.OrderBy(d => d.Months))
+                                    {
+                                        <option value="@duration.Months">@duration.Label</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-from">Submitted from</label>
+                                <input class="field-input" id="activation-filter-from" name="submittedFrom" type="date" />
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-to">Submitted to</label>
+                                <input class="field-input" id="activation-filter-to" name="submittedTo" type="date" />
+                            </div>
+                        </div>
+                        <div class="mt-4 flex justify-end gap-2">
+                            <button type="button" id="activation-filters-reset" class="btn-secondary">Reset</button>
+                            <button type="submit" class="btn-primary">Apply</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-status">Status</label>
-                    <select class="field-input" id="activation-filter-status" name="status">
-                        <option value="">All statuses</option>
-                        <option value="Submitted">Submitted</option>
-                        <option value="PendingCrmSync">Pending CRM Sync</option>
-                        <option value="AwaitingGisVerification">Awaiting GIS Verification</option>
-                        <option value="RejectedNoLine">Rejected — No Line</option>
-                        <option value="LineAvailable">Line Available</option>
-                        <option value="SalesOrderOpened">Activation in progress</option>
-                        <option value="AwaitingOperatorConfirmation">Waiting for operator confirmation</option>
-                        <option value="WaitingForServiceDesk">Waiting for service desk</option>
-                        <option value="Closed">Closed</option>
-                        <option value="Completed">Completed</option>
-                        <option value="ActivationFailed">Activation failed</option>
-                        <option value="IntegrationFailed">Integration Failed</option>
-                    </select>
-                </div>
-                @if (filterIsps is not null)
-                {
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-isp">ISP</label>
-                        <select class="field-input" id="activation-filter-isp" name="ispId">
-                            <option value="">All ISPs</option>
-                            @foreach (var isp in filterIsps)
-                            {
-                                <option value="@isp.IspId">@isp.Name</option>
-                            }
-                        </select>
-                    </div>
-                }
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-package">Package</label>
-                    <select class="field-input" id="activation-filter-package" name="packageCode">
-                        <option value="">All packages</option>
-                        @foreach (var package in filterPackages)
-                        {
-                            <option value="@package.Code">@package.Name@(package.IsActive ? "" : " (retired)")</option>
-                        }
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-duration">Contract</label>
-                    <select class="field-input" id="activation-filter-duration" name="contractDurationMonths">
-                        <option value="">All durations</option>
-                        @foreach (var duration in filterDurations.OrderBy(d => d.Months))
-                        {
-                            <option value="@duration.Months">@duration.Label</option>
-                        }
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-from">Submitted from</label>
-                    <input class="field-input" id="activation-filter-from" name="submittedFrom" type="date" />
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-ink-muted" for="activation-filter-to">Submitted to</label>
-                    <input class="field-input" id="activation-filter-to" name="submittedTo" type="date" />
-                </div>
-            </div>
-        </form>
-        <p id="activation-search-error" class="field-error mt-3" role="alert" hidden></p>
+            <div id="activation-filter-chips" class="flex flex-wrap items-center gap-2"></div>
+        </div>
+
+        <p id="activation-search-error" class="field-error mt-2" role="alert" hidden></p>
     </section>
 
     <section class="card min-w-0 p-0" aria-labelledby="activation-grid-heading">
