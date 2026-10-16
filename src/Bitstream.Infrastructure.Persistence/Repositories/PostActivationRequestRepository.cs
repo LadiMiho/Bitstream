@@ -38,21 +38,60 @@ public sealed class PostActivationRequestRepository : IPostActivationRequestRepo
             .Include(r => r.Isp)
             .FirstOrDefaultAsync(r => r.PublicId == publicId, cancellationToken);
 
-    public async Task<IReadOnlyList<PostActivationRequest>> SearchAsync(long? ispId, CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<PostActivationRequest> Items, int TotalCount)> SearchAsync(
+        PostActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(filter);
+
         var query = _dbContext.PostActivationRequests.AsNoTracking().Include(r => r.Isp).AsQueryable();
 
-        if (ispId is { } id)
+        if (filter.IspId is { } id)
         {
             query = query.Where(r => r.IspId == id);
         }
 
-        return await query
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = filter.Search.Trim().ToUpper();
+            query = query.Where(r => r.PublicId.ToUpper().Contains(pattern) || r.Phonenumber.ToUpper().Contains(pattern));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            query = query.Where(r => r.Status == filter.Status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Classification1Code))
+        {
+            query = query.Where(r => r.Classification1Code == filter.Classification1Code);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Classification2Code))
+        {
+            query = query.Where(r => r.Classification2Code == filter.Classification2Code);
+        }
+
+        if (filter.SubmittedFrom is { } from)
+        {
+            query = query.Where(r => r.CreatedAt >= from);
+        }
+
+        if (filter.SubmittedBefore is { } before)
+        {
+            query = query.Where(r => r.CreatedAt < before);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var items = await query
             .OrderByDescending(r => r.CreatedAt)
             .ThenByDescending(r => r.RequestId)
-            .Take(500)
+            .Skip(skip)
+            .Take(take)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        return (items, totalCount);
     }
 
     public async Task<IReadOnlyList<IntegrationMessage>> GetMessagesAsync(string publicId, CancellationToken cancellationToken = default) =>

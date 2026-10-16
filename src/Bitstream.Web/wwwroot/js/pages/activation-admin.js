@@ -79,7 +79,7 @@ let currentTotalCount = 0;
 
 // --- Icons (inline, no icon font/library) -----------------------------------------------
 const ICONS = {
-  gis: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M10 17s6-5.5 6-9.5A6 6 0 1 0 4 7.5C4 11.5 10 17 10 17Z"/><circle cx="10" cy="7.5" r="2"/></svg>',
+  view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
   confirm: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="m6.5 10 2.5 2.5 4.5-5"/></svg>',
   serviceDesk: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M4 11V9a6 6 0 0 1 12 0v2"/><rect x="2.5" y="11" width="3.5" height="5" rx="1"/><rect x="14" y="11" width="3.5" height="5" rx="1"/></svg>',
   kebab: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
@@ -157,14 +157,14 @@ function openView(publicId) {
   openDrawer(`${publicId} — details`, `/ActivationRequests/${encodeURIComponent(publicId)}/ViewDrawer`);
 }
 
-/** The steps a row offers besides View (which is the row click itself), for this user and status. */
+/**
+ * The row's ⋮ menu: View, then the steps this user may take at this status. The GIS outcome is
+ * not one of them — CRM reports it through the API (LINE_AVAILABLE / NO_LINE).
+ */
 function rowActions(request, permissions) {
   const id = encodeURIComponent(request.publicId);
-  const actions = [];
+  const actions = [['View', ICONS.view, `${request.publicId} — details`, `/ActivationRequests/${id}/ViewDrawer`]];
 
-  if (permissions.canRecordGis && request.status === 'AwaitingGisVerification') {
-    actions.push(['Record GIS outcome', ICONS.gis, `GIS outcome — ${request.publicId}`, `/ActivationRequests/${id}/GisOutcomeDrawer`]);
-  }
   if (permissions.canConfirm && request.status === 'AwaitingOperatorConfirmation') {
     actions.push(['Confirm activation', ICONS.confirm, `Confirm activation — ${request.publicId}`, `/ActivationRequests/${id}/OperatorConfirmationDrawer`]);
   }
@@ -179,7 +179,6 @@ function renderResults(items) {
   const root = el('[data-role="activation-admin-page"]');
   const showIsp = root.dataset.showIsp === 'true';
   const permissions = {
-    canRecordGis: root.dataset.canRecordGis === 'true',
     canConfirm: root.dataset.canConfirm === 'true',
     canServiceDeskDecide: root.dataset.canServiceDeskDecide === 'true'
   };
@@ -228,30 +227,28 @@ function renderResults(items) {
     const actionsCell = cell('w-12 text-right');
     const actions = rowActions(request, permissions);
 
-    if (actions.length > 0) {
-      const trigger = document.createElement('button');
-      trigger.type = 'button';
-      trigger.className = 'icon-button';
-      trigger.setAttribute('aria-label', `Actions for ${request.publicId}`);
-      trigger.innerHTML = ICONS.kebab;
-      trigger.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const alreadyOpen = openMenuTrigger === trigger;
-        closeAllMenus();
-        if (alreadyOpen) {
-          return;
-        }
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'icon-button';
+    trigger.setAttribute('aria-label', `Actions for ${request.publicId}`);
+    trigger.innerHTML = ICONS.kebab;
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const alreadyOpen = openMenuTrigger === trigger;
+      closeAllMenus();
+      if (alreadyOpen) {
+        return;
+      }
 
-        const menu = document.createElement('div');
-        menu.className = 'menu-panel';
-        for (const [label, icon, title, url] of actions) {
-          menu.appendChild(menuItem(label, icon, () => openDrawer(title, url)));
-        }
-        openRowMenu(trigger, menu);
-      });
-      trigger.addEventListener('keydown', (event) => event.stopPropagation());
-      actionsCell.appendChild(trigger);
-    }
+      const menu = document.createElement('div');
+      menu.className = 'menu-panel';
+      for (const [label, icon, title, url] of actions) {
+        menu.appendChild(menuItem(label, icon, () => openDrawer(title, url)));
+      }
+      openRowMenu(trigger, menu);
+    });
+    trigger.addEventListener('keydown', (event) => event.stopPropagation());
+    actionsCell.appendChild(trigger);
 
     row.appendChild(actionsCell);
     body.appendChild(row);

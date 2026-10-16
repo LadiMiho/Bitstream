@@ -183,13 +183,15 @@ public sealed class PostActivationRequestTests
         Assert.Equal(PostActivationRequestStatus.Submitted, sent.Status);
         Assert.NotNull(sent.CrmTicketId);
 
-        var ownList = await ispClient.GetStringAsync(new Uri("/PostActivation", UriKind.Relative));
-        Assert.Contains(sent.PublicId, ownList, StringComparison.Ordinal);
-        Assert.Contains(sent.CrmTicketId!, ownList, StringComparison.Ordinal);
+        var ownList = await ispClient.GetFromJsonAsync<PostActivationRequestListResponse>(new Uri("/PostActivation/Search", UriKind.Relative));
+        var ownRow = Assert.Single(ownList!.Items);
+        Assert.Equal(sent.PublicId, ownRow.PublicId);
+        Assert.Equal(sent.CrmTicketId, ownRow.CrmTicketId);
+        Assert.Equal("Submitted to CRM", ownRow.StatusLabel);
 
         using var otherClient = await SignInAsync(portal, OtherIspUserEmail);
-        var otherList = await otherClient.GetStringAsync(new Uri("/PostActivation", UriKind.Relative));
-        Assert.DoesNotContain(sent.PublicId, otherList, StringComparison.Ordinal);
+        var otherList = await otherClient.GetFromJsonAsync<PostActivationRequestListResponse>(new Uri("/PostActivation/Search", UriKind.Relative));
+        Assert.Empty(otherList!.Items);
 
         using var otherView = await otherClient.GetAsync(new Uri($"/PostActivation/Requests/{sent.PublicId}/ViewDrawer", UriKind.Relative));
         Assert.Equal(HttpStatusCode.NotFound, otherView.StatusCode);

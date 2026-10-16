@@ -1,23 +1,27 @@
-@model IReadOnlyList<Bitstream.Domain.Entities.PostActivationRequest>
+@model Bitstream.Application.Services.PostActivation.PostActivationFilterOptions
 @{
     ViewData["Title"] = "Post-Activation Support";
     var canCreate = (bool)(ViewBag.CanCreate ?? false);
     var canManageClassifications = (bool)(ViewBag.CanManageClassifications ?? false);
-    var showIsp = (bool)(ViewBag.ShowIsp ?? false);
+    var showIsp = Model.Isps is not null;
 }
 
-<div class="grid gap-6" data-role="post-activation-page">
+<div class="grid gap-6" data-role="post-activation-page" data-show-isp="@showIsp.ToString().ToLowerInvariant()">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h1 class="text-xl font-semibold">Post-Activation Support</h1>
             <p class="mt-1 text-sm text-ink-muted">Requests for an active line, sent to CRM by phone number and classification.</p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             @if (canManageClassifications)
             {
                 <a href="/PostActivation/Classifications" class="btn-secondary">Classifications</a>
             }
+            <button type="button" id="pa-export-button" class="btn-secondary" title="Download every request matching the search and filters, all pages">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v2h12v-2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                Export to Excel
+            </button>
             @if (canCreate)
             {
                 <button type="button" class="btn-primary" data-post-activation-action="new">New request</button>
@@ -25,62 +29,151 @@
         </div>
     </div>
 
-    <section class="card min-w-0 p-0" aria-labelledby="post-activation-heading">
-        <h2 id="post-activation-heading" class="sr-only">Post-activation requests</h2>
+    @* Search, the Filters popup and the applied-filter pills, in their own card above the grid. *@
+    <section class="card min-w-0 px-5 py-4" aria-labelledby="pa-filters-heading">
+        <h2 id="pa-filters-heading" class="sr-only">Search and filters</h2>
 
-        @if (Model.Count == 0)
-        {
-            <div class="px-6 py-10">
-                <partial name="_EmptyState" model="@(canCreate
-                    ? new EmptyStateModel(EmptyStateIcons.Inbox, "No post-activation requests yet",
-                        "Pick a phone number and a classification to send a request to CRM.",
-                        ActionLabel: "New request", ActionAttributes: "data-post-activation-action=\"new\"")
-                    : new EmptyStateModel(EmptyStateIcons.Inbox, "No post-activation requests yet",
-                        "Requests submitted for active lines will appear here."))" />
-            </div>
-        }
-        else
-        {
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead>
-                        <tr>
-                            <th class="table-head">Request</th>
-                            @if (showIsp)
+        <div class="flex flex-wrap items-center gap-3">
+            <form id="pa-search-form" class="search-input-group flex-1 min-w-[16rem] max-w-sm" novalidate>
+                <label class="sr-only" for="pa-search-query">Search by request ID or phone number</label>
+                <span class="search-input-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><circle cx="9" cy="9" r="6" /><path d="m17 17-3.5-3.5" stroke-linecap="round" /></svg>
+                </span>
+                <input class="field-input mt-0" id="pa-search-query" name="search" type="search" placeholder="Search by request ID or phone number" />
+            </form>
+
+            <div class="relative">
+                <button type="button" id="pa-filters-button" class="btn-secondary" aria-expanded="false" aria-controls="pa-filters-panel">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="M3 4h14M6 10h8M9 16h2" stroke-linecap="round" /></svg>
+                    Filters
+                    <span id="pa-filters-count" class="badge bg-brand-50 text-brand-700" hidden>0</span>
+                </button>
+
+                <div id="pa-filters-panel" class="popover-panel" hidden>
+                    <form id="pa-filters-form" novalidate>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="pa-filter-status">Status</label>
+                                <select class="field-input" id="pa-filter-status" name="status">
+                                    <option value="">All</option>
+                                    @foreach (var status in new[] { Bitstream.Domain.Entities.PostActivationRequestStatus.PendingCrmSync, Bitstream.Domain.Entities.PostActivationRequestStatus.Submitted, Bitstream.Domain.Entities.PostActivationRequestStatus.AlreadyExists, Bitstream.Domain.Entities.PostActivationRequestStatus.Failed })
+                                    {
+                                        <option value="@status">@PostActivationRequestLabels.For(status)</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (Model.Isps is not null)
                             {
-                                <th class="table-head">ISP</th>
+                                <div class="sm:col-span-2">
+                                    <label class="field-label" for="pa-filter-isp">ISP</label>
+                                    <select class="field-input" id="pa-filter-isp" name="ispId">
+                                        <option value="">All</option>
+                                        @foreach (var isp in Model.Isps)
+                                        {
+                                            <option value="@isp.Value">@isp.Label</option>
+                                        }
+                                    </select>
+                                </div>
                             }
-                            <th class="table-head">Phone number</th>
-                            <th class="table-head">Classification</th>
-                            <th class="table-head">Status</th>
-                            <th class="table-head">CRM ticket</th>
-                            <th class="table-head">Submitted</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var request in Model)
-                        {
-                            <tr class="cursor-pointer border-t border-line hover:bg-surface-muted" tabindex="0"
-                                data-post-activation-action="view" data-public-id="@request.PublicId">
-                                <td class="table-cell font-medium text-brand-700">@request.PublicId</td>
-                                @if (showIsp)
-                                {
-                                    <td class="table-cell">@request.Isp?.Name</td>
-                                }
-                                <td class="table-cell font-mono text-xs">@request.Phonenumber</td>
-                                <td class="table-cell">
-                                    <div class="text-ink">@request.Classification3Name</div>
-                                    <div class="text-xs text-ink-muted">@request.Classification1Name › @request.Classification2Name · <span class="font-mono">@request.Classification3Code</span></div>
-                                </td>
-                                <td class="table-cell whitespace-nowrap"><span class="@PostActivationRequestLabels.PillClass(request.Status)">@PostActivationRequestLabels.For(request.Status)</span></td>
-                                <td class="table-cell font-mono text-xs">@(request.CrmTicketId ?? "—")</td>
-                                <td class="table-cell whitespace-nowrap text-ink-muted">@request.CreatedAt.ToString("g")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="pa-filter-type">Request type</label>
+                                <select class="field-input" id="pa-filter-type" name="classification1Code">
+                                    <option value="">All</option>
+                                    @foreach (var type in Model.RequestTypes)
+                                    {
+                                        <option value="@type.Value">@type.Label</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="pa-filter-category">Category</label>
+                                <select class="field-input" id="pa-filter-category" name="classification2Code">
+                                    <option value="">All</option>
+                                    @foreach (var category in Model.Categories)
+                                    {
+                                        <option value="@category.Value">@category.Label</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="pa-filter-from">Submitted from</label>
+                                <input class="field-input" id="pa-filter-from" name="submittedFrom" type="date" />
+                            </div>
+                            <div>
+                                <label class="field-label" for="pa-filter-to">Submitted to</label>
+                                <input class="field-input" id="pa-filter-to" name="submittedTo" type="date" />
+                            </div>
+                        </div>
+                        <div class="mt-4 flex justify-end gap-2">
+                            <button type="button" id="pa-filters-reset" class="btn-secondary">Reset</button>
+                            <button type="submit" class="btn-primary">Apply</button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        }
+
+            <div id="pa-filter-chips" class="flex flex-wrap items-center gap-2"></div>
+        </div>
+
+        <p id="pa-search-error" class="field-error mt-2" role="alert" hidden></p>
+    </section>
+
+    <section class="card min-w-0 p-0" aria-labelledby="pa-grid-heading">
+        <h2 id="pa-grid-heading" class="sr-only">Post-activation requests</h2>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Request</th>
+                        @if (showIsp)
+                        {
+                            <th class="table-head">ISP</th>
+                        }
+                        <th class="table-head">Phone number</th>
+                        <th class="table-head">Classification</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head">CRM ticket</th>
+                        <th class="table-head">Submitted</th>
+                        <th class="table-head w-12"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody id="pa-search-results"></tbody>
+            </table>
+        </div>
+
+        @* Two placeholders for an empty grid; the page script shows the one that fits. *@
+        <div class="px-6 py-10" id="pa-empty-wrapper" hidden>
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "No post-activation requests yet",
+                canCreate ? "Pick a phone number and a classification to send a request to CRM." : "Requests submitted for active lines will appear here.",
+                ActionLabel: canCreate ? "New request" : null, ActionAttributes: "data-post-activation-action=\"new\"", Id: "pa-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Search, "No post-activation requests match",
+                "Try a different search, or clear the search and filters.",
+                ActionLabel: "Clear search and filters", ActionAttributes: "data-empty-clear", Id: "pa-empty-filtered", Hidden: true))" />
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-3 text-sm text-ink-muted">
+            <span id="pa-search-summary"></span>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2">
+                    <span>Per page</span>
+                    <select id="pa-page-size" class="field-input mt-0 w-auto py-1.5">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+                </label>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="pa-search-prev" class="icon-button" disabled aria-label="Previous page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m12 4-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <span id="pa-page-number" class="min-w-[2rem] rounded-md bg-brand-600 px-2.5 py-1 text-center text-xs font-semibold text-white">1</span>
+                    <button type="button" id="pa-search-next" class="icon-button" disabled aria-label="Next page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m8 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
     </section>
 </div>
 

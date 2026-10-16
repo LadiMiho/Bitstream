@@ -151,7 +151,8 @@ drawerBody.addEventListener('submit', async (event) => {
   try {
     await api.post(BASE, body);
     closeDrawer();
-    window.location.reload();
+    currentSkip = 0;
+    search();
   } catch (error) {
     showFieldErrors(form, error);
   } finally {
@@ -161,31 +162,375 @@ drawerBody.addEventListener('submit', async (event) => {
   }
 });
 
+// --- Grid: search, Filters popup + pills, paging, export (same structure as activation-admin.js)
+let currentSkip = 0;
+let currentSearch = '';
+// The Filters popup's applied values, keyed by the form field / query parameter name.
+let currentFilters = {};
+let currentPageSize = 20;
+let currentTotalCount = 0;
+
+const el = (selector) => document.querySelector(selector);
+
+const ICONS = {
+  view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
+  kebab: '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg>'
+};
+
+const FILTER_LABELS = {
+  status: 'Status',
+  ispId: 'ISP',
+  classification1Code: 'Request type',
+  classification2Code: 'Category',
+  submittedFrom: 'Submitted from',
+  submittedTo: 'Submitted to'
+};
+
+function describeError(error) {
+  if (!(error instanceof ApiError)) {
+    reportClientError('post-activation', error);
+    return 'Something went wrong. Please try again.';
+  }
+  const fieldMessages = Object.values(error.errors).flat();
+  return fieldMessages.length > 0 ? fieldMessages.join(' ') : error.message;
+}
+
+let openMenuTrigger = null;
+
+function closeAllMenus() {
+  document.querySelectorAll('.menu-panel').forEach((panel) => panel.remove());
+  openMenuTrigger = null;
+}
+
+/** Row menus are appended to <body> with fixed positioning, so they never resize the scrolling grid. */
+function openRowMenu(trigger, menu) {
+  menu.style.position = 'fixed';
+  menu.style.visibility = 'hidden';
+  document.body.appendChild(menu);
+
+  const triggerRect = trigger.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const left = Math.min(triggerRect.right - menuRect.width, window.innerWidth - menuRect.width - 8);
+  const top = triggerRect.bottom + menuRect.height <= window.innerHeight
+    ? triggerRect.bottom + 4
+    : triggerRect.top - menuRect.height - 4;
+
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+  menu.style.visibility = '';
+  openMenuTrigger = trigger;
+}
+
+document.addEventListener('click', closeAllMenus);
+window.addEventListener('scroll', closeAllMenus, true);
+window.addEventListener('resize', closeAllMenus);
+
+function menuItem(label, icon, handler) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'menu-item';
+  button.innerHTML = `${icon}<span>${label}</span>`;
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeAllMenus();
+    handler();
+  });
+  return button;
+}
+
+function openView(publicId) {
+  openDrawer(`Request ${publicId}`, `${BASE}/Requests/${encodeURIComponent(publicId)}/ViewDrawer`);
+}
+
+function cell(className, text) {
+  const td = document.createElement('td');
+  td.className = `table-cell ${className}`.trim();
+  if (text !== undefined) {
+    td.textContent = text;
+  }
+  return td;
+}
+
+function renderResults(items) {
+  const showIsp = el('[data-role="post-activation-page"]').dataset.showIsp === 'true';
+  const body = el('#pa-search-results');
+  body.replaceChildren();
+
+  for (const request of items) {
+    const row = document.createElement('tr');
+    row.className = 'cursor-pointer border-t border-line hover:bg-surface-muted';
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `View ${request.publicId}`);
+    row.addEventListener('click', () => openView(request.publicId));
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target === row) {
+        openView(request.publicId);
+      }
+    });
+
+    row.appendChild(cell('font-medium text-brand-700', request.publicId));
+    if (showIsp) {
+      row.appendChild(cell('', request.ispName));
+    }
+    row.appendChild(cell('font-mono text-xs', request.phonenumber));
+
+    const classification = cell('');
+    const detail = document.createElement('div');
+    detail.className = 'text-ink';
+    detail.textContent = request.classification3Name;
+    const path = document.createElement('div');
+    path.className = 'text-xs text-ink-muted';
+    path.textContent = `${request.classification1Name} › ${request.classification2Name}`;
+    classification.append(detail, path);
+    row.appendChild(classification);
+
+    const statusCell = cell('whitespace-nowrap');
+    const pill = document.createElement('span');
+    pill.className = request.statusClass;
+    pill.textContent = request.statusLabel;
+    statusCell.appendChild(pill);
+    row.appendChild(statusCell);
+
+    row.appendChild(cell('font-mono text-xs', request.crmTicketId ?? '—'));
+
+    const created = new Date(request.createdAt);
+    row.appendChild(cell('whitespace-nowrap text-ink-muted',
+      `${created.toLocaleDateString()} ${created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`));
+
+    const actionsCell = cell('w-12 text-right');
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'icon-button';
+    trigger.setAttribute('aria-label', `Actions for ${request.publicId}`);
+    trigger.innerHTML = ICONS.kebab;
+    trigger.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const alreadyOpen = openMenuTrigger === trigger;
+      closeAllMenus();
+      if (alreadyOpen) {
+        return;
+      }
+      const menu = document.createElement('div');
+      menu.className = 'menu-panel';
+      menu.appendChild(menuItem('View', ICONS.view, () => openView(request.publicId)));
+      openRowMenu(trigger, menu);
+    });
+    trigger.addEventListener('keydown', (event) => event.stopPropagation());
+    actionsCell.appendChild(trigger);
+    row.appendChild(actionsCell);
+
+    body.appendChild(row);
+  }
+}
+
+/** Local midnight of a yyyy-mm-dd date, plus `addDays`, as an ISO instant. */
+function localMidnight(date, addDays = 0) {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day + addDays).toISOString();
+}
+
+/** The search box and the applied filters as query parameters — the same for the grid and the export. */
+function queryParams() {
+  const params = new URLSearchParams();
+  if (currentSearch) params.set('search', currentSearch);
+
+  for (const [key, value] of Object.entries(currentFilters)) {
+    if (key === 'submittedFrom') {
+      params.set('submittedFrom', localMidnight(value));
+    } else if (key === 'submittedTo') {
+      params.set('submittedBefore', localMidnight(value, 1));
+    } else {
+      params.set(key, value);
+    }
+  }
+
+  return params;
+}
+
+async function search() {
+  const searchError = el('#pa-search-error');
+  showError(searchError, '');
+
+  try {
+    const params = queryParams();
+    params.set('skip', String(currentSkip));
+    params.set('take', String(currentPageSize));
+
+    const result = await api.get(`${BASE}/Search?${params}`);
+    currentTotalCount = result.totalCount;
+
+    renderResults(result.items);
+    showEmptyState(result.items.length === 0);
+
+    const shown = result.items.length === 0 ? 0 : currentSkip + 1;
+    const shownTo = currentSkip + result.items.length;
+    el('#pa-search-summary').textContent =
+      result.totalCount === 0 ? 'No results' : `Showing ${shown}–${shownTo} of ${result.totalCount}`;
+    el('#pa-search-prev').disabled = currentSkip === 0;
+    el('#pa-search-next').disabled = currentSkip + currentPageSize >= result.totalCount;
+    el('#pa-page-number').textContent = String(Math.floor(currentSkip / currentPageSize) + 1);
+  } catch (error) {
+    showError(searchError, describeError(error));
+  }
+}
+
+function showEmptyState(isEmpty) {
+  const filtered = Boolean(currentSearch || Object.keys(currentFilters).length > 0);
+  el('#pa-search-results').closest('table').hidden = isEmpty;
+  el('#pa-empty-wrapper').hidden = !isEmpty;
+  el('#pa-empty-none').hidden = !(isEmpty && !filtered);
+  el('#pa-empty-filtered').hidden = !(isEmpty && filtered);
+}
+
+// --- Filters popover ---------------------------------------------------------------------
+function filterLabel(key, value) {
+  const field = el(`#pa-filters-form [name="${key}"]`);
+  if (field instanceof HTMLSelectElement) {
+    const option = [...field.options].find((candidate) => candidate.value === value);
+    return option ? option.textContent.trim() : value;
+  }
+  if (key === 'submittedFrom' || key === 'submittedTo') {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString();
+  }
+  return value;
+}
+
+function applyFilters(filters) {
+  currentFilters = filters;
+  for (const field of el('#pa-filters-form').elements) {
+    if (field.name) {
+      field.value = currentFilters[field.name] ?? '';
+    }
+  }
+  currentSkip = 0;
+  renderFilterChips();
+  search();
+}
+
+function renderFilterChips() {
+  const container = el('#pa-filter-chips');
+  container.replaceChildren();
+
+  const active = Object.entries(currentFilters);
+  const countBadge = el('#pa-filters-count');
+  countBadge.hidden = active.length === 0;
+  countBadge.textContent = String(active.length);
+
+  for (const [key, value] of active) {
+    const label = `${FILTER_LABELS[key] ?? key}: ${filterLabel(key, value)}`;
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    const text = document.createElement('span');
+    text.textContent = label;
+    chip.appendChild(text);
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.setAttribute('aria-label', `Clear ${label}`);
+    clear.textContent = '×';
+    clear.addEventListener('click', () => {
+      const remaining = { ...currentFilters };
+      delete remaining[key];
+      applyFilters(remaining);
+    });
+    chip.appendChild(clear);
+    container.appendChild(chip);
+  }
+
+  if (active.length > 0) {
+    const clearAll = document.createElement('button');
+    clearAll.type = 'button';
+    clearAll.className = 'text-sm text-brand-600 underline';
+    clearAll.textContent = 'Clear';
+    clearAll.addEventListener('click', () => applyFilters({}));
+    container.appendChild(clearAll);
+  }
+}
+
+function initFilters() {
+  const button = el('#pa-filters-button');
+  const panel = el('#pa-filters-panel');
+  const form = el('#pa-filters-form');
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const isHidden = panel.hidden;
+    panel.hidden = !isHidden;
+    button.setAttribute('aria-expanded', String(isHidden));
+  });
+
+  panel.addEventListener('click', (event) => event.stopPropagation());
+
+  document.addEventListener('click', () => {
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const filters = {};
+    for (const [key, value] of new FormData(form)) {
+      if (String(value).trim()) {
+        filters[key] = String(value).trim();
+      }
+    }
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    applyFilters(filters);
+  });
+
+  el('#pa-filters-reset').addEventListener('click', () => form.reset());
+
+  // All pages of the current search + filters, built server-side as an .xlsx download.
+  el('#pa-export-button')?.addEventListener('click', () => {
+    window.location.href = `${BASE}/Export?${queryParams()}`;
+  });
+}
+
 function init() {
-  const root = document.querySelector('[data-role="post-activation-page"]');
+  const root = el('[data-role="post-activation-page"]');
   if (!root) {
     return;
   }
 
-  const handle = (target) => {
-    const trigger = target.closest('[data-post-activation-action]');
-    if (!trigger) {
-      return;
-    }
-    if (trigger.dataset.postActivationAction === 'new') {
+  root.addEventListener('click', (event) => {
+    if (event.target.closest('[data-post-activation-action="new"]')) {
       openDrawer('New post-activation request', `${BASE}/NewDrawer`);
-    } else if (trigger.dataset.postActivationAction === 'view') {
-      const publicId = trigger.dataset.publicId;
-      openDrawer(`Request ${publicId}`, `${BASE}/Requests/${encodeURIComponent(publicId)}/ViewDrawer`);
-    }
-  };
-
-  root.addEventListener('click', (event) => handle(event.target));
-  root.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && event.target.matches('tr[data-post-activation-action]')) {
-      handle(event.target);
     }
   });
+
+  el('#pa-search-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    currentSearch = el('#pa-search-query').value.trim();
+    currentSkip = 0;
+    search();
+  });
+
+  el('#pa-page-size').addEventListener('change', (event) => {
+    currentPageSize = Number(event.target.value);
+    currentSkip = 0;
+    search();
+  });
+
+  el('#pa-search-prev').addEventListener('click', () => {
+    currentSkip = Math.max(0, currentSkip - currentPageSize);
+    search();
+  });
+  el('#pa-search-next').addEventListener('click', () => {
+    if (currentSkip + currentPageSize < currentTotalCount) {
+      currentSkip += currentPageSize;
+      search();
+    }
+  });
+
+  el('#pa-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
+    currentSearch = '';
+    el('#pa-search-query').value = '';
+    applyFilters({});
+  });
+
+  initFilters();
+  search();
 }
 
 init();

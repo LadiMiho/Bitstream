@@ -25,6 +25,18 @@ public sealed record PostActivationFormOptions(
     IReadOnlyList<string> PhoneNumbers,
     IReadOnlyList<SupportClassificationNode> Classifications);
 
+/// <summary>One choice of a filter dropdown.</summary>
+public sealed record FilterOption(string Value, string Label);
+
+/// <summary>What the Post-Activation Filters popup offers.</summary>
+/// <param name="Isps">Every ISP for <c>ticket.read.all</c>; null for anyone else (they only see their own ISP).</param>
+/// <param name="RequestTypes">Level-1 classifications, inactive ones included and marked.</param>
+/// <param name="Categories">Level-2 classifications, labelled "Type › Category".</param>
+public sealed record PostActivationFilterOptions(
+    IReadOnlyList<FilterOption>? Isps,
+    IReadOnlyList<FilterOption> RequestTypes,
+    IReadOnlyList<FilterOption> Categories);
+
 /// <summary>A request with its CRM communication, for the View drawer.</summary>
 public sealed record PostActivationRequestDetails(PostActivationRequest Request, IReadOnlyList<IntegrationMessage> Messages);
 
@@ -35,8 +47,17 @@ public interface IPostActivationRequestService
     /// <summary>Validates, saves the request as PendingCrmSync and queues INT-CRM-11.</summary>
     Task<PostActivationRequest> CreateAsync(string phonenumber, long classificationId, string? note, CancellationToken cancellationToken = default);
 
-    /// <summary><c>ticket.read.all</c> sees every ISP's requests; anyone else only their own ISP's.</summary>
-    Task<IReadOnlyList<PostActivationRequest>> SearchAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The grid: <c>ticket.read.all</c> sees every ISP's requests; anyone else only their own ISP's,
+    /// whatever ISP filter was asked for.
+    /// </summary>
+    Task<PagedResult<PostActivationRequest>> SearchAsync(PostActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>Every request matching <paramref name="filter"/> (same ownership rule), for the Excel export, capped at <see cref="PostActivationRequestService.MaxExportRows"/>.</summary>
+    Task<PagedResult<PostActivationRequest>> ExportAsync(PostActivationRequestSearchFilter filter, CancellationToken cancellationToken = default);
+
+    /// <summary>The Filters popup's choices for the current user.</summary>
+    Task<PostActivationFilterOptions> GetFilterOptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Null when it does not exist or belongs to another ISP (not-found, never forbidden).</summary>
     Task<PostActivationRequestDetails?> GetAsync(string publicId, CancellationToken cancellationToken = default);
@@ -56,6 +77,9 @@ public sealed class PostActivationRequestService : IPostActivationRequestService
     public const string InterfaceCode = "INT-CRM-11";
     public const string MessageType = "CREATE_TICKET_BYPHONENR";
     public const int MaxNoteLength = 4000;
+
+    /// <summary>The most rows one Excel export returns; the file says so when there were more.</summary>
+    public const int MaxExportRows = 50_000;
     private const string EntityType = "PostActivationRequest";
 
     private readonly IPostActivationRequestRepository _repository;
@@ -197,8 +221,55 @@ public sealed class PostActivationRequestService : IPostActivationRequestService
         return request;
     }
 
-    public Task<IReadOnlyList<PostActivationRequest>> SearchAsync(CancellationToken cancellationToken = default) =>
-        _repository.SearchAsync(CanReadAll ? null : _currentUser.IspId ?? -1, cancellationToken);
+    public async Task<PagedResult<PostActivationRequest>> SearchAsync(
+        PostActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        if (!CanReadAll)
+        {
+            if (_currentUser.IspId is not { } ownIspId)
+            {
+                return new PagedResult<PostActivationRequest>([], 0);
+            }
+
+            filter = filter with { IspId = ownIspId };
+        }
+
+        var (items, totalCount) = await _repository.SearchAsync(filter, skip, take, cancellationToken).ConfigureAwait(false);
+        return new PagedResult<PostActivationRequest>(items, totalCount);
+    }
+
+    public Task<PagedResult<PostActivationRequest>> ExportAsync(PostActivationRequestSearchFilter filter, CancellationToken cancellationToken = default) =>
+        SearchAsync(filter, 0, MaxExportRows, cancellationToken);
+
+    public async Task<PostActivationFilterOptions> GetFilterOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<FilterOption>? isps = null;
+
+        if (CanReadAll)
+        {
+            var (all, _) = await _isps.SearchAsync(search: null, status: null, skip: 0, take: 1000, cancellationToken).ConfigureAwait(false);
+            isps = [.. all.OrderBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(i => new FilterOption(i.IspId.ToString(CultureInfo.InvariantCulture), i.Name))];
+        }
+
+        var classifications = await _classifications.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        static string Label(SupportClassification c) => c.IsActive ? c.Name : $"{c.Name} (inactive)";
+        static IOrderedEnumerable<SupportClassification> Ordered(IEnumerable<SupportClassification> items) =>
+            items.OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase);
+
+        var types = Ordered(classifications.Where(c => c.Level == 1)).ToList();
+        var categories = types
+            .SelectMany(type => Ordered(classifications.Where(c => c.Level == 2 && c.ParentId == type.ClassificationId))
+                .Select(category => new FilterOption(category.Code, $"{type.Name} › {Label(category)}")))
+            .ToList();
+
+        return new PostActivationFilterOptions(
+            isps,
+            [.. types.Select(type => new FilterOption(type.Code, Label(type)))],
+            categories);
+    }
 
     public async Task<PostActivationRequestDetails?> GetAsync(string publicId, CancellationToken cancellationToken = default)
     {

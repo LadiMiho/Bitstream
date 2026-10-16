@@ -99,8 +99,13 @@ public interface IPostActivationRequestRepository
 
     Task<PostActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
-    /// <summary>Newest first, with the ISP loaded; one ISP's only when <paramref name="ispId"/> is given.</summary>
-    Task<IReadOnlyList<PostActivationRequest>> SearchAsync(long? ispId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The grid's search and filters, newest first, with the ISP loaded. The ISP filter is also
+    /// the ownership scope: the service forces it to the caller's own ISP for anyone without
+    /// <c>ticket.read.all</c>.
+    /// </summary>
+    Task<(IReadOnlyList<PostActivationRequest> Items, int TotalCount)> SearchAsync(
+        PostActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default);
 
     /// <summary>Every outbox message about the request (its public id), oldest first, for the View drawer.</summary>
     Task<IReadOnlyList<IntegrationMessage>> GetMessagesAsync(string publicId, CancellationToken cancellationToken = default);
@@ -108,3 +113,20 @@ public interface IPostActivationRequestRepository
     /// <summary>Stages a new request; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
     Task AddAsync(PostActivationRequest request, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The Post-Activation grid's search box and Filters popup; every criterion is optional and they combine with AND.</summary>
+/// <param name="Search">Case-insensitive substring of the request ID or the phone number.</param>
+/// <param name="Status">Exact <see cref="PostActivationRequestStatus"/> code.</param>
+/// <param name="IspId">One ISP's requests.</param>
+/// <param name="Classification1Code">Request type (level 1).</param>
+/// <param name="Classification2Code">Category (level 2).</param>
+/// <param name="SubmittedFrom">Submitted at or after this instant.</param>
+/// <param name="SubmittedBefore">Submitted before this instant (the day after the "to" date).</param>
+public sealed record PostActivationRequestSearchFilter(
+    string? Search = null,
+    string? Status = null,
+    long? IspId = null,
+    string? Classification1Code = null,
+    string? Classification2Code = null,
+    DateTimeOffset? SubmittedFrom = null,
+    DateTimeOffset? SubmittedBefore = null);

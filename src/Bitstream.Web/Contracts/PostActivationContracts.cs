@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Bitstream.Web.Contracts;
 
@@ -78,3 +79,51 @@ public sealed record CreatePostActivationRequestHttpRequest(
     [property: JsonPropertyName("phonenumber")] string Phonenumber,
     [property: JsonPropertyName("classificationId")] long ClassificationId,
     [property: JsonPropertyName("note")] string? Note);
+
+/// <summary>The Post-Activation grid's search box and Filters popup, shared by Search and Export.</summary>
+public sealed record PostActivationSearchQuery
+{
+    [FromQuery(Name = "search")]
+    public string? Search { get; init; }
+
+    [FromQuery(Name = "status")]
+    public string? Status { get; init; }
+
+    [FromQuery(Name = "ispId")]
+    public long? IspId { get; init; }
+
+    [FromQuery(Name = "classification1Code")]
+    public string? Classification1Code { get; init; }
+
+    [FromQuery(Name = "classification2Code")]
+    public string? Classification2Code { get; init; }
+
+    /// <summary>Submitted at or after: the browser's local midnight of the "from" date.</summary>
+    [FromQuery(Name = "submittedFrom")]
+    public DateTimeOffset? SubmittedFrom { get; init; }
+
+    /// <summary>Submitted before: the browser's local midnight after the "to" date.</summary>
+    [FromQuery(Name = "submittedBefore")]
+    public DateTimeOffset? SubmittedBefore { get; init; }
+}
+
+/// <summary>One grid row; <c>statusLabel</c> and <c>statusClass</c> are the server's presentation of <c>status</c>.</summary>
+public sealed record PostActivationRequestSummaryResponse(
+    [property: JsonPropertyName("publicId")] string PublicId,
+    [property: JsonPropertyName("ispName")] string IspName,
+    [property: JsonPropertyName("phonenumber")] string Phonenumber,
+    [property: JsonPropertyName("classification1Name")] string Classification1Name,
+    [property: JsonPropertyName("classification2Name")] string Classification2Name,
+    [property: JsonPropertyName("classification3Code")] string Classification3Code,
+    [property: JsonPropertyName("classification3Name")] string Classification3Name,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("statusLabel")] string StatusLabel,
+    [property: JsonPropertyName("statusClass")] string StatusClass,
+    [property: JsonPropertyName("crmTicketId")] string? CrmTicketId,
+    [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+
+/// <param name="Items">At most <c>take</c> rows.</param>
+/// <param name="TotalCount">Every matching row, ignoring paging.</param>
+public sealed record PostActivationRequestListResponse(
+    [property: JsonPropertyName("items")] IReadOnlyList<PostActivationRequestSummaryResponse> Items,
+    [property: JsonPropertyName("totalCount")] int TotalCount);
