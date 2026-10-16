@@ -73,7 +73,7 @@ function initClassifications(form) {
   level2.addEventListener('change', () => {
     const parent = byId(tree, level1.value);
     const selected = parent ? byId(parent.children, level2.value) : null;
-    fillSelect(level3, selected ? selected.children : [], selected ? 'Select the detail' : 'Select a category first', (item) => `${item.name} · ${item.code}`);
+    fillSelect(level3, selected ? selected.children : [], selected ? 'Select the detail' : 'Select a category first', (item) => item.name);
   });
 }
 
