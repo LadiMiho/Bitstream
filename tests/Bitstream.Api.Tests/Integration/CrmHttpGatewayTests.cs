@@ -465,4 +465,34 @@ public sealed class CrmHttpGatewayTests
         Assert.False(result.IsSuccess);
         Assert.False(result.IsRetryable);
     }
+    [Fact]
+    public async Task Phone_ticket_answer_names_are_matched_ignoring_case()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse("0", "<string name=\"TicketId\">8009521752</string><string name=\"MESSAGE\">Service ticket created</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("8009521752", result.Value!.TicketId);
+        Assert.Equal("Service ticket created", result.Value.Message);
+    }
+
+    [Fact]
+    public async Task A_phone_ticket_answer_without_a_TicketID_names_what_CRM_did_return()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse("0", "<string name=\"EV_MSG\">Classification not valid</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("EV_MSG=Classification not valid", result.ErrorMessage, StringComparison.Ordinal);
+    }
 }

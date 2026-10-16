@@ -147,7 +147,8 @@ internal static class CrmSoap
             // Not retried: a blind second call could open a duplicate ticket.
             return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
                 "NO_TICKET_ID",
-                $"CRM answered responseCode 0 but returned no TicketID{(string.IsNullOrEmpty(message) ? "." : $": {message}")}");
+                $"CRM answered responseCode 0 but returned no TicketID{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
+                $"CRM returned: {(response.Context.Count == 0 ? "no context values" : Describe(response.Context).Trim(' ', '(', ')'))}.");
         }
 
         return IntegrationResult<CreatePhoneTicketResult>.Success(
@@ -235,12 +236,14 @@ internal static class CrmSoap
             return SoapResponse.Failed($"CRM {operationCode} response has no responseCode.");
         }
 
-        var context = response.Elements().FirstOrDefault(e => e.Name.LocalName == "context")?
-            .Elements()
+        // Every named <string> under the response's context, at any depth, matched by name
+        // ignoring case — CRM's operations do not all nest or capitalise them the same way.
+        var context = response.Descendants()
+            .Where(e => e.Name.LocalName == "context")
+            .SelectMany(e => e.Descendants())
             .Where(e => e.Name.LocalName == "string" && e.Attribute("name") is not null)
-            .GroupBy(e => e.Attribute("name")!.Value, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().Value.Trim(), StringComparer.Ordinal)
-            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            .GroupBy(e => e.Attribute("name")!.Value.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Value.Trim(), StringComparer.OrdinalIgnoreCase);
 
         return new SoapResponse(responseCode, context, null);
     }
