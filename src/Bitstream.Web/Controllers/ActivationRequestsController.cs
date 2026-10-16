@@ -1,6 +1,9 @@
+using Bitstream.Application.Abstractions.Persistence;
+using Bitstream.Application.Configuration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
 using Bitstream.Hosting.Configuration;
 using Bitstream.Hosting.Security;
 using Bitstream.Web.Contracts;
@@ -9,6 +12,7 @@ using Bitstream.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace Bitstream.Web.Controllers;
 
@@ -31,17 +35,35 @@ public sealed class ActivationRequestsController : Controller
 {
     private readonly IActivationRequestService _activationRequestService;
     private readonly IAdministrationService _administrationService;
+    private readonly ICatalogueService _catalogueService;
+    private readonly IOptionsMonitor<WorkingCalendarOptions> _calendarOptions;
 
-    public ActivationRequestsController(IActivationRequestService activationRequestService, IAdministrationService administrationService)
+    public ActivationRequestsController(
+        IActivationRequestService activationRequestService,
+        IAdministrationService administrationService,
+        ICatalogueService catalogueService,
+        IOptionsMonitor<WorkingCalendarOptions> calendarOptions)
     {
         _activationRequestService = activationRequestService;
         _administrationService = administrationService;
+        _catalogueService = catalogueService;
+        _calendarOptions = calendarOptions;
     }
 
     [HttpGet("")]
     [RequireSession]
-    public IActionResult Index()
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
+        // The Filters popup's choices: every package and duration, retired ones included, since
+        // older requests still carry them; the ISP list only for those who see every ISP.
+        var canReadAll = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationReadAll);
+        var catalogue = await _catalogueService.GetOverviewAsync(cancellationToken).ConfigureAwait(false);
+        ViewBag.FilterPackages = catalogue.Packages;
+        ViewBag.FilterDurations = catalogue.ContractDurations;
+        ViewBag.FilterIsps = canReadAll
+            ? await _activationRequestService.GetFilterIspsAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
         ViewData["Title"] = "Activation Requests";
         ViewBag.CanCreate = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationCreate);
         ViewBag.CanRecordGis = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationGisRecord);
@@ -139,17 +161,75 @@ public sealed class ActivationRequestsController : Controller
     [Authorize]
     [EnableRateLimiting(RateLimitPolicies.Administration)]
     public async Task<IActionResult> Search(
-        [FromQuery] string? search,
-        [FromQuery] string? status,
+        [FromQuery] ActivationSearchQuery query,
         [FromQuery] int? skip,
         [FromQuery] int? take,
         CancellationToken cancellationToken)
     {
         var result = await _activationRequestService.SearchAsync(
-            search, status, skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
+            ToFilter(query), skip ?? 0, Math.Clamp(take ?? 50, 1, 200), cancellationToken).ConfigureAwait(false);
 
         return Ok(new ActivationRequestListResponse([.. result.Items.Select(ToSummaryResponse)], result.TotalCount));
     }
+
+    /// <summary>
+    /// Every request matching the grid's current search and filters — all pages, not only the one
+    /// on screen — as an Excel workbook. Same ownership rule as <see cref="Search"/>.
+    /// </summary>
+    [HttpGet("Export")]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Administration)]
+    public async Task<IActionResult> Export([FromQuery] ActivationSearchQuery query, CancellationToken cancellationToken)
+    {
+        var result = await _activationRequestService.ExportAsync(ToFilter(query), cancellationToken).ConfigureAwait(false);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(_calendarOptions.CurrentValue.TimeZoneId);
+        DateTime? Local(DateTimeOffset? value) => value is { } instant ? TimeZoneInfo.ConvertTime(instant, timeZone).DateTime : null;
+        static string? YesNo(bool? value) => value switch { true => "Yes", false => "No", null => null };
+
+        var rows = result.Items.Select(r => new object?[]
+        {
+            r.PublicId, r.Isp.Name, r.PackageCode, r.ContractDurationMonths, r.OfferCode, r.Classification,
+            ActivationStatusLabels.For(r.Status), r.StatusReason,
+            r.LocationRaw, r.LocationLat, r.LocationLng,
+            r.Bp, r.CrmTicketId, r.SalesOrderId,
+            Local(r.CreatedAt), Local(r.LastUpdatedAt), Local(r.LineActivatedAt),
+            YesNo(r.OperatorConfirmed), r.OperatorComment, YesNo(r.ServiceDeskSucceeded), r.ServiceDeskComment,
+            r.Comments
+        });
+
+        if (result.TotalCount > result.Items.Count)
+        {
+            rows = rows.Append([$"Only the first {result.Items.Count:N0} of {result.TotalCount:N0} matching requests are included. Narrow the filters to export the rest."]);
+        }
+
+        var workbook = XlsxWriter.Write(
+            "Activation requests",
+            [
+                "Request", "ISP", "Package", "Contract (months)", "Package + duration code", "Classification",
+                "Status", "Status reason",
+                "Location", "Latitude", "Longitude",
+                "Business partner", "CRM ticket", "Sales order",
+                "Submitted", "Last updated", "Line activated",
+                "Operator confirmed", "Operator comment", "Service desk: activated", "Service desk comment",
+                "Comments"
+            ],
+            rows,
+            [14, 28, 18, 10, 14, 22, 26, 30, 40, 11, 11, 14, 14, 14, 17, 17, 17, 10, 30, 10, 30, 40]);
+
+        var fileName = $"activation-requests-{Local(DateTimeOffset.UtcNow):yyyyMMdd-HHmm}.xlsx";
+
+        return File(workbook, XlsxWriter.ContentType, fileName);
+    }
+
+    private static ActivationRequestSearchFilter ToFilter(ActivationSearchQuery query) =>
+        new(
+            Search: string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim(),
+            Status: Enum.TryParse<ActivationRequestStatus>(query.Status, ignoreCase: false, out var status) ? status : null,
+            IspId: query.IspId,
+            PackageCode: string.IsNullOrWhiteSpace(query.PackageCode) ? null : query.PackageCode,
+            ContractDurationMonths: query.ContractDurationMonths,
+            SubmittedFrom: query.SubmittedFrom,
+            SubmittedBefore: query.SubmittedBefore);
 
     [HttpPost("")]
     [RequireJsonPermission(ActivationPermissionCodes.ActivationCreate)]

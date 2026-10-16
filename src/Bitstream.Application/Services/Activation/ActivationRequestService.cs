@@ -84,6 +84,9 @@ public sealed class ActivationRequestNotFoundException : Exception
 /// </summary>
 public sealed partial class ActivationRequestService : IActivationRequestService
 {
+    /// <summary>The most rows one Excel export returns; the file says so when there were more.</summary>
+    public const int MaxExportRows = 50_000;
+
     private readonly IActivationRequestRepository _requestRepository;
     private readonly IIspRepository _ispRepository;
     private readonly IActivationCatalogueRepository _catalogueRepository;
@@ -350,28 +353,40 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         return (request, ActivationTimeline.Build(request, history, _clock.UtcNow));
     }
 
-    public async Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ActivationRequest>> SearchAsync(ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
     {
-        var parsedStatus = !string.IsNullOrEmpty(status) && Enum.TryParse<ActivationRequestStatus>(status, ignoreCase: false, out var value)
-            ? value
-            : (ActivationRequestStatus?)null;
+        ArgumentNullException.ThrowIfNull(filter);
 
-        if (_currentUser.HasPermission(ActivationPermissionCodes.ActivationReadAll))
+        if (!_currentUser.HasPermission(ActivationPermissionCodes.ActivationReadAll))
         {
-            var (items, totalCount) = await _requestRepository.SearchAsync(search, parsedStatus, ispId: null, skip, take, cancellationToken).ConfigureAwait(false);
-            return new PagedResult<ActivationRequest>(items, totalCount);
+            // Not entitled to browse every ISP's requests: the caller's own ISP is the entire
+            // result set, whatever ISP filter was asked for — the same ownership rule
+            // GetByPublicIdAsync enforces.
+            if (_currentUser.IspId is not { } ownIspId)
+            {
+                return new PagedResult<ActivationRequest>([], 0);
+            }
+
+            filter = filter with { IspId = ownIspId };
         }
 
-        // Not entitled to browse every ISP's requests: the caller's own ISP is the entire result
-        // set, the same ownership rule GetByPublicIdAsync enforces.
-        if (_currentUser.IspId is not { } ownIspId)
-        {
-            return new PagedResult<ActivationRequest>([], 0);
-        }
-
-        var (ownItems, ownTotalCount) = await _requestRepository.SearchAsync(search, parsedStatus, ownIspId, skip, take, cancellationToken).ConfigureAwait(false);
-        return new PagedResult<ActivationRequest>(ownItems, ownTotalCount);
+        var (items, totalCount) = await _requestRepository.SearchAsync(filter, skip, take, cancellationToken).ConfigureAwait(false);
+        return new PagedResult<ActivationRequest>(items, totalCount);
     }
+
+    public async Task<IReadOnlyList<Isp>> GetFilterIspsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_currentUser.HasPermission(ActivationPermissionCodes.ActivationReadAll))
+        {
+            return [];
+        }
+
+        var (isps, _) = await _ispRepository.SearchAsync(search: null, status: null, skip: 0, take: 1000, cancellationToken).ConfigureAwait(false);
+        return [.. isps.OrderBy(isp => isp.Name, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    public Task<PagedResult<ActivationRequest>> ExportAsync(ActivationRequestSearchFilter filter, CancellationToken cancellationToken = default) =>
+        SearchAsync(filter, 0, MaxExportRows, cancellationToken);
 
     public async Task RecordGisOutcomeAsync(long requestId, bool lineAvailable, string? reason, CancellationToken cancellationToken = default)
     {

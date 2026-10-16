@@ -1,3 +1,4 @@
+using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Identity.Entities;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Domain.Entities;
@@ -43,9 +44,22 @@ public interface IActivationRequestService
     /// Administrator/Auditor (<c>activation.read.all</c>) searches every request; anyone else's
     /// search is silently narrowed to their own ISP — the same ownership rule
     /// <see cref="GetByPublicIdAsync"/> enforces, no different a permission needed for "own"
-    /// (TR-SEC-19's reasoning applies here too). <paramref name="status"/> narrows further when given.
+    /// (TR-SEC-19's reasoning applies here too): their <see cref="ActivationRequestSearchFilter.IspId"/>
+    /// is replaced by their own.
     /// </summary>
-    Task<PagedResult<ActivationRequest>> SearchAsync(string? search, string? status, int skip, int take, CancellationToken cancellationToken = default);
+    Task<PagedResult<ActivationRequest>> SearchAsync(ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every request matching <paramref name="filter"/>, under the same ownership rule as
+    /// <see cref="SearchAsync"/>, for the Excel export — capped at <see cref="ActivationRequestService.MaxExportRows"/>.
+    /// </summary>
+    Task<PagedResult<ActivationRequest>> ExportAsync(ActivationRequestSearchFilter filter, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every ISP, by name, for the grid's ISP filter — only for <c>activation.read.all</c>
+    /// (anyone else only ever sees their own ISP's requests, so gets an empty list).
+    /// </summary>
+    Task<IReadOnlyList<Isp>> GetFilterIspsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Records that INT-CRM-01 and INT-CRM-02 both succeeded and moves PendingCrmSync to

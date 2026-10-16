@@ -40,14 +40,18 @@ public sealed class FakeActivationRequestRepository : IActivationRequestReposito
     }
 
     public Task<(IReadOnlyList<ActivationRequest> Items, int TotalCount)> SearchAsync(
-        string? search, ActivationRequestStatus? status, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+        ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
     {
         var matches = Requests.Values
-            .Where(request => ispId is null || request.IspId == ispId)
-            .Where(request => string.IsNullOrWhiteSpace(search)
-                || request.PublicId.Contains(search, StringComparison.OrdinalIgnoreCase)
-                || request.PackageCode.Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Where(request => status is null || request.Status == status)
+            .Where(request => filter.IspId is null || request.IspId == filter.IspId)
+            .Where(request => string.IsNullOrWhiteSpace(filter.Search)
+                || request.PublicId.Contains(filter.Search, StringComparison.OrdinalIgnoreCase)
+                || request.PackageCode.Contains(filter.Search, StringComparison.OrdinalIgnoreCase))
+            .Where(request => filter.Status is null || request.Status == filter.Status)
+            .Where(request => filter.PackageCode is null || request.PackageCode == filter.PackageCode)
+            .Where(request => filter.ContractDurationMonths is null || request.ContractDurationMonths == filter.ContractDurationMonths)
+            .Where(request => filter.SubmittedFrom is null || request.CreatedAt >= filter.SubmittedFrom)
+            .Where(request => filter.SubmittedBefore is null || request.CreatedAt < filter.SubmittedBefore)
             .OrderByDescending(request => request.CreatedAt)
             .ToList();
 

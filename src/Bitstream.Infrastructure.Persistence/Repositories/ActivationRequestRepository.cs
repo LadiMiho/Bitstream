@@ -1,6 +1,5 @@
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Domain.Entities;
-using Bitstream.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence.Repositories;
@@ -31,24 +30,46 @@ public sealed class ActivationRequestRepository : IActivationRequestRepository
     }
 
     public async Task<(IReadOnlyList<ActivationRequest> Items, int TotalCount)> SearchAsync(
-        string? search, ActivationRequestStatus? status, long? ispId, int skip, int take, CancellationToken cancellationToken = default)
+        ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(filter);
+
         var query = _dbContext.ActivationRequests.Include(request => request.Isp).AsQueryable();
 
-        if (ispId is { } id)
+        if (filter.IspId is { } id)
         {
             query = query.Where(request => request.IspId == id);
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            var pattern = search.ToUpper();
+            var pattern = filter.Search.Trim().ToUpper();
             query = query.Where(request => request.PublicId.ToUpper().Contains(pattern) || request.PackageCode.ToUpper().Contains(pattern));
         }
 
-        if (status is { } value)
+        if (filter.Status is { } status)
         {
-            query = query.Where(request => request.Status == value);
+            query = query.Where(request => request.Status == status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.PackageCode))
+        {
+            query = query.Where(request => request.PackageCode == filter.PackageCode);
+        }
+
+        if (filter.ContractDurationMonths is { } months)
+        {
+            query = query.Where(request => request.ContractDurationMonths == months);
+        }
+
+        if (filter.SubmittedFrom is { } from)
+        {
+            query = query.Where(request => request.CreatedAt >= from);
+        }
+
+        if (filter.SubmittedBefore is { } before)
+        {
+            query = query.Where(request => request.CreatedAt < before);
         }
 
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);

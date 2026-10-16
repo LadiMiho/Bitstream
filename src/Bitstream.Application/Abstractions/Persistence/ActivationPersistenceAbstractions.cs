@@ -18,14 +18,13 @@ public interface IActivationRequestRepository
     Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Case-insensitive substring match against the public ID and package code, most recently
-    /// created first, with <see cref="ActivationRequest.Isp"/> loaded for display.
-    /// <paramref name="ispId"/> restricts to one ISP's requests — the ownership scoping
-    /// <c>ActivationRequestService.SearchAsync</c> applies before calling this, not a filter the
-    /// caller opts into. <paramref name="status"/> narrows the grid further when given.
+    /// The grid's search and filters (<see cref="ActivationRequestSearchFilter"/>), most recently
+    /// created first, with <see cref="ActivationRequest.Isp"/> loaded for display. The ISP filter
+    /// is also the ownership scope: <c>ActivationRequestService.SearchAsync</c> forces it to the
+    /// caller's own ISP for anyone without <c>activation.read.all</c>.
     /// </summary>
     Task<(IReadOnlyList<ActivationRequest> Items, int TotalCount)> SearchAsync(
-        string? search, ActivationRequestStatus? status, long? ispId, int skip, int take, CancellationToken cancellationToken = default);
+        ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -98,3 +97,20 @@ public interface IDashboardQueries
     /// <param name="cancellationToken">Cancellation.</param>
     Task<Services.Dashboard.DashboardData> GetAsync(long? ispId, DateTime monthsFrom, int months, int recent, CancellationToken cancellationToken = default);
 }
+
+/// <summary>The Activation Requests grid's search box and Filters popup; every criterion is optional and they combine with AND.</summary>
+/// <param name="Search">Case-insensitive substring of the public ID or package code.</param>
+/// <param name="Status">Exact status.</param>
+/// <param name="IspId">One ISP's requests.</param>
+/// <param name="PackageCode">Exact package code.</param>
+/// <param name="ContractDurationMonths">Exact contract duration.</param>
+/// <param name="SubmittedFrom">Submitted at or after this instant.</param>
+/// <param name="SubmittedBefore">Submitted before this instant (the day after the "to" date, so that day is included).</param>
+public sealed record ActivationRequestSearchFilter(
+    string? Search = null,
+    ActivationRequestStatus? Status = null,
+    long? IspId = null,
+    string? PackageCode = null,
+    int? ContractDurationMonths = null,
+    DateTimeOffset? SubmittedFrom = null,
+    DateTimeOffset? SubmittedBefore = null);

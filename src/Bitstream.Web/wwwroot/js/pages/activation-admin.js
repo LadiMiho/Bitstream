@@ -72,7 +72,8 @@ function describeError(error) {
 
 let currentSkip = 0;
 let currentSearch = '';
-let currentStatus = '';
+// The Filters popup's applied values, keyed by the form field / query parameter name.
+let currentFilters = {};
 let currentPageSize = 20;
 let currentTotalCount = 0;
 
@@ -243,9 +244,9 @@ async function search() {
   showError(searchError, '');
 
   try {
-    const params = new URLSearchParams({ skip: String(currentSkip), take: String(currentPageSize) });
-    if (currentSearch) params.set('search', currentSearch);
-    if (currentStatus) params.set('status', currentStatus);
+    const params = queryParams();
+    params.set('skip', String(currentSkip));
+    params.set('take', String(currentPageSize));
 
     const result = await api.get(`/ActivationRequests/Search?${params}`);
     currentTotalCount = result.totalCount;
@@ -266,30 +267,92 @@ async function search() {
 }
 
 // --- Filters popover ---------------------------------------------------------------------
+const FILTER_LABELS = {
+  status: 'Status',
+  ispId: 'ISP',
+  packageCode: 'Package',
+  contractDurationMonths: 'Contract',
+  submittedFrom: 'Submitted from',
+  submittedTo: 'Submitted to'
+};
+
+/** Local midnight of a yyyy-mm-dd date, plus `addDays`, as an ISO instant. */
+function localMidnight(date, addDays = 0) {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day + addDays).toISOString();
+}
+
+/**
+ * The search box and the applied filters as query parameters — the same for the grid and the
+ * Excel export. Dates are the user's own local days: "to" includes the whole day.
+ */
+function queryParams() {
+  const params = new URLSearchParams();
+  if (currentSearch) params.set('search', currentSearch);
+
+  for (const [key, value] of Object.entries(currentFilters)) {
+    if (key === 'submittedFrom') {
+      params.set('submittedFrom', localMidnight(value));
+    } else if (key === 'submittedTo') {
+      params.set('submittedBefore', localMidnight(value, 1));
+    } else {
+      params.set(key, value);
+    }
+  }
+
+  return params;
+}
+
+function filterLabel(key, value) {
+  const field = el(`#activation-filters-form [name="${key}"]`);
+  if (field instanceof HTMLSelectElement) {
+    const option = [...field.options].find((candidate) => candidate.value === value);
+    return option ? option.textContent.trim() : value;
+  }
+  if (key === 'submittedFrom' || key === 'submittedTo') {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString();
+  }
+  return value;
+}
+
+function applyFilters(filters) {
+  currentFilters = filters;
+  for (const field of el('#activation-filters-form').elements) {
+    if (field.name) {
+      field.value = currentFilters[field.name] ?? '';
+    }
+  }
+  currentSkip = 0;
+  renderFilterChips();
+  search();
+}
+
 function renderFilterChips() {
   const container = el('#activation-filter-chips');
   container.replaceChildren();
 
-  const active = [currentStatus && { key: 'status', label: `Status: ${presentStatus(currentStatus).label}` }].filter(Boolean);
+  const active = Object.entries(currentFilters);
 
   const countBadge = el('#activation-filters-count');
   countBadge.hidden = active.length === 0;
   countBadge.textContent = String(active.length);
 
-  for (const filter of active) {
+  for (const [key, value] of active) {
+    const label = `${FILTER_LABELS[key] ?? key}: ${filterLabel(key, value)}`;
     const chip = document.createElement('span');
     chip.className = 'filter-chip';
-    chip.innerHTML = `<span>${filter.label}</span>`;
+    const text = document.createElement('span');
+    text.textContent = label;
+    chip.appendChild(text);
     const clear = document.createElement('button');
     clear.type = 'button';
-    clear.setAttribute('aria-label', `Clear ${filter.label}`);
+    clear.setAttribute('aria-label', `Clear ${label}`);
     clear.textContent = '×';
     clear.addEventListener('click', () => {
-      currentStatus = '';
-      el('#activation-filter-status').value = '';
-      currentSkip = 0;
-      renderFilterChips();
-      search();
+      const remaining = { ...currentFilters };
+      delete remaining[key];
+      applyFilters(remaining);
     });
     chip.appendChild(clear);
     container.appendChild(chip);
@@ -300,13 +363,7 @@ function renderFilterChips() {
     clearAll.type = 'button';
     clearAll.className = 'text-sm text-brand-600 underline';
     clearAll.textContent = 'Clear';
-    clearAll.addEventListener('click', () => {
-      currentStatus = '';
-      el('#activation-filter-status').value = '';
-      currentSkip = 0;
-      renderFilterChips();
-      search();
-    });
+    clearAll.addEventListener('click', () => applyFilters({}));
     container.appendChild(clearAll);
   }
 }
@@ -314,6 +371,7 @@ function renderFilterChips() {
 function initFilters() {
   const button = el('#activation-filters-button');
   const panel = el('#activation-filters-panel');
+  const form = el('#activation-filters-form');
 
   button.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -329,18 +387,24 @@ function initFilters() {
     button.setAttribute('aria-expanded', 'false');
   });
 
-  el('#activation-filters-form').addEventListener('submit', (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
-    currentStatus = el('#activation-filter-status').value;
-    currentSkip = 0;
+    const filters = {};
+    for (const [key, value] of new FormData(form)) {
+      if (String(value).trim()) {
+        filters[key] = String(value).trim();
+      }
+    }
     panel.hidden = true;
     button.setAttribute('aria-expanded', 'false');
-    renderFilterChips();
-    search();
+    applyFilters(filters);
   });
 
-  el('#activation-filters-reset').addEventListener('click', () => {
-    el('#activation-filter-status').value = '';
+  el('#activation-filters-reset').addEventListener('click', () => form.reset());
+
+  // All pages of the current search + filters, built server-side as an .xlsx download.
+  el('#activation-export-button')?.addEventListener('click', () => {
+    window.location.href = `/ActivationRequests/Export?${queryParams()}`;
   });
 }
 
@@ -525,7 +589,7 @@ if (document.readyState === 'loading') {
 // "Nothing yet" when no search or filter is active, "nothing matches" otherwise; the table
 // itself is hidden while there are no rows.
 function showEmptyState(isEmpty) {
-  const filtered = Boolean(currentSearch || currentStatus);
+  const filtered = Boolean(currentSearch || Object.keys(currentFilters).length > 0);
   el('#activation-search-results').closest('table').hidden = isEmpty;
   el('#activation-empty-none').hidden = !(isEmpty && !filtered);
   el('#activation-empty-filtered').hidden = !(isEmpty && filtered);
@@ -534,11 +598,7 @@ function showEmptyState(isEmpty) {
 el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
   currentSearch = '';
   el('#activation-search-query').value = '';
-  currentStatus = '';
-  el('#activation-filter-status').value = '';
-  currentSkip = 0;
-  renderFilterChips();
-  search();
+  applyFilters({});
 });
 
 el('#activation-empty-none [data-empty-add]')?.addEventListener('click', () => el('#activation-add-button')?.click());

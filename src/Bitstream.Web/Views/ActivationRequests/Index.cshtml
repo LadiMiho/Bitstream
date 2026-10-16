@@ -5,6 +5,9 @@
     var canManageCatalogue = (bool)(ViewBag.CanManageCatalogue ?? false);
     var canConfirm = (bool)(ViewBag.CanConfirm ?? false);
     var canServiceDeskDecide = (bool)(ViewBag.CanServiceDeskDecide ?? false);
+    var filterIsps = ViewBag.FilterIsps as IReadOnlyList<Bitstream.Domain.Entities.Isp>;
+    var filterPackages = (ViewBag.FilterPackages as IReadOnlyList<Bitstream.Domain.Entities.Package>) ?? [];
+    var filterDurations = (ViewBag.FilterDurations as IReadOnlyList<Bitstream.Domain.Entities.ContractDuration>) ?? [];
 }
 
 <div class="grid gap-6"
@@ -51,8 +54,8 @@
 
                 <div id="activation-filters-panel" class="popover-panel" hidden>
                     <form id="activation-filters-form" novalidate>
-                        <div class="grid grid-cols-1 gap-3">
-                            <div>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="sm:col-span-2">
                                 <label class="field-label" for="activation-filter-status">Status</label>
                                 <select class="field-input" id="activation-filter-status" name="status">
                                     <option value="">All</option>
@@ -70,6 +73,47 @@
                                     <option value="IntegrationFailed">Integration Failed</option>
                                 </select>
                             </div>
+                            @if (filterIsps is not null)
+                            {
+                                <div class="sm:col-span-2">
+                                    <label class="field-label" for="activation-filter-isp">ISP</label>
+                                    <select class="field-input" id="activation-filter-isp" name="ispId">
+                                        <option value="">All</option>
+                                        @foreach (var isp in filterIsps)
+                                        {
+                                            <option value="@isp.IspId">@isp.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            <div>
+                                <label class="field-label" for="activation-filter-package">Package</label>
+                                <select class="field-input" id="activation-filter-package" name="packageCode">
+                                    <option value="">All</option>
+                                    @foreach (var package in filterPackages)
+                                    {
+                                        <option value="@package.Code">@package.Name@(package.IsActive ? "" : " (retired)")</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-duration">Contract</label>
+                                <select class="field-input" id="activation-filter-duration" name="contractDurationMonths">
+                                    <option value="">All</option>
+                                    @foreach (var duration in filterDurations.OrderBy(d => d.Months))
+                                    {
+                                        <option value="@duration.Months">@duration.Label</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-from">Submitted from</label>
+                                <input class="field-input" id="activation-filter-from" name="submittedFrom" type="date" />
+                            </div>
+                            <div>
+                                <label class="field-label" for="activation-filter-to">Submitted to</label>
+                                <input class="field-input" id="activation-filter-to" name="submittedTo" type="date" />
+                            </div>
                         </div>
                         <div class="mt-4 flex justify-end gap-2">
                             <button type="button" id="activation-filters-reset" class="btn-secondary">Reset</button>
@@ -80,6 +124,11 @@
             </div>
 
             <div id="activation-filter-chips" class="flex flex-wrap items-center gap-2"></div>
+
+            <button type="button" id="activation-export-button" class="btn-secondary ml-auto" title="Download every request matching the search and filters, all pages">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v2h12v-2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                Export to Excel
+            </button>
         </div>
 
         <p id="activation-search-error" class="field-error mt-2" role="alert" hidden></p>

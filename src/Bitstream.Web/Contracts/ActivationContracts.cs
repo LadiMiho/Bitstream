@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Bitstream.Web.Contracts;
 
@@ -67,3 +68,30 @@ public sealed record OperatorConfirmationRequest(
 public sealed record ServiceDeskDecisionRequest(
     [property: JsonPropertyName("success")] bool Success,
     [property: JsonPropertyName("comment")] string? Comment);
+
+/// <summary>The Activation Requests grid's search box and Filters popup, shared by Search and Export.</summary>
+public sealed record ActivationSearchQuery
+{
+    [FromQuery(Name = "search")]
+    public string? Search { get; init; }
+
+    [FromQuery(Name = "status")]
+    public string? Status { get; init; }
+
+    [FromQuery(Name = "ispId")]
+    public long? IspId { get; init; }
+
+    [FromQuery(Name = "packageCode")]
+    public string? PackageCode { get; init; }
+
+    [FromQuery(Name = "contractDurationMonths")]
+    public int? ContractDurationMonths { get; init; }
+
+    /// <summary>Submitted at or after: the browser's local midnight of the "from" date.</summary>
+    [FromQuery(Name = "submittedFrom")]
+    public DateTimeOffset? SubmittedFrom { get; init; }
+
+    /// <summary>Submitted before: the browser's local midnight after the "to" date.</summary>
+    [FromQuery(Name = "submittedBefore")]
+    public DateTimeOffset? SubmittedBefore { get; init; }
+}
