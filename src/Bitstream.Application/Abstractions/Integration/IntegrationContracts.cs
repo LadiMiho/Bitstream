@@ -132,6 +132,25 @@ public sealed record OperatorConfirmationCommand(
 
 public sealed record OperatorConfirmationResult(string? CrmReference);
 
+// --- INT-CRM-11 Post-activation ticket by phone number (CREATE_TICKET_BYPHONENR) -----
+
+/// <param name="Envelope">Message identity; the idempotency key is the request's public id.</param>
+/// <param name="RequestPublicId">Portal post-activation request identifier, e.g. PAR_12.</param>
+/// <param name="Phonenumber">The BI phone number, sent as <c>Phonenumber</c>.</param>
+/// <param name="Classification">The level-3 classification code, sent as <c>Classification</c>.</param>
+/// <param name="Note">Free text, sent as <c>Note</c>; empty when none.</param>
+public sealed record CreatePhoneTicketCommand(
+    IntegrationEnvelope Envelope,
+    string RequestPublicId,
+    string Phonenumber,
+    string Classification,
+    string? Note);
+
+/// <param name="TicketId">CRM's <c>TicketID</c>: the new ticket, or the open one when <paramref name="AlreadyExists"/>.</param>
+/// <param name="Message">CRM's <c>Message</c>, e.g. "Service ticket created".</param>
+/// <param name="AlreadyExists">CRM's <c>AlreadyExists</c> = X: no ticket was created because one is already open for this number.</param>
+public sealed record CreatePhoneTicketResult(string? TicketId, string? Message, bool AlreadyExists);
+
 // --- INT-CRM-09 Service Change ---------------------------------------------------
 
 public sealed record ServiceChangeCommand(

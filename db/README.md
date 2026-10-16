@@ -27,6 +27,7 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0021_activation_confirmation.sql` | Operator confirmation / service desk decision: new statuses (`AwaitingOperatorConfirmation`, `WaitingForServiceDesk`, `ActivationFailed`), decision columns on `ActivationRequest`, `activation.confirm` and `activation.servicedesk.decide` permissions (schema version 14) |
 | `0022_data_protection_keys.sql` | `ops.DataProtectionKeys`: the Data Protection key ring shared by every host and machine, so the TOTP keys in `dbo.UserTokens` and sign-in cookies written on one can be read on another (schema version 15) |
 | `0023_support_classifications.sql` | `portal.SupportClassification`: the three-level post-activation classification (level 1 → 2 → 3, the level-3 code is sent to CRM), seeded with the business list (schema version 16) |
+| `0024_post_activation_requests.sql` | `portal.BiPhoneNumber` (filled by BI; the prefix before `_` is the ISP ticket code) and `portal.PostActivationRequest` (phone number + level-3 classification + note, sent to CRM as `CREATE_TICKET_BYPHONENR`), identifier series `PAR` (schema version 17) |
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |

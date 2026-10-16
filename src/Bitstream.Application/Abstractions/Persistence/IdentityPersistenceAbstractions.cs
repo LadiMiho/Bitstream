@@ -48,6 +48,9 @@ public interface IIspRepository
     /// <summary>True when another ISP (any but <paramref name="excludingIspId"/>) already uses <paramref name="ticketCode"/>.</summary>
     Task<bool> TicketCodeExistsAsync(string ticketCode, long? excludingIspId, CancellationToken cancellationToken = default);
 
+    /// <summary>The ISP whose ticket code is <paramref name="ticketCode"/>, ignoring case; null when none.</summary>
+    Task<Isp?> FindByTicketCodeAsync(string ticketCode, CancellationToken cancellationToken = default);
+
     Task AddAsync(Isp isp, CancellationToken cancellationToken = default);
 
     /// <summary>Resolves the ISP a BI or CRM record belongs to (TR-PAS-04); null when the BP is not a known ISP.</summary>

@@ -61,6 +61,28 @@ public sealed class FakeCrmGateway : ICrmGateway
         return Task.FromResult(IntegrationResult<CreateCrmTicketResult>.Success(result));
     }
 
+    /// <summary>When set, the next <see cref="CreatePhoneTicketAsync"/> call returns this instead of creating a ticket.</summary>
+    public IntegrationResult<CreatePhoneTicketResult>? NextCreatePhoneTicketResult { get; set; }
+
+    public List<CreatePhoneTicketCommand> CreatePhoneTicketCalls { get; } = [];
+
+    public Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
+        CreatePhoneTicketCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        CreatePhoneTicketCalls.Add(command);
+
+        if (NextCreatePhoneTicketResult is { } forced)
+        {
+            NextCreatePhoneTicketResult = null;
+            return Task.FromResult(forced);
+        }
+
+        var sequence = Interlocked.Increment(ref _ticketSequence);
+        return Task.FromResult(IntegrationResult<CreatePhoneTicketResult>.Success(
+            new CreatePhoneTicketResult($"80095{sequence:D5}", "Service ticket created", AlreadyExists: false)));
+    }
+
     public Task<IntegrationResult<CreateCrmTicketResult>> CreateComplaintTicketAsync(
         CreateComplaintTicketCommand command,
         CancellationToken cancellationToken = default) =>

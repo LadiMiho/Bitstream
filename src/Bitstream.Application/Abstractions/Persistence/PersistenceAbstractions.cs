@@ -29,7 +29,8 @@ public enum IdentifierSeries
 {
     ActivationRequest,
     ComplaintTicket,
-    ServiceChangeRequest
+    ServiceChangeRequest,
+    PostActivationRequest
 }
 
 /// <summary>

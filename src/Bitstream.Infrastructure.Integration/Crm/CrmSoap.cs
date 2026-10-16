@@ -6,7 +6,8 @@ namespace Bitstream.Infrastructure.Integration.Crm;
 
 /// <summary>
 /// Request/response mapping for CRM's SOAP workflow operations (<c>executeOperation</c>):
-/// <c>CRM_BP_CREATE</c> (INT-CRM-01) and <c>BITSTREAM_TICKET_CREATE</c> (INT-CRM-02).
+/// <c>CRM_BP_CREATE</c> (INT-CRM-01), <c>BITSTREAM_TICKET_CREATE</c> (INT-CRM-02) and
+/// <c>CREATE_TICKET_BYPHONENR</c> (INT-CRM-11).
 /// Built with LINQ to XML so every value is XML-escaped.
 /// </summary>
 internal static class CrmSoap
@@ -101,6 +102,56 @@ internal static class CrmSoap
         }
 
         return IntegrationResult<CreateCrmTicketResult>.Success(new CreateCrmTicketResult(ticketNumber));
+    }
+
+    // --- INT-CRM-11 CREATE_TICKET_BYPHONENR -------------------------------------------------
+
+    public static string BuildCreatePhoneTicketRequest(CrmPhoneTicketOptions options, CreatePhoneTicketCommand command) =>
+        BuildRequest(
+            options.OperationCode,
+            ("Classification", command.Classification),
+            ("Phonenumber", command.Phonenumber),
+            ("Note", command.Note),
+            ("ShortDescription", string.Empty));
+
+    /// <summary>
+    /// <c>responseCode</c> 0 with a <c>TicketID</c> is success: a new ticket, or — when
+    /// <c>AlreadyExists</c> is X — the ticket CRM already has open for this number (reported as a
+    /// success with the flag set, so it is not retried). Any other <c>responseCode</c> is CRM
+    /// refusing the request, carrying its <c>Message</c>.
+    /// </summary>
+    public static IntegrationResult<CreatePhoneTicketResult> ParseCreatePhoneTicketResponse(string body)
+    {
+        var response = ParseResponse(body, "CREATE_TICKET_BYPHONENR");
+
+        if (response.Failure is { } failure)
+        {
+            return IntegrationResult<CreatePhoneTicketResult>.TechnicalFailure(failure);
+        }
+
+        response.Context.TryGetValue("TicketID", out var ticketId);
+        response.Context.TryGetValue("Message", out var message);
+        response.Context.TryGetValue("AlreadyExists", out var alreadyExists);
+
+        if (response.ResponseCode != "0")
+        {
+            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
+                response.ResponseCode!,
+                $"CRM did not create the ticket (responseCode {response.ResponseCode}): {(string.IsNullOrEmpty(message) ? "no Message" : message)}");
+        }
+
+        var exists = string.Equals(alreadyExists, "X", StringComparison.OrdinalIgnoreCase);
+
+        if (!exists && string.IsNullOrEmpty(ticketId))
+        {
+            // Not retried: a blind second call could open a duplicate ticket.
+            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
+                "NO_TICKET_ID",
+                $"CRM answered responseCode 0 but returned no TicketID{(string.IsNullOrEmpty(message) ? "." : $": {message}")}");
+        }
+
+        return IntegrationResult<CreatePhoneTicketResult>.Success(
+            new CreatePhoneTicketResult(string.IsNullOrEmpty(ticketId) ? null : ticketId, string.IsNullOrEmpty(message) ? null : message, exists));
     }
 
     // --- Shared -----------------------------------------------------------------------------

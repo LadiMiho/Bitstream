@@ -4,6 +4,7 @@ using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Configuration;
 using Bitstream.Application.Services.Activation;
+using Bitstream.Application.Services.PostActivation;
 using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -149,6 +150,10 @@ public sealed class OutboxDispatcher : BackgroundService
                         await DispatchOperatorConfirmationAsync(services, message, cancellationToken).ConfigureAwait(false);
                         break;
 
+                    case (TargetSystem.Crm, PostActivationRequestService.InterfaceCode):
+                        await DispatchCreatePhoneTicketAsync(services, message, cancellationToken).ConfigureAwait(false);
+                        break;
+
                     case (TargetSystem.Crm, "INT-CRM-09"):
                         await DispatchServiceChangeAsync(services, message, cancellationToken).ConfigureAwait(false);
                         break;
@@ -282,6 +287,36 @@ public sealed class OutboxDispatcher : BackgroundService
         }
     }
 
+    /// <summary>
+    /// INT-CRM-11: a post-activation request. CRM answering AlreadyExists is a final outcome
+    /// (the request shows the open ticket CRM already has), not a failure.
+    /// </summary>
+    private static async Task DispatchCreatePhoneTicketAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
+    {
+        var command = Deserialize<CreatePhoneTicketCommand>(message);
+        var gateway = services.GetRequiredService<ICrmGateway>();
+
+        var result = await gateway.CreatePhoneTicketAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (!result.IsSuccess)
+        {
+            await HandleFailureAsync(services, message, result.ErrorMessage ?? result.Outcome.ToString(), result.IsRetryable, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var outbox = services.GetRequiredService<IIntegrationOutbox>();
+        await outbox.MarkSucceededAsync(message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
+
+        var answer = result.Value!;
+        await services.GetRequiredService<IPostActivationRequestService>().MarkCrmResultAsync(
+            command.RequestPublicId,
+            answer.AlreadyExists ? PostActivationRequestStatus.AlreadyExists : PostActivationRequestStatus.Submitted,
+            answer.TicketId,
+            answer.Message,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task DispatchReplicateCommentAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
     {
         var command = Deserialize<ReplicateCommentCommand>(message);
@@ -400,6 +435,13 @@ public sealed class OutboxDispatcher : BackgroundService
             logger.LogError(
                 "{InterfaceCode} {MessageType} for {RelatedPublicId} failed (attempt {Attempt}) and was dead-lettered: {Error}",
                 message.InterfaceCode, message.MessageType, message.RelatedPublicId, attemptsAfterThis, error);
+        }
+
+        if (!retryable && message.InterfaceCode == PostActivationRequestService.InterfaceCode && message.RelatedPublicId is { } postActivationId)
+        {
+            await services.GetRequiredService<IPostActivationRequestService>().MarkCrmResultAsync(
+                postActivationId, PostActivationRequestStatus.Failed, null, error, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         if (!retryable && markActivationFailed && message.RelatedPublicId is { } relatedPublicId)

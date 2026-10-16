@@ -23,6 +23,15 @@ public sealed class IspRepository : IIspRepository
             isp => isp.TicketCode == ticketCode && (excludingIspId == null || isp.IspId != excludingIspId),
             cancellationToken);
 
+    public Task<Isp?> FindByTicketCodeAsync(string ticketCode, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ticketCode);
+
+        var upper = ticketCode.ToUpperInvariant();
+
+        return _dbContext.Isps.FirstOrDefaultAsync(isp => isp.TicketCode != null && isp.TicketCode.ToUpper() == upper, cancellationToken);
+    }
+
     public Task<Isp?> FindByCrmBpReferenceAsync(string crmBpReference, CancellationToken cancellationToken = default) =>
         _dbContext.Isps.FirstOrDefaultAsync(isp => isp.CrmBpReference == crmBpReference, cancellationToken);
 

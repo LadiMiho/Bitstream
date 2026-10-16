@@ -2,7 +2,7 @@ namespace Bitstream.Application.Abstractions.Integration;
 
 /// <summary>
 /// System-agnostic port for every portal-initiated CRM interaction
-/// (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09, and the portal's INT-CRM-10).
+/// (TRD 7.1 INT-CRM-01, -02, -04, -06, -08, -09, and the portal's INT-CRM-10 and -11).
 /// <para>
 /// TR-ARC-02: application services depend on this interface only. The concrete adapter
 /// lives in Bitstream.Infrastructure.Integration and is the single place that knows the
@@ -48,6 +48,15 @@ public interface ICrmGateway
     /// </summary>
     Task<IntegrationResult<OperatorConfirmationResult>> SubmitOperatorConfirmationAsync(
         OperatorConfirmationCommand command,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// INT-CRM-11. Creates a post-activation ticket for a phone number (CRM's
+    /// <c>CREATE_TICKET_BYPHONENR</c>). CRM answering that a ticket already exists is a success
+    /// with <see cref="CreatePhoneTicketResult.AlreadyExists"/> set, not a failure.
+    /// </summary>
+    Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
+        CreatePhoneTicketCommand command,
         CancellationToken cancellationToken = default);
 
     /// <summary>INT-CRM-09. Transmits an upgrade, downgrade or termination.</summary>

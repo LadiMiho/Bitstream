@@ -72,3 +72,9 @@ public sealed record UpdateSupportClassificationHttpRequest(
     [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("displayOrder")] int DisplayOrder);
+
+/// <summary>The New post-activation request form: <c>classificationId</c> is the chosen level-3 item.</summary>
+public sealed record CreatePostActivationRequestHttpRequest(
+    [property: JsonPropertyName("phonenumber")] string Phonenumber,
+    [property: JsonPropertyName("classificationId")] long ClassificationId,
+    [property: JsonPropertyName("note")] string? Note);

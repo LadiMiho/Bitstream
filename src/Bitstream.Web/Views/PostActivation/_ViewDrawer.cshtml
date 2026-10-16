@@ -1,0 +1,101 @@
+@model Bitstream.Application.Services.PostActivation.PostActivationRequestDetails
+@using Bitstream.Domain.Enums
+@{
+    var request = Model.Request;
+    var showRaw = (bool)(ViewBag.ShowRawData ?? false);
+
+    (string Label, string Dot, string Text) Outcome(Bitstream.Domain.Entities.IntegrationMessage message) => message.Status switch
+    {
+        IntegrationMessageStatus.Succeeded => ("CRM answered", "bg-state-done", "text-state-done"),
+        IntegrationMessageStatus.Pending or IntegrationMessageStatus.InFlight => ("Waiting to be sent", "bg-state-pending", "text-state-pending"),
+        IntegrationMessageStatus.Failed => ($"Failed, retrying (attempt {message.Attempts})", "bg-state-pending", "text-state-pending"),
+        _ => ("Failed", "bg-state-blocked", "text-state-blocked")
+    };
+}
+
+<section aria-labelledby="pa-view-main" class="grid gap-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="pa-view-main" class="text-lg font-semibold text-ink">@request.PublicId</h3>
+        <span class="@PostActivationRequestLabels.PillClass(request.Status)">@PostActivationRequestLabels.For(request.Status)</span>
+    </div>
+
+    @if (request.CrmMessage is not null)
+    {
+        var tone = request.Status == Bitstream.Domain.Entities.PostActivationRequestStatus.Failed
+            ? "border-state-blocked/30 bg-state-blocked/10 text-state-blocked"
+            : "border-line bg-surface-muted text-ink";
+        <p class="rounded-md border px-3 py-2 text-sm @tone">@request.CrmMessage</p>
+    }
+
+    <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@request.Isp?.Name</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Phone number</dt><dd class="mt-1 font-mono text-sm">@request.Phonenumber</dd></div>
+        <div class="sm:col-span-2">
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Classification</dt>
+            <dd class="mt-1 text-sm">
+                <ol class="grid gap-1">
+                    <li><span class="font-mono text-xs text-ink-muted">@request.Classification1Code</span> @request.Classification1Name</li>
+                    <li class="pl-4"><span class="font-mono text-xs text-ink-muted">@request.Classification2Code</span> @request.Classification2Name</li>
+                    <li class="pl-8 font-medium"><span class="font-mono text-xs text-ink-muted">@request.Classification3Code</span> @request.Classification3Name</li>
+                </ol>
+            </dd>
+        </div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">CRM ticket</dt><dd class="mt-1 font-mono text-sm">@(request.CrmTicketId ?? "—")</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Submitted</dt><dd class="mt-1 text-sm">@request.CreatedAt.ToString("g")</dd></div>
+        <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Note</dt><dd class="mt-1 whitespace-pre-wrap text-sm">@(request.Note ?? "(none)")</dd></div>
+    </dl>
+</section>
+
+<section aria-labelledby="pa-view-timeline" class="mt-8">
+    <h3 id="pa-view-timeline" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Communication with CRM</h3>
+    <ol class="relative mt-4 border-l border-line pl-6">
+        <li class="relative mb-6">
+            <span class="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full bg-state-done ring-4 ring-surface" aria-hidden="true"></span>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-surface-muted px-1.5 py-0.5 text-xs font-medium text-ink-muted">Portal</span>
+                <span class="text-sm font-medium text-ink">Request submitted</span>
+            </div>
+            <div class="mt-1 text-xs text-ink-muted"><time datetime="@request.CreatedAt.ToString("O")">@request.CreatedAt.ToString("g")</time></div>
+        </li>
+        @foreach (var message in Model.Messages)
+        {
+            var outcome = Outcome(message);
+            <li class="relative mb-6 last:mb-0" data-message-status="@message.Status">
+                <span class="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full ring-4 ring-surface @outcome.Dot" aria-hidden="true"></span>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="rounded bg-state-progress/15 px-1.5 py-0.5 text-xs font-medium text-state-progress">Portal → CRM</span>
+                    <span class="text-sm font-medium text-ink">Create ticket by phone number</span>
+                </div>
+                <div class="mt-1 text-xs text-ink-muted">
+                    <time datetime="@message.CreatedAt.ToString("O")">@message.CreatedAt.ToString("g")</time>
+                    · <span class="@outcome.Text">@outcome.Label</span>
+                    @if (message.ProcessedAt is { } processedAt)
+                    {
+                        <span>· @processedAt.ToString("g")</span>
+                    }
+                </div>
+                @if (message.LastError is not null && message.Status != IntegrationMessageStatus.Succeeded)
+                {
+                    <p class="mt-1 text-sm text-state-blocked">@message.LastError</p>
+                }
+                @if (showRaw)
+                {
+                    <details class="mt-2">
+                        <summary class="cursor-pointer text-xs text-brand-600">Show data</summary>
+                        <p class="mt-2 text-xs font-semibold text-ink-muted">Sent</p>
+                        <pre class="mt-1 max-h-64 overflow-auto rounded bg-surface-muted p-2 text-xs">@message.Payload</pre>
+                        @if (message.ResponsePayload is not null)
+                        {
+                            <p class="mt-2 text-xs font-semibold text-ink-muted">CRM response</p>
+                            <pre class="mt-1 max-h-64 overflow-auto rounded bg-surface-muted p-2 text-xs">@message.ResponsePayload</pre>
+                        }
+                    </details>
+                }
+            </li>
+        }
+    </ol>
+</section>
+
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+</template>

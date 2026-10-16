@@ -51,9 +51,11 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// statuses, columns and permissions) was added, and from 14 to 15 when
     /// db/mssql/0022_data_protection_keys.sql (the shared Data Protection key ring) was added,
     /// and from 15 to 16 when db/mssql/0023_support_classifications.sql (the three-level
-    /// post-activation classification) was added.
+    /// post-activation classification) was added, and from 16 to 17 when
+    /// db/mssql/0024_post_activation_requests.sql (BI phone numbers and post-activation requests)
+    /// was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 16;
+    public const int ExpectedSchemaVersion = 17;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -92,6 +94,10 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
 
     /// <summary>Three-level post-activation classification (db/mssql/0023).</summary>
     public DbSet<SupportClassification> SupportClassifications => Set<SupportClassification>();
+
+    public DbSet<BiPhoneNumber> BiPhoneNumbers => Set<BiPhoneNumber>();
+
+    public DbSet<PostActivationRequest> PostActivationRequests => Set<PostActivationRequest>();
 
     public DbSet<Notification> Notifications => Set<Notification>();
 

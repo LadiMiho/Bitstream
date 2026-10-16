@@ -84,6 +84,8 @@ public sealed class CrmSoapOptions
     public CrmBusinessPartnerOptions BusinessPartner { get; set; } = new();
 
     public CrmTicketOptions Ticket { get; set; } = new();
+
+    public CrmPhoneTicketOptions PhoneTicket { get; set; } = new();
 }
 
 /// <summary>INT-CRM-01: the <c>CRM_BP_CREATE</c> operation and the fixed codes it is sent with.</summary>
@@ -105,6 +107,12 @@ public sealed class CrmBusinessPartnerOptions
 public sealed class CrmTicketOptions
 {
     public string OperationCode { get; set; } = "BITSTREAM_TICKET_CREATE";
+}
+
+/// <summary>INT-CRM-11: the <c>CREATE_TICKET_BYPHONENR</c> operation (post-activation requests).</summary>
+public sealed class CrmPhoneTicketOptions
+{
+    public string OperationCode { get; set; } = "CREATE_TICKET_BYPHONENR";
 }
 
 /// <summary>
@@ -196,6 +204,23 @@ public sealed class CrmHttpGateway : ICrmGateway
         return SendSoapAsync(
             command.RequestPublicId, _options.Soap.Ticket.OperationCode, envelope,
             CrmSoap.ParseCreateTicketResponse, cancellationToken);
+    }
+
+    /// <summary>
+    /// INT-CRM-11: creates a post-activation ticket through the <c>CREATE_TICKET_BYPHONENR</c>
+    /// SOAP operation (Classification = level-3 code, Phonenumber, Note, empty ShortDescription).
+    /// </summary>
+    public Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
+        CreatePhoneTicketCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        var envelope = CrmSoap.BuildCreatePhoneTicketRequest(_options.Soap.PhoneTicket, command);
+
+        return SendSoapAsync(
+            command.RequestPublicId, _options.Soap.PhoneTicket.OperationCode, envelope,
+            CrmSoap.ParseCreatePhoneTicketResponse, cancellationToken);
     }
 
     /// <summary>

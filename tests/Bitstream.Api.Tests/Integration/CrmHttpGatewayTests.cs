@@ -382,4 +382,87 @@ public sealed class CrmHttpGatewayTests
         Assert.Contains("contract not yet defined", result.ErrorMessage, StringComparison.Ordinal);
         Assert.Null(handler.LastRequest);
     }
+    // --- INT-CRM-11 CREATE_TICKET_BYPHONENR ---------------------------------------------
+
+    private static CreatePhoneTicketCommand PhoneTicketCommand() =>
+        new(new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "PAR_1", DateTimeOffset.UtcNow), "PAR_1", "Tring_768", "5100010001", "Test koti nga SOAP");
+
+    [Fact]
+    public async Task CreatePhoneTicketAsync_posts_the_CREATE_TICKET_BYPHONENR_envelope_and_returns_the_TicketID()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse(
+                "0",
+                "<string name=\"TicketID\">8009521751</string><string name=\"Message\">Service ticket created</string>" +
+                "<string name=\"AlreadyExists\"></string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("8009521751", result.Value!.TicketId);
+        Assert.Equal("Service ticket created", result.Value.Message);
+        Assert.False(result.Value.AlreadyExists);
+
+        var envelope = XDocument.Parse(handler.LastBody!);
+        Assert.Equal("CREATE_TICKET_BYPHONENR", envelope.Descendants("code").Single().Value);
+
+        var values = envelope.Descendants("context").Single().Elements("string")
+            .ToDictionary(e => e.Attribute("name")!.Value, e => e.Value);
+        Assert.Equal("5100010001", values["Classification"]);
+        Assert.Equal("Tring_768", values["Phonenumber"]);
+        Assert.Equal("Test koti nga SOAP", values["Note"]);
+        Assert.Equal(string.Empty, values["ShortDescription"]);
+    }
+
+    [Fact]
+    public async Task A_phone_ticket_answer_with_AlreadyExists_X_is_a_success_flagged_as_already_existing()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse(
+                "0",
+                "<string name=\"TicketID\">8009521751</string>" +
+                "<string name=\"Message\">Ticket: 8009521751  already exist with status E0007</string>" +
+                "<string name=\"AlreadyExists\">X</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value!.AlreadyExists);
+        Assert.Equal("8009521751", result.Value.TicketId);
+        Assert.Contains("already exist", result.Value.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_phone_ticket_answer_with_a_non_zero_responseCode_is_a_business_rejection_carrying_the_Message()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse("1", "<string name=\"Message\">Phone number not found</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("Phone number not found", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_phone_ticket_answer_with_no_TicketID_is_not_retried()
+    {
+        var handler = new RecordingHandler { Respond = _ => SoapResponse("0", "<string name=\"Message\">?</string>") };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.False(result.IsSuccess);
+        Assert.False(result.IsRetryable);
+    }
 }

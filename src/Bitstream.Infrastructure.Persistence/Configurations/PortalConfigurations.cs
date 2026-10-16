@@ -285,3 +285,45 @@ internal sealed class SupportClassificationConfiguration : IEntityTypeConfigurat
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+internal sealed class BiPhoneNumberConfiguration : IEntityTypeConfiguration<BiPhoneNumber>
+{
+    public void Configure(EntityTypeBuilder<BiPhoneNumber> builder)
+    {
+        builder.ToTable("BiPhoneNumber", Schemas.Portal);
+        builder.HasKey(x => x.Phonenumber);
+        builder.Property(x => x.Phonenumber).HasMaxLength(50).ValueGeneratedNever();
+    }
+}
+
+internal sealed class PostActivationRequestConfiguration : IEntityTypeConfiguration<PostActivationRequest>
+{
+    public void Configure(EntityTypeBuilder<PostActivationRequest> builder)
+    {
+        builder.ToTable("PostActivationRequest", Schemas.Portal);
+        builder.HasKey(x => x.RequestId);
+
+        builder.Property(x => x.RequestId).UseIdentityColumn();
+        builder.Property(x => x.PublicId).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Phonenumber).HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Classification1Code).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Classification1Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Classification2Code).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Classification2Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Classification3Code).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Classification3Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Note).HasMaxLength(4000);
+        builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.CrmTicketId).HasMaxLength(30);
+        builder.Property(x => x.CrmMessage).HasMaxLength(1000);
+        builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.LastUpdatedAt).HasColumnType("datetimeoffset(7)");
+
+        builder.HasIndex(x => x.PublicId).IsUnique().HasDatabaseName("UX_PostActivationRequest_PublicId");
+        builder.HasIndex(x => new { x.IspId, x.CreatedAt }).HasDatabaseName("IX_PostActivationRequest_Isp_Created");
+        builder.HasIndex(x => x.Status).HasDatabaseName("IX_PostActivationRequest_Status");
+
+        builder.HasOne(x => x.Isp).WithMany().HasForeignKey(x => x.IspId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SupportClassification>().WithMany().HasForeignKey(x => x.ClassificationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

@@ -85,3 +85,26 @@ public interface ISupportClassificationRepository
     /// <summary>Stages a new node; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
     Task AddAsync(SupportClassification classification, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Data access for post-activation requests (portal.PostActivationRequest) and BI's phone numbers (portal.BiPhoneNumber).</summary>
+public interface IPostActivationRequestRepository
+{
+    /// <summary>
+    /// BI's phone numbers, sorted. With <paramref name="ispTicketCode"/>, only those whose prefix
+    /// (the text before the first <c>_</c>) equals it, ignoring case; without, all of them.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetPhoneNumbersAsync(string? ispTicketCode, CancellationToken cancellationToken = default);
+
+    Task<bool> PhoneNumberExistsAsync(string phonenumber, CancellationToken cancellationToken = default);
+
+    Task<PostActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
+
+    /// <summary>Newest first, with the ISP loaded; one ISP's only when <paramref name="ispId"/> is given.</summary>
+    Task<IReadOnlyList<PostActivationRequest>> SearchAsync(long? ispId, CancellationToken cancellationToken = default);
+
+    /// <summary>Every outbox message about the request (its public id), oldest first, for the View drawer.</summary>
+    Task<IReadOnlyList<IntegrationMessage>> GetMessagesAsync(string publicId, CancellationToken cancellationToken = default);
+
+    /// <summary>Stages a new request; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
+    Task AddAsync(PostActivationRequest request, CancellationToken cancellationToken = default);
+}
