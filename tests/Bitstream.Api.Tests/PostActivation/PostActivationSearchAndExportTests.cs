@@ -47,9 +47,18 @@ public sealed class PostActivationSearchAndExportTests
 
         PostActivationRequest Request(string publicId, long ispId, string phone, SupportClassification l1, SupportClassification l2, SupportClassification l3, string status, DateTimeOffset createdAt) => new()
         {
-            PublicId = publicId, IspId = ispId, Phonenumber = phone, ClassificationId = l3.ClassificationId,
-            Classification1Code = l1.Code, Classification1Name = l1.Name, Classification2Code = l2.Code, Classification2Name = l2.Name,
-            Classification3Code = l3.Code, Classification3Name = l3.Name, Status = status, CreatedAt = createdAt
+            PublicId = publicId,
+            IspId = ispId,
+            Phonenumber = phone,
+            ClassificationId = l3.ClassificationId,
+            Classification1Code = l1.Code,
+            Classification1Name = l1.Name,
+            Classification2Code = l2.Code,
+            Classification2Name = l2.Name,
+            Classification3Code = l3.Code,
+            Classification3Name = l3.Name,
+            Status = status,
+            CreatedAt = createdAt
         };
 
         db.PostActivationRequests.AddRange(
