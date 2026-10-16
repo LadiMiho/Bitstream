@@ -1,0 +1,19 @@
+@model SupportClassificationFieldsModel
+<div>
+    <label class="field-label" for="@Model.IdPrefix-code">Code</label>
+    <input class="field-input font-mono" id="@Model.IdPrefix-code" name="code" type="text" inputmode="numeric" pattern="[0-9]*"
+           maxlength="20" value="@Model.Code" required />
+    <span class="mt-1 block text-xs text-ink-muted">The CRM classification code: digits only, unique across all levels.</span>
+    <p class="field-error" role="alert" data-field-error="code" hidden></p>
+</div>
+<div>
+    <label class="field-label" for="@Model.IdPrefix-name">Name</label>
+    <input class="field-input" id="@Model.IdPrefix-name" name="name" type="text" maxlength="200" value="@Model.Name" required />
+    <p class="field-error" role="alert" data-field-error="name" hidden></p>
+</div>
+<div>
+    <label class="field-label" for="@Model.IdPrefix-order">Display order</label>
+    <input class="field-input" id="@Model.IdPrefix-order" name="displayOrder" type="number" min="0" step="1" value="@Model.DisplayOrder" required />
+    <span class="mt-1 block text-xs text-ink-muted">Position in its list, lowest first. Steps of 10 leave room to insert items between.</span>
+    <p class="field-error" role="alert" data-field-error="displayOrder" hidden></p>
+</div>

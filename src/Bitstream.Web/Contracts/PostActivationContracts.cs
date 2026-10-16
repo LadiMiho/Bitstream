@@ -60,3 +60,15 @@ public sealed record ServiceChangeRequestResponse(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("crmReference")] string? CrmReference,
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt);
+
+/// <summary>Adds an item under <c>parentId</c> (a level-1 or level-2 item), or a level-1 item when it is null.</summary>
+public sealed record CreateSupportClassificationHttpRequest(
+    [property: JsonPropertyName("parentId")] long? ParentId,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("displayOrder")] int DisplayOrder);
+
+public sealed record UpdateSupportClassificationHttpRequest(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("displayOrder")] int DisplayOrder);

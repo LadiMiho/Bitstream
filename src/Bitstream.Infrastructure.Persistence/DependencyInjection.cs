@@ -154,6 +154,7 @@ public static class DependencyInjection
         services.AddScoped<IActivationRequestRepository, ActivationRequestRepository>();
         services.AddScoped<IActivationHistoryReader, ActivationHistoryReader>();
         services.AddScoped<IDashboardQueries, DashboardQueries>();
+        services.AddScoped<ISupportClassificationRepository, SupportClassificationRepository>();
         services.AddScoped<IActivationCatalogueRepository, ActivationCatalogueRepository>();
         services.AddScoped<IPublicIdentifierGenerator, SqlPublicIdentifierGenerator>();
         services.AddScoped<IIntegrationOutbox, IntegrationOutbox>();

@@ -71,3 +71,17 @@ public interface ISyncStateStore
 
     Task SaveAsync(SyncState state, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Data access for the three-level post-activation classification (portal.SupportClassification).</summary>
+public interface ISupportClassificationRepository
+{
+    /// <summary>Every node, all levels, tracked for update.</summary>
+    Task<IReadOnlyList<SupportClassification>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    Task<SupportClassification?> FindByIdAsync(long classificationId, CancellationToken cancellationToken = default);
+
+    Task<SupportClassification?> FindByCodeAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>Stages a new node; persisted by <see cref="IUnitOfWork.SaveChangesAsync"/>.</summary>
+    Task AddAsync(SupportClassification classification, CancellationToken cancellationToken = default);
+}

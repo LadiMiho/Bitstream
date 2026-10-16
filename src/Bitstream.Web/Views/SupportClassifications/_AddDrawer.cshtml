@@ -1,0 +1,22 @@
+@model SupportClassificationAddViewModel
+@{
+    var level = Model.Parent is null ? 1 : Model.Parent.Level + 1;
+}
+<form id="classification-add-form" class="grid gap-4" novalidate data-action="create" data-parent-id="@Model.Parent?.ClassificationId">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <dl class="grid gap-3 sm:grid-cols-2">
+        <div>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Level</dt>
+            <dd class="mt-1 text-sm">@level@(level == Bitstream.Domain.Entities.SupportClassification.MaxLevel ? " — its code is sent to CRM" : "")</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Under</dt>
+            <dd class="mt-1 text-sm">@(Model.Parent is null ? "(top level)" : $"{Model.Parent.Code} · {Model.Parent.Name}")</dd>
+        </div>
+    </dl>
+    <partial name="_Fields" model="@(new SupportClassificationFieldsModel("classification-add", Model.SuggestedCode, string.Empty, Model.SuggestedDisplayOrder))" />
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="classification-add-form" class="btn-primary">Add</button>
+</template>

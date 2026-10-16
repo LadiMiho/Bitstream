@@ -1,0 +1,59 @@
+@model SupportClassificationsViewModel
+@{
+    ViewData["Title"] = "Support classifications";
+
+    var level1 = Model.SelectedLevel1;
+    var level2 = Model.SelectedLevel2;
+
+    var columns = new[]
+    {
+        new SupportClassificationColumnModel(
+            1, "Level 1", "Request type", null, true, Model.Tree, level1?.Classification.ClassificationId,
+            id => $"?l1={id}",
+            new EmptyStateModel(EmptyStateIcons.Tag, "No classifications yet",
+                "Add the first level-1 item, for example BITSTREAM COMPLAINTS.",
+                ActionLabel: "Add level-1 item", ActionAttributes: "data-classification-action=\"add\"")),
+        new SupportClassificationColumnModel(
+            2, "Level 2", level1 is null ? "Category" : level1.Classification.Name, level1?.Classification, level1 is not null,
+            level1?.Children ?? [], level2?.Classification.ClassificationId,
+            id => $"?l1={level1!.Classification.ClassificationId}&l2={id}",
+            level1 is null
+                ? new EmptyStateModel(EmptyStateIcons.Tag, "Select a level-1 item", "Its level-2 items are listed here.")
+                : new EmptyStateModel(EmptyStateIcons.Tag, "No level-2 items yet", $"Add the first category under {level1.Classification.Name}.",
+                    ActionLabel: "Add level-2 item", ActionAttributes: $"data-classification-action=\"add\" data-parent-id=\"{level1.Classification.ClassificationId}\"")),
+        new SupportClassificationColumnModel(
+            3, "Level 3", level2 is null ? "Sent to CRM" : level2.Classification.Name, level2?.Classification, level2 is not null,
+            level2?.Children ?? [], null, null,
+            level2 is null
+                ? new EmptyStateModel(EmptyStateIcons.Tag, "Select a level-2 item", "Its level-3 items, the codes sent to CRM, are listed here.")
+                : new EmptyStateModel(EmptyStateIcons.Tag, "No level-3 items yet", $"Add the first item under {level2.Classification.Name}. Its code is what CRM receives.",
+                    ActionLabel: "Add level-3 item", ActionAttributes: $"data-classification-action=\"add\" data-parent-id=\"{level2.Classification.ClassificationId}\""))
+    };
+}
+
+<div class="grid gap-6" data-role="support-classifications-page">
+    <div>
+        <div class="flex flex-wrap gap-4 text-sm">
+            <a href="/PostActivation" class="text-brand-600 underline">&larr; Post-Activation Support</a>
+        </div>
+        <h1 class="mt-2 text-xl font-semibold">Support classifications</h1>
+        <p class="mt-1 max-w-3xl text-sm text-ink-muted">
+            The three linked lists of the post-activation request form: the user picks a level-1 item, then one of
+            its level-2 items, then one of that item's level-3 items. The <strong>level-3 code is what is sent to CRM</strong>.
+            An inactive item, and everything under it, is no longer offered on the form; nothing is ever deleted.
+        </p>
+    </div>
+
+    <p id="classification-error" class="field-error" role="alert" hidden></p>
+
+    <div class="grid gap-4 lg:grid-cols-3">
+        @foreach (var column in columns)
+        {
+            <partial name="_Column" model="column" />
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/support-classifications.js"></script>
+}

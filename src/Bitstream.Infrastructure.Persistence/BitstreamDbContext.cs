@@ -49,9 +49,11 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// Package offers screen) was added, and from 13 to 14 when
     /// db/mssql/0021_activation_confirmation.sql (operator confirmation and service desk decision
     /// statuses, columns and permissions) was added, and from 14 to 15 when
-    /// db/mssql/0022_data_protection_keys.sql (the shared Data Protection key ring) was added.
+    /// db/mssql/0022_data_protection_keys.sql (the shared Data Protection key ring) was added,
+    /// and from 15 to 16 when db/mssql/0023_support_classifications.sql (the three-level
+    /// post-activation classification) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 15;
+    public const int ExpectedSchemaVersion = 16;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)
@@ -87,6 +89,9 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<ContractDuration> ContractDurations => Set<ContractDuration>();
 
     public DbSet<PackageOffer> PackageOffers => Set<PackageOffer>();
+
+    /// <summary>Three-level post-activation classification (db/mssql/0023).</summary>
+    public DbSet<SupportClassification> SupportClassifications => Set<SupportClassification>();
 
     public DbSet<Notification> Notifications => Set<Notification>();
 

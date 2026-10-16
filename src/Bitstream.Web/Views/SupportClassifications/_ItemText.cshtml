@@ -1,0 +1,18 @@
+@model Bitstream.Application.Services.PostActivation.SupportClassificationNode
+@{
+    var item = Model.Classification;
+}
+<div class="min-w-0">
+    <div class="truncate text-sm font-medium text-ink" title="@item.Name">@item.Name</div>
+    <div class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <span class="font-mono">@item.Code</span>
+        @if (item.Level < Bitstream.Domain.Entities.SupportClassification.MaxLevel)
+        {
+            <span>· @Model.Children.Count @(Model.Children.Count == 1 ? "item" : "items")</span>
+        }
+        @if (!item.IsActive)
+        {
+            <partial name="~/Views/Catalogue/_StatusPill.cshtml" model="false" />
+        }
+    </div>
+</div>

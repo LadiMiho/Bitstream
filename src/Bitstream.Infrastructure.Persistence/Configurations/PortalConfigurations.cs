@@ -262,3 +262,26 @@ internal sealed class ServiceChangeRequestConfiguration : IEntityTypeConfigurati
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+internal sealed class SupportClassificationConfiguration : IEntityTypeConfiguration<SupportClassification>
+{
+    public void Configure(EntityTypeBuilder<SupportClassification> builder)
+    {
+        builder.ToTable("SupportClassification", Schemas.Portal);
+        builder.HasKey(x => x.ClassificationId);
+
+        builder.Property(x => x.ClassificationId).UseIdentityColumn();
+        builder.Property(x => x.Code).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.UpdatedAt).HasColumnType("datetimeoffset(7)");
+
+        builder.HasIndex(x => x.Code).IsUnique().HasDatabaseName("UX_SupportClassification_Code");
+        builder.HasIndex(x => new { x.ParentId, x.DisplayOrder }).HasDatabaseName("IX_SupportClassification_Parent_Order");
+
+        builder.HasOne(x => x.Parent)
+            .WithMany(x => x.Children)
+            .HasForeignKey(x => x.ParentId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

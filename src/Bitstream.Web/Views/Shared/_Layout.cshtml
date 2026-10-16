@@ -69,7 +69,11 @@
                         </button>
                         <div class="nav-dropdown" hidden data-nav-panel>
                             <a class="nav-dropdown-item @(IsActive("/ActivationRequests") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/ActivationRequests") ? "page" : null)" href="/ActivationRequests">Activation Requests</a>
-                            <a class="nav-dropdown-item @(IsActive("/PostActivation") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/PostActivation") ? "page" : null)" href="/PostActivation">Post-Activation Support</a>
+                            <a class="nav-dropdown-item @(IsActive("/PostActivation") && !IsActive("/PostActivation/Classifications") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/PostActivation") && !IsActive("/PostActivation/Classifications") ? "page" : null)" href="/PostActivation">Post-Activation Support</a>
+                            @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Activation.ActivationPermissionCodes.CatalogueManage))
+                            {
+                                <a class="nav-dropdown-item @(IsActive("/PostActivation/Classifications") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/PostActivation/Classifications") ? "page" : null)" href="/PostActivation/Classifications">Support classifications</a>
+                            }
                         </div>
                     </div>
 

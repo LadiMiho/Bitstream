@@ -1,0 +1,19 @@
+@model Bitstream.Domain.Entities.SupportClassification
+<form id="classification-edit-form" class="grid gap-4" novalidate data-action="update" data-id="@Model.ClassificationId">
+    <p class="field-error" role="alert" data-field-error="request" hidden></p>
+    <dl class="grid gap-3 sm:grid-cols-2">
+        <div>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Level</dt>
+            <dd class="mt-1 text-sm">@Model.Level@(Model.Level == Bitstream.Domain.Entities.SupportClassification.MaxLevel ? " — its code is sent to CRM" : "")</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</dt>
+            <dd class="mt-1 text-sm"><partial name="~/Views/Catalogue/_StatusPill.cshtml" model="Model.IsActive" /></dd>
+        </div>
+    </dl>
+    <partial name="_Fields" model="@(new SupportClassificationFieldsModel("classification-edit", Model.Code, Model.Name, Model.DisplayOrder))" />
+</form>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Cancel</button>
+    <button type="submit" form="classification-edit-form" class="btn-primary">Save</button>
+</template>
