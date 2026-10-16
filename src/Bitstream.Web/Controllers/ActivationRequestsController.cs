@@ -350,5 +350,5 @@ public sealed class ActivationRequestsController : Controller
 
     private static ActivationRequestSummaryResponse ToSummaryResponse(ActivationRequest request) =>
         new(request.RequestId, request.PublicId, request.IspId, request.Isp.Name, request.PackageCode,
-            request.Status.ToString(), request.CreatedAt);
+            request.Status.ToString(), request.CreatedAt, request.ContractDurationMonths, request.CrmTicketId);
 }

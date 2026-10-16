@@ -79,7 +79,6 @@ let currentTotalCount = 0;
 
 // --- Icons (inline, no icon font/library) -----------------------------------------------
 const ICONS = {
-  view: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5"/></svg>',
   gis: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M10 17s6-5.5 6-9.5A6 6 0 1 0 4 7.5C4 11.5 10 17 10 17Z"/><circle cx="10" cy="7.5" r="2"/></svg>',
   confirm: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="10" cy="10" r="7.5"/><path d="m6.5 10 2.5 2.5 4.5-5"/></svg>',
   serviceDesk: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M4 11V9a6 6 0 0 1 12 0v2"/><rect x="2.5" y="11" width="3.5" height="5" rx="1"/><rect x="14" y="11" width="3.5" height="5" rx="1"/></svg>',
@@ -137,13 +136,6 @@ window.addEventListener('scroll', closeAllMenus, true);
 window.addEventListener('resize', closeAllMenus);
 
 // --- Grid ------------------------------------------------------------------------------
-function initials(name) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
-  return (first + last).toUpperCase();
-}
-
 function statusPill(status) {
   const presented = presentStatus(status);
   const span = document.createElement('span');
@@ -152,88 +144,115 @@ function statusPill(status) {
   return span;
 }
 
+function cell(className, text) {
+  const td = document.createElement('td');
+  td.className = `table-cell ${className}`.trim();
+  if (text !== undefined) {
+    td.textContent = text;
+  }
+  return td;
+}
+
+function openView(publicId) {
+  openDrawer(`${publicId} — details`, `/ActivationRequests/${encodeURIComponent(publicId)}/ViewDrawer`);
+}
+
+/** The steps a row offers besides View (which is the row click itself), for this user and status. */
+function rowActions(request, permissions) {
+  const id = encodeURIComponent(request.publicId);
+  const actions = [];
+
+  if (permissions.canRecordGis && request.status === 'AwaitingGisVerification') {
+    actions.push(['Record GIS outcome', ICONS.gis, `GIS outcome — ${request.publicId}`, `/ActivationRequests/${id}/GisOutcomeDrawer`]);
+  }
+  if (permissions.canConfirm && request.status === 'AwaitingOperatorConfirmation') {
+    actions.push(['Confirm activation', ICONS.confirm, `Confirm activation — ${request.publicId}`, `/ActivationRequests/${id}/OperatorConfirmationDrawer`]);
+  }
+  if (permissions.canServiceDeskDecide && request.status === 'WaitingForServiceDesk') {
+    actions.push(['Service desk decision', ICONS.serviceDesk, `Service desk decision — ${request.publicId}`, `/ActivationRequests/${id}/ServiceDeskDecisionDrawer`]);
+  }
+
+  return actions;
+}
+
 function renderResults(items) {
   const root = el('[data-role="activation-admin-page"]');
-  const canRecordGis = root.dataset.canRecordGis === 'true';
-  const canConfirm = root.dataset.canConfirm === 'true';
-  const canServiceDeskDecide = root.dataset.canServiceDeskDecide === 'true';
+  const showIsp = root.dataset.showIsp === 'true';
+  const permissions = {
+    canRecordGis: root.dataset.canRecordGis === 'true',
+    canConfirm: root.dataset.canConfirm === 'true',
+    canServiceDeskDecide: root.dataset.canServiceDeskDecide === 'true'
+  };
 
   const body = el('#activation-search-results');
   body.replaceChildren();
 
   for (const request of items) {
     const row = document.createElement('tr');
-    row.className = 'border-t border-line';
+    row.className = 'cursor-pointer border-t border-line hover:bg-surface-muted';
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `View ${request.publicId}`);
+    row.addEventListener('click', () => openView(request.publicId));
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target === row) {
+        openView(request.publicId);
+      }
+    });
 
-    const requestCell = document.createElement('td');
-    requestCell.className = 'table-cell';
-    requestCell.innerHTML = `
-      <div class="font-medium text-ink">${request.publicId}</div>
-      <div class="text-xs text-ink-muted">${request.packageCode}</div>`;
-    row.appendChild(requestCell);
+    row.appendChild(cell('font-medium text-brand-700', request.publicId));
 
-    const ispCell = document.createElement('td');
-    ispCell.className = 'table-cell';
-    ispCell.innerHTML = `
-      <div class="flex items-center gap-3">
-        <span class="avatar-circle" aria-hidden="true">${initials(request.ispName)}</span>
-        <div>
-          <div class="font-medium text-ink">${request.ispName}</div>
-          <div class="text-xs text-ink-muted">#${request.ispId}</div>
-        </div>
-      </div>`;
-    row.appendChild(ispCell);
+    if (showIsp) {
+      row.appendChild(cell('', request.ispName));
+    }
 
-    const statusCell = document.createElement('td');
-    statusCell.className = 'table-cell';
+    const packageCell = cell('');
+    const packageCode = document.createElement('div');
+    packageCode.className = 'text-ink';
+    packageCode.textContent = request.packageCode;
+    const duration = document.createElement('div');
+    duration.className = 'text-xs text-ink-muted';
+    duration.textContent = `${request.contractDurationMonths} months`;
+    packageCell.append(packageCode, duration);
+    row.appendChild(packageCell);
+
+    const statusCell = cell('whitespace-nowrap');
     statusCell.appendChild(statusPill(request.status));
     row.appendChild(statusCell);
 
-    const submittedCell = document.createElement('td');
-    submittedCell.className = 'table-cell text-ink-muted';
-    submittedCell.textContent = new Date(request.createdAt).toLocaleDateString();
-    row.appendChild(submittedCell);
+    row.appendChild(cell('font-mono text-xs', request.crmTicketId ?? '—'));
 
-    const actionsCell = document.createElement('td');
-    actionsCell.className = 'table-cell w-10 text-right';
+    const created = new Date(request.createdAt);
+    row.appendChild(cell('whitespace-nowrap text-ink-muted',
+      `${created.toLocaleDateString()} ${created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`));
 
-    const trigger = document.createElement('button');
-    trigger.type = 'button';
-    trigger.className = 'icon-button';
-    trigger.setAttribute('aria-label', `Actions for ${request.publicId}`);
-    trigger.innerHTML = ICONS.kebab;
-    trigger.addEventListener('click', (event) => {
-      event.stopPropagation();
-      const alreadyOpen = openMenuTrigger === trigger;
-      closeAllMenus();
-      if (alreadyOpen) {
-        return;
-      }
+    const actionsCell = cell('w-12 text-right');
+    const actions = rowActions(request, permissions);
 
-      const menu = document.createElement('div');
-      menu.className = 'menu-panel';
-      menu.appendChild(menuItem('View', ICONS.view, () =>
-        openDrawer(`${request.publicId} — details`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/ViewDrawer`)));
+    if (actions.length > 0) {
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'icon-button';
+      trigger.setAttribute('aria-label', `Actions for ${request.publicId}`);
+      trigger.innerHTML = ICONS.kebab;
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const alreadyOpen = openMenuTrigger === trigger;
+        closeAllMenus();
+        if (alreadyOpen) {
+          return;
+        }
 
-      if (canRecordGis && request.status === 'AwaitingGisVerification') {
-        menu.appendChild(menuItem('Record GIS outcome', ICONS.gis, () =>
-          openDrawer(`GIS outcome — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/GisOutcomeDrawer`)));
-      }
+        const menu = document.createElement('div');
+        menu.className = 'menu-panel';
+        for (const [label, icon, title, url] of actions) {
+          menu.appendChild(menuItem(label, icon, () => openDrawer(title, url)));
+        }
+        openRowMenu(trigger, menu);
+      });
+      trigger.addEventListener('keydown', (event) => event.stopPropagation());
+      actionsCell.appendChild(trigger);
+    }
 
-      if (canConfirm && request.status === 'AwaitingOperatorConfirmation') {
-        menu.appendChild(menuItem('Confirm activation', ICONS.confirm, () =>
-          openDrawer(`Confirm activation — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/OperatorConfirmationDrawer`)));
-      }
-
-      if (canServiceDeskDecide && request.status === 'WaitingForServiceDesk') {
-        menu.appendChild(menuItem('Service desk decision', ICONS.serviceDesk, () =>
-          openDrawer(`Service desk decision — ${request.publicId}`, `/ActivationRequests/${encodeURIComponent(request.publicId)}/ServiceDeskDecisionDrawer`)));
-      }
-
-      openRowMenu(trigger, menu);
-    });
-
-    actionsCell.appendChild(trigger);
     row.appendChild(actionsCell);
     body.appendChild(row);
   }
@@ -266,16 +285,7 @@ async function search() {
   }
 }
 
-// --- Filters popover ---------------------------------------------------------------------
-const FILTER_LABELS = {
-  status: 'Status',
-  ispId: 'ISP',
-  packageCode: 'Package',
-  contractDurationMonths: 'Contract',
-  submittedFrom: 'Submitted from',
-  submittedTo: 'Submitted to'
-};
-
+// --- Filters bar (applied as they change) -------------------------------------------
 /** Local midnight of a yyyy-mm-dd date, plus `addDays`, as an ISO instant. */
 function localMidnight(date, addDays = 0) {
   const [year, month, day] = date.split('-').map(Number);
@@ -303,104 +313,57 @@ function queryParams() {
   return params;
 }
 
-function filterLabel(key, value) {
-  const field = el(`#activation-filters-form [name="${key}"]`);
-  if (field instanceof HTMLSelectElement) {
-    const option = [...field.options].find((candidate) => candidate.value === value);
-    return option ? option.textContent.trim() : value;
-  }
-  if (key === 'submittedFrom' || key === 'submittedTo') {
-    const [year, month, day] = value.split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString();
-  }
-  return value;
+function updateActiveFilters() {
+  const count = Object.keys(currentFilters).length + (currentSearch ? 1 : 0);
+  el('#activation-filters-active').hidden = count === 0;
+  el('#activation-filters-count').textContent = count === 1 ? '1 filter' : `${count} filters`;
 }
 
-function applyFilters(filters) {
-  currentFilters = filters;
-  for (const field of el('#activation-filters-form').elements) {
-    if (field.name) {
-      field.value = currentFilters[field.name] ?? '';
+function readFilters() {
+  const filters = {};
+  for (const [key, value] of new FormData(el('#activation-filters-form'))) {
+    if (String(value).trim()) {
+      filters[key] = String(value).trim();
     }
   }
+  return filters;
+}
+
+function applyFilters() {
+  currentSearch = el('#activation-search-query').value.trim();
+  currentFilters = readFilters();
   currentSkip = 0;
-  renderFilterChips();
+  updateActiveFilters();
   search();
 }
 
-function renderFilterChips() {
-  const container = el('#activation-filter-chips');
-  container.replaceChildren();
-
-  const active = Object.entries(currentFilters);
-
-  const countBadge = el('#activation-filters-count');
-  countBadge.hidden = active.length === 0;
-  countBadge.textContent = String(active.length);
-
-  for (const [key, value] of active) {
-    const label = `${FILTER_LABELS[key] ?? key}: ${filterLabel(key, value)}`;
-    const chip = document.createElement('span');
-    chip.className = 'filter-chip';
-    const text = document.createElement('span');
-    text.textContent = label;
-    chip.appendChild(text);
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.setAttribute('aria-label', `Clear ${label}`);
-    clear.textContent = '×';
-    clear.addEventListener('click', () => {
-      const remaining = { ...currentFilters };
-      delete remaining[key];
-      applyFilters(remaining);
-    });
-    chip.appendChild(clear);
-    container.appendChild(chip);
-  }
-
-  if (active.length > 0) {
-    const clearAll = document.createElement('button');
-    clearAll.type = 'button';
-    clearAll.className = 'text-sm text-brand-600 underline';
-    clearAll.textContent = 'Clear';
-    clearAll.addEventListener('click', () => applyFilters({}));
-    container.appendChild(clearAll);
-  }
+function clearFilters() {
+  el('#activation-filters-form').reset();
+  applyFilters();
 }
 
 function initFilters() {
-  const button = el('#activation-filters-button');
-  const panel = el('#activation-filters-panel');
   const form = el('#activation-filters-form');
-
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const isHidden = panel.hidden;
-    panel.hidden = !isHidden;
-    button.setAttribute('aria-expanded', String(isHidden));
-  });
-
-  panel.addEventListener('click', (event) => event.stopPropagation());
-
-  document.addEventListener('click', () => {
-    panel.hidden = true;
-    button.setAttribute('aria-expanded', 'false');
-  });
+  let searchTimer = null;
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const filters = {};
-    for (const [key, value] of new FormData(form)) {
-      if (String(value).trim()) {
-        filters[key] = String(value).trim();
-      }
-    }
-    panel.hidden = true;
-    button.setAttribute('aria-expanded', 'false');
-    applyFilters(filters);
+    clearTimeout(searchTimer);
+    applyFilters();
   });
 
-  el('#activation-filters-reset').addEventListener('click', () => form.reset());
+  form.addEventListener('change', (event) => {
+    if (event.target.id !== 'activation-search-query') {
+      applyFilters();
+    }
+  });
+
+  el('#activation-search-query').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, 300);
+  });
+
+  el('#activation-filters-clear').addEventListener('click', clearFilters);
 
   // All pages of the current search + filters, built server-side as an .xlsx download.
   el('#activation-export-button')?.addEventListener('click', () => {
@@ -551,13 +514,6 @@ function init() {
     syncDurationOptions(drawerBody.querySelector('#activation-add-form'));
   });
 
-  el('#activation-search-form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    currentSearch = el('#activation-search-query').value.trim();
-    currentSkip = 0;
-    search();
-  });
-
   el('#activation-page-size').addEventListener('change', (event) => {
     currentPageSize = Number(event.target.value);
     currentSkip = 0;
@@ -591,14 +547,11 @@ if (document.readyState === 'loading') {
 function showEmptyState(isEmpty) {
   const filtered = Boolean(currentSearch || Object.keys(currentFilters).length > 0);
   el('#activation-search-results').closest('table').hidden = isEmpty;
+  el('#activation-empty-wrapper').hidden = !isEmpty;
   el('#activation-empty-none').hidden = !(isEmpty && !filtered);
   el('#activation-empty-filtered').hidden = !(isEmpty && filtered);
 }
 
-el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', () => {
-  currentSearch = '';
-  el('#activation-search-query').value = '';
-  applyFilters({});
-});
+el('#activation-empty-filtered [data-empty-clear]')?.addEventListener('click', clearFilters);
 
 el('#activation-empty-none [data-empty-add]')?.addEventListener('click', () => el('#activation-add-button')?.click());
