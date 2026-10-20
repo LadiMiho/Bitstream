@@ -67,6 +67,12 @@ builder.Services.AddSingleton<IHostedService>(provider => new OptionsStartupVali
 // --- Presentation ----------------------------------------------------------------------
 builder.Services.AddProblemDetails();
 
+// A body the endpoint cannot read (e.g. invalid JSON) is the caller's mistake: always raise it,
+// in every environment, so BadRequestExceptionHandler answers 400 with the reason instead of a
+// bare 400 (Production) or an unexplained 500 (Development).
+builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
+builder.Services.AddExceptionHandler<Bitstream.Api.BadRequestExceptionHandler>();
+
 // TR-INT-01: the interface contract is generated from the endpoint definitions, so the
 // published document cannot drift from the implementation. It lives on this host because the
 // CRM-facing interface is the only contract another system consumes.

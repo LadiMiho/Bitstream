@@ -179,4 +179,40 @@ public sealed class CrmInboundApiTests
         request!.Status = status;
         await db.SaveChangesAsync();
     }
+    [Fact]
+    public async Task A_body_that_is_not_valid_JSON_is_answered_400_with_where_it_breaks_not_500()
+    {
+        await using var factory = new CrmApiFactory();
+        using var client = factory.CreateClient();
+
+        // Exactly what was sent from the CRM side: unquoted text as the payload.
+        const string body = """
+            {
+              "eventId": "8009521803",
+              "eventType": "LINE_AVAILABLE",
+              "occurredAt": "2026-10-19T12:58:36.000+02:00",
+              "payload": {per alben}
+            }
+            """;
+        using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        using var response = await client.PostAsync(new Uri("/api/v1/tickets/8009521803/events", UriKind.Relative), content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The request body could not be read", problem, StringComparison.Ordinal);
+        Assert.Contains("$.payload", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_body_that_is_not_JSON_at_all_is_answered_400()
+    {
+        await using var factory = new CrmApiFactory();
+        using var client = factory.CreateClient();
+
+        using var content = new StringContent("eventType=LINE_AVAILABLE", System.Text.Encoding.UTF8, "application/json");
+        using var response = await client.PostAsync(new Uri("/api/v1/tickets/8009521803/events", UriKind.Relative), content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }
