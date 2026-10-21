@@ -23,8 +23,9 @@ internal static class CrmSoap
             ("GEOLOCATION", command.Geolocation),
             ("EMAIL", command.ContactEmail),
             ("IDNUMBER", command.IspNipt),
-            // NAME is the request's identifier with a space for the underscore: TRING_001 -> "TRING 001".
-            ("NAME", command.RequestPublicId.Replace('_', ' ')),
+            // NAME is the request's identifier, ticket code directly followed by the number:
+            // TRING001. An ID issued before 0025 (TRING_001) is sent the same way, without the underscore.
+            ("NAME", command.RequestPublicId.Replace("_", string.Empty, StringComparison.Ordinal)),
             ("SHORT_ADDR", string.Empty),
             ("CUSTOMERTYPE", options.CustomerType),
             ("BP_CAT", options.BpCategory),

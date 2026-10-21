@@ -13,7 +13,7 @@ namespace Bitstream.Api.Contracts;
 /// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED (TRD 6). A type that does not apply to the
 /// identifier, or an unknown type, is rejected with 422 (TR-INT-27).
 /// </param>
-/// <param name="Identifier">Optional. When sent it must equal the route's identifier (portal ID such as TRING_001, or CRM's ticket number).</param>
+/// <param name="Identifier">Optional. When sent it must equal the route's identifier (portal ID such as TRING001, or CRM's ticket number).</param>
 /// <param name="CrmTicketId">CRM-side ticket number; informational — CRM may instead use it as the route identifier.</param>
 /// <param name="OccurredAt">Event time in UTC. Determines order per ticket; an event older than the last applied one is discarded (TR-INT-25).</param>
 /// <param name="Payload">Event body.</param>

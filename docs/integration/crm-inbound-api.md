@@ -16,7 +16,7 @@ X-Correlation-Id: {optional; echoed in the portal's logs}
 The key is configured in `Bitstream.Api`'s `appsettings.json` as `Integration:CrmInbound:ApiKey`
 (or the environment variable `BITSTREAM_Integration__CrmInbound__ApiKey`).
 
-`{identifier}` is **either** the portal's request ID (for example `TRING_001`) **or** CRM's own
+`{identifier}` is **either** the portal's request ID (for example `TRING001`) **or** CRM's own
 ticket number (the `EV_TICKET_NO` returned by `BITSTREAM_TICKET_CREATE`, for example
 `8009521719`). The portal tries its own ID first, then the CRM ticket number.
 
@@ -26,7 +26,7 @@ Body — the same shape for every step:
 {
   "eventId": "crm-evt-000123",
   "eventType": "SALES_ORDER_OPENED",
-  "identifier": "TRING_001",
+  "identifier": "TRING001",
   "crmTicketId": "8009521719",
   "occurredAt": "2026-10-05T09:15:00Z",
   "payload": { "salesOrderId": "SO-4500123" }
@@ -145,7 +145,7 @@ To use them:
    `https://localhost:7292` and `http://localhost:5292`. If Postman rejects the development
    certificate, either turn off *SSL certificate verification* in Postman's settings or set
    `baseUrl` to `http://localhost:5292`.
-3. Set the `identifier` variable to a real request, for example `TRING_001`. To address the
+3. Set the `identifier` variable to a real request, for example `TRING001`. To address the
    request by CRM's number instead, set `crmTicketNumber` to its CRM ticket number.
 4. Send the steps in order.
    - `eventId` and `occurredAt` are generated fresh before each send, so a repeated click is a

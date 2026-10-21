@@ -58,10 +58,10 @@ public sealed class CrmHttpGatewayTests
         return new CrmHttpGateway(client, options, secretResolver, NullLogger<CrmHttpGateway>.Instance);
     }
 
-    private static CreateCrmCustomerCommand CustomerCommand() =>
+    private static CreateCrmCustomerCommand CustomerCommand(string publicId = "TRING001") =>
         new(
-            new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "ISP_1", DateTimeOffset.UtcNow),
-            "ISP_1", "Alpha", "L12345678A", "Contact", "contact@example.com", "+355 672017664", "https://maps.example.com/?q=41.3275,19.8187");
+            new IntegrationEnvelope(Guid.NewGuid(), "corr-1", publicId, DateTimeOffset.UtcNow),
+            publicId, "Alpha", "L12345678A", "Contact", "contact@example.com", "+355 672017664", "https://maps.example.com/?q=41.3275,19.8187");
 
     private static CreateActivationTicketCommand TicketCommand() =>
         new(
@@ -114,8 +114,8 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal("https://maps.example.com/?q=41.3275,19.8187", values["GEOLOCATION"]);
         Assert.Equal("contact@example.com", values["EMAIL"]);
         Assert.Equal("L12345678A", values["IDNUMBER"]);
-        // NAME is the request's identifier with the underscore as a space: ISP_1 -> "ISP 1".
-        Assert.Equal("ISP 1", values["NAME"]);
+        // NAME is the request's identifier, ticket code directly followed by the number.
+        Assert.Equal("TRING001", values["NAME"]);
         Assert.Equal(string.Empty, values["SHORT_ADDR"]);
         Assert.Equal("O000", values["CUSTOMERTYPE"]);
         Assert.Equal("2", values["BP_CAT"]);
@@ -494,5 +494,21 @@ public sealed class CrmHttpGatewayTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("EV_MSG=Classification not valid", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_identifier_issued_before_the_change_is_sent_as_NAME_without_its_underscore()
+    {
+        var handler = new RecordingHandler
+        {
+            Respond = _ => SoapResponse("0", "<string name=\"BP_NO\">1102017112</string>")
+        };
+        var gateway = CreateGateway(handler);
+
+        await gateway.CreateCustomerAsync(CustomerCommand("TRING_003"));
+
+        var values = XDocument.Parse(handler.LastBody!).Descendants("context").Single().Elements("string")
+            .ToDictionary(e => e.Attribute("name")!.Value, e => e.Value);
+        Assert.Equal("TRING003", values["NAME"]);
     }
 }

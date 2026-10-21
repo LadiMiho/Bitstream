@@ -270,7 +270,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
 
         // TR-DAT-01 / TR-ACT-06: the public identifier is issued and the record persisted with
         // status Submitted before any CRM call is even enqueued. Numbered per ISP ticket code:
-        // TRING_001, TRING_002, ...
+        // TRING001, TRING002, ...
         var publicId = await _identifierGenerator.NextForPrefixAsync(isp!.TicketCode!, cancellationToken).ConfigureAwait(false);
 
         var activationRequest = new ActivationRequest

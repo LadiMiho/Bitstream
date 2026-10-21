@@ -88,7 +88,7 @@ public sealed class TicketClosureOptionsValidatorTests
 }
 
 /// <summary>
-/// TR-DAT-02d fixes the identifier format as <c>^[A-Z]+_[0-9]+$</c> and TR-DAT-06 requires
+/// TR-DAT-02d fixes the identifier format as <c>^[A-Z]+_?[0-9]+$</c> and TR-DAT-06 requires
 /// complaint tickets to use a distinguishable series. Both are configuration values
 /// (TRD 11.4 open item 2), so both are checked where they are configured.
 /// </summary>

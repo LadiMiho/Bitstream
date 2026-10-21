@@ -50,11 +50,11 @@ public interface IPublicIdentifierGenerator
     /// <summary>
     /// Returns the next identifier for <paramref name="prefix"/> (an ISP's ticket code), with its
     /// own counter per prefix and the number zero-padded to at least three digits, e.g.
-    /// <c>TRING_001</c>.
+    /// <c>TRING001</c>.
     /// </summary>
     Task<string> NextForPrefixAsync(string prefix, CancellationToken cancellationToken = default);
 
-    /// <summary>Validates against <c>^[A-Z]+_[0-9]+$</c> (TR-DAT-02d).</summary>
+    /// <summary>Validates against <c>^[A-Z]+_?[0-9]+$</c> (TR-DAT-02d).</summary>
     bool IsValid(string identifier);
 }
 

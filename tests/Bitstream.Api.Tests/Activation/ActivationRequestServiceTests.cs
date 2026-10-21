@@ -116,9 +116,9 @@ public sealed class ActivationRequestServiceTests
         var second = await service.SubmitAsync(ValidRequest(ispId: 1));
         var otherIsp = await service.SubmitAsync(ValidRequest(ispId: 2));
 
-        Assert.Equal("TRING_001", first.PublicId);
-        Assert.Equal("TRING_002", second.PublicId);
-        Assert.Equal("ABCOM_001", otherIsp.PublicId);
+        Assert.Equal("TRING001", first.PublicId);
+        Assert.Equal("TRING002", second.PublicId);
+        Assert.Equal("ABCOM001", otherIsp.PublicId);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class ActivationRequestServiceTests
 
         var result = await service.SubmitAsync(ValidRequest());
 
-        Assert.Equal("ALPHA_001", result.PublicId);
+        Assert.Equal("ALPHA001", result.PublicId);
         Assert.Equal(ActivationRequestStatus.PendingCrmSync, result.Status);
         Assert.Equal(41.3275m, result.LocationLat);
         Assert.Equal(19.8187m, result.LocationLng);

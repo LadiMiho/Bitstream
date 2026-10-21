@@ -737,7 +737,7 @@ public sealed partial class AdministrationService : IAdministrationService
     private static string NormaliseTicketCode(string? value) =>
         (value ?? string.Empty).Trim().ToUpperInvariant();
 
-    /// <summary>The prefix half of the activation request identifier ^[A-Z]+_[0-9]+$ (TR-DAT-02d).</summary>
+    /// <summary>The prefix half of the activation request identifier ^[A-Z]+_?[0-9]+$ (TR-DAT-02d).</summary>
     private static void RequireValidTicketCode(string value, ValidationCollector violations)
     {
         if (value.Length == 0)

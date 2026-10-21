@@ -22,7 +22,7 @@ namespace Bitstream.Api.Endpoints;
 /// TR-INT-22 requires. Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED,
 /// LINE_ACTIVATED. Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
 /// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. The identifier in the route may be the
-/// portal's ID (e.g. TRING_001) or CRM's own ticket number.
+/// portal's ID (e.g. TRING001) or CRM's own ticket number.
 /// </para>
 /// <para>
 /// Every call must carry the API key (<see cref="CrmApiKeyEndpointFilter"/>); the CRM-facing
@@ -50,7 +50,7 @@ public static class CrmInboundEndpoints
                 """
                 Single inbound interface for every CRM-originated update (TR-INT-22).
 
-                {identifier} is the portal's request ID (e.g. TRING_001) or CRM's own ticket number
+                {identifier} is the portal's request ID (e.g. TRING001) or CRM's own ticket number
                 (EV_TICKET_NO). Authenticate with the X-Api-Key header.
 
                 Activation request steps (eventType: required status before -> status after):

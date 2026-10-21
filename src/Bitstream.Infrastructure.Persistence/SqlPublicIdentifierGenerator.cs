@@ -83,7 +83,7 @@ public sealed partial class SqlPublicIdentifierGenerator : IPublicIdentifierGene
     }
 
     // TR-DAT-02d, mirroring IdentifierOptionsValidator's check of the same configured pattern.
-    [GeneratedRegex("^[A-Z]+_[0-9]+$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^[A-Z]+_?[0-9]+$", RegexOptions.CultureInvariant)]
     private static partial Regex DefaultPattern();
 
     public bool IsValid(string identifier)

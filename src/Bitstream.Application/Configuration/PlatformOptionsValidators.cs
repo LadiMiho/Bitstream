@@ -66,7 +66,7 @@ public sealed partial class IdentifierOptionsValidator : IValidateOptions<Identi
         if (!PrefixPattern().IsMatch(value))
         {
             failures.Add(
-                $"Identifiers:{key} must be uppercase letters only to satisfy ^[A-Z]+_[0-9]+$ " +
+                $"Identifiers:{key} must be uppercase letters only to satisfy ^[A-Z]+_?[0-9]+$ " +
                 $"(TR-DAT-02d). Configured value: '{value}'.");
         }
     }

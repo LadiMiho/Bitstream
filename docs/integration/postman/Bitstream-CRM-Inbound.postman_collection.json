@@ -2,7 +2,7 @@
   "info": {
     "name": "Bitstream – CRM inbound API",
     "_postman_id": "6f1c0d4e-6a57-4d0e-9a2f-3b8e4c1d2a90",
-    "description": "Calls CRM makes to the Bitstream integration host (Bitstream.Api). See docs/integration/crm-inbound-api.md.\n\nEvery call needs the `X-Api-Key` header (collection auth, from `{{apiKey}}`). `eventId` and `occurredAt` are generated fresh before each request, so each send is a new, newer event. Set `identifier` to the request you are testing (e.g. TRING_001).",
+    "description": "Calls CRM makes to the Bitstream integration host (Bitstream.Api). See docs/integration/crm-inbound-api.md.\n\nEvery call needs the `X-Api-Key` header (collection auth, from `{{apiKey}}`). `eventId` and `occurredAt` are generated fresh before each request, so each send is a new, newer event. Set `identifier` to the request you are testing (e.g. TRING001).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -50,7 +50,7 @@
     },
     {
       "key": "identifier",
-      "value": "TRING_001"
+      "value": "TRING001"
     },
     {
       "key": "crmTicketNumber",
@@ -62,7 +62,7 @@
     },
     {
       "key": "complaintIdentifier",
-      "value": "TRING_002"
+      "value": "TRING002"
     }
   ],
   "item": [

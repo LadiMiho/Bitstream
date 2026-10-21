@@ -29,7 +29,7 @@ and after every recycle.
   `Outbox dispatcher started: polling every 00:00:05 …`.
 - Requests waiting in Pending CRM Sync move on within seconds.
 - If a CRM call fails, the log shows
-  `INT-CRM-01 CREATE_CUSTOMER for TRING_001 failed (attempt n of 5); will retry: <reason>`, and
+  `INT-CRM-01 CREATE_CUSTOMER for TRING001 failed (attempt n of 5); will retry: <reason>`, and
   the request's View timeline shows the same error. Requests stay in Pending CRM Sync while
   retries are in progress, and become Integration Failed after the last attempt.
 - `logs/crm-soap-YYYYMMDD.log` (when `Integration:Crm:Soap:LogMessages` is on) has the SOAP

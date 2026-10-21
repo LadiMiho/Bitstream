@@ -28,6 +28,7 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0022_data_protection_keys.sql` | `ops.DataProtectionKeys`: the Data Protection key ring shared by every host and machine, so the TOTP keys in `dbo.UserTokens` and sign-in cookies written on one can be read on another (schema version 15) |
 | `0023_support_classifications.sql` | `portal.SupportClassification`: the three-level post-activation classification (level 1 → 2 → 3, the level-3 code is sent to CRM), seeded with the business list (schema version 16) |
 | `0024_post_activation_requests.sql` | `portal.BiPhoneNumber` (filled by BI; the prefix before `_` is the ISP ticket code) and `portal.PostActivationRequest` (phone number + level-3 classification + note, sent to CRM as `CREATE_TICKET_BYPHONENR`), identifier series `PAR` (schema version 17) |
+| `0025_activation_id_without_underscore.sql` | `ops.usp_NextPrefixedIdentifier` issues activation request IDs without the underscore (`TRING001`); IDs already issued keep theirs (schema version 18) |
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |

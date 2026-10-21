@@ -38,7 +38,7 @@ public static class ComplaintTicketEventTypes
 /// (TR-INT-07, TR-INT-24) and returns immediately on a duplicate eventId (TR-INT-25) without
 /// calling here again. This class only interprets an already-persisted message: dedup is the
 /// outbox's job, ordering and applying the event are this class's. The identifier may be the
-/// portal's public identifier (e.g. TRING_001) or CRM's own ticket number (CrmTicketId); it is
+/// portal's public identifier (e.g. TRING001) or CRM's own ticket number (CrmTicketId); it is
 /// looked up in that order, as an activation request first and a complaint ticket second, and
 /// whichever lookup finds a row decides the routing. From then on the event is applied under the
 /// row's public identifier.

@@ -26,7 +26,7 @@ public sealed class IdentifierOptions
     /// configuration so the two sides can be pointed at one agreed value rather than each
     /// carrying its own copy in code.
     /// </summary>
-    public string Pattern { get; set; } = "^[A-Z]+_[0-9]+$";
+    public string Pattern { get; set; } = "^[A-Z]+_?[0-9]+$";
 }
 
 /// <summary>

@@ -128,11 +128,11 @@ public sealed class FakePublicIdentifierGenerator : IPublicIdentifierGenerator
     {
         var value = _nextByPrefix.GetValueOrDefault(prefix, 1);
         _nextByPrefix[prefix] = value + 1;
-        return Task.FromResult($"{prefix}_{value:D3}");
+        return Task.FromResult($"{prefix}{value:D3}");
     }
 
     public bool IsValid(string identifier) =>
-        System.Text.RegularExpressions.Regex.IsMatch(identifier, "^[A-Z]+_[0-9]+$");
+        System.Text.RegularExpressions.Regex.IsMatch(identifier, "^[A-Z]+_?[0-9]+$");
 }
 
 /// <summary>Records every enqueued message, for assertions, instead of persisting or dispatching anything.</summary>

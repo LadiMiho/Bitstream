@@ -2,7 +2,7 @@
   "info": {
     "name": "Bitstream – CRM inbound API (activation)",
     "_postman_id": "3c7e9b52-41d8-4f6a-9e0d-5b2a7c1e8f43",
-    "description": "Calls CRM makes to the Bitstream portal's integration API to report the progress of an activation request. See the accompanying document \"Bitstream CRM Inbound API\".\n\nBefore sending: set `apiKey` (supplied separately) in the environment, and set `identifier` to a real request ID (e.g. TRING_001) or use the CRM ticket number variant. `eventId` and `occurredAt` are generated fresh before each send.",
+    "description": "Calls CRM makes to the Bitstream portal's integration API to report the progress of an activation request. See the accompanying document \"Bitstream CRM Inbound API\".\n\nBefore sending: set `apiKey` (supplied separately) in the environment, and set `identifier` to a real request ID (e.g. TRING001) or use the CRM ticket number variant. `eventId` and `occurredAt` are generated fresh before each send.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -50,7 +50,7 @@
     },
     {
       "key": "identifier",
-      "value": "TRING_001"
+      "value": "TRING001"
     },
     {
       "key": "crmTicketNumber",
