@@ -4,6 +4,7 @@ using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Application.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Bitstream.Infrastructure.Persistence;
@@ -22,25 +23,49 @@ namespace Bitstream.Infrastructure.Persistence;
 /// </summary>
 public sealed partial class SqlPublicIdentifierGenerator : IPublicIdentifierGenerator
 {
+    // Warn about an out-of-date procedure once per process, not on every request.
+    private static int _staleProcedureReported;
+
     private readonly BitstreamDbContext _dbContext;
     private readonly IOptionsMonitor<IdentifierOptions> _options;
+    private readonly ILogger<SqlPublicIdentifierGenerator> _logger;
 
-    public SqlPublicIdentifierGenerator(BitstreamDbContext dbContext, IOptionsMonitor<IdentifierOptions> options)
+    public SqlPublicIdentifierGenerator(
+        BitstreamDbContext dbContext, IOptionsMonitor<IdentifierOptions> options, ILogger<SqlPublicIdentifierGenerator> logger)
     {
         _dbContext = dbContext;
         _options = options;
+        _logger = logger;
     }
 
     public Task<string> NextAsync(IdentifierSeries series, CancellationToken cancellationToken = default) =>
         ExecuteAsync("ops.usp_NextPublicIdentifier", "@SeriesCode", 50, series.ToString(), cancellationToken);
 
     /// <summary>Calls <c>ops.usp_NextPrefixedIdentifier</c> (db/mssql/0018_isp_ticket_code.sql).</summary>
-    public Task<string> NextForPrefixAsync(string prefix, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// The result is always ticket code + number (TRING001): if the database still has the 0018
+    /// procedure, which adds an underscore, it is removed here and a warning says to run 0025.
+    /// </remarks>
+    public async Task<string> NextForPrefixAsync(string prefix, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
 
-        return ExecuteAsync("ops.usp_NextPrefixedIdentifier", "@Prefix", 20, prefix, cancellationToken);
+        var issued = await ExecuteAsync("ops.usp_NextPrefixedIdentifier", "@Prefix", 20, prefix, cancellationToken).ConfigureAwait(false);
+        var identifier = PrefixedIdentifier.WithoutSeparator(prefix, issued);
+
+        if (!string.Equals(identifier, issued, StringComparison.Ordinal) && Interlocked.Exchange(ref _staleProcedureReported, 1) == 0)
+        {
+            LogStaleProcedure(_logger, issued, identifier);
+        }
+
+        return identifier;
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "ops.usp_NextPrefixedIdentifier returned {Issued}, with an underscore: the database is missing db/mssql/0025. " +
+                  "The identifier was issued as {Identifier}; run 0025 to update the procedure.")]
+    private static partial void LogStaleProcedure(ILogger logger, string issued, string identifier);
 
     private async Task<string> ExecuteAsync(
         string procedure, string inputName, int inputSize, string inputValue, CancellationToken cancellationToken)
