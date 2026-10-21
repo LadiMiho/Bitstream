@@ -54,9 +54,11 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// post-activation classification) was added, and from 16 to 17 when
     /// db/mssql/0024_post_activation_requests.sql (BI phone numbers and post-activation requests)
     /// was added, and from 17 to 18 when db/mssql/0025_activation_id_without_underscore.sql
-    /// (activation request IDs without the underscore, e.g. TRING001) was added.
+    /// (activation request IDs without the underscore, e.g. TRING001) was added, and from 18 to
+    /// 19 when db/mssql/0026_activation_public_id_constraint.sql (the PublicId check constraint
+    /// accepting those IDs) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 18;
+    public const int ExpectedSchemaVersion = 19;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

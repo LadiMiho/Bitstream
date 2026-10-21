@@ -53,6 +53,7 @@ BEGIN
             this is the closest enforceable approximation: uppercase letters and digits and
             a single underscore only, starting with a letter, ending with a digit. The exact
             regular expression is enforced in the application on both sides of the interface.
+            Superseded by 0026, which re-creates it so the underscore is optional (TRING001).
         */
         CONSTRAINT CK_ActivationRequest_PublicId CHECK
         (
