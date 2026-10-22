@@ -38,10 +38,13 @@ public static class ComplaintTicketEventTypes
 /// (TR-INT-07, TR-INT-24) and returns immediately on a duplicate eventId (TR-INT-25) without
 /// calling here again. This class only interprets an already-persisted message: dedup is the
 /// outbox's job, ordering and applying the event are this class's. The identifier may be the
-/// portal's public identifier (e.g. TRING001) or CRM's own ticket number (CrmTicketId); it is
-/// looked up in that order, as an activation request first and a complaint ticket second, and
-/// whichever lookup finds a row decides the routing. From then on the event is applied under the
-/// row's public identifier.
+/// portal's public identifier (e.g. TRING001), CRM's own ticket number (CrmTicketId) or the ticket
+/// CRM opened for the sales order (SalesOrderId); it is looked up in that order, as an activation
+/// request first and a complaint ticket second, and whichever lookup finds a row decides the
+/// routing. SALES_ORDER_OPENED is the exception: it comes on the sales order's new ticket, which
+/// the portal does not know yet, so its <c>payload.salesOrderId</c> carries the portal's request
+/// ID and that is what finds the request. From then on the event is applied under the row's
+/// public identifier.
 /// </para>
 /// </summary>
 public sealed class InboundEventService : IInboundEventService
@@ -97,13 +100,19 @@ public sealed class InboundEventService : IInboundEventService
         var evt = JsonSerializer.Deserialize<InboundTicketEvent>(message.Payload) ??
             throw new InvalidOperationException($"Integration message {integrationMessageId} payload could not be deserialised.");
 
+        // SALES_ORDER_OPENED arrives on the new ticket CRM opens for the sales order — a number the
+        // portal has never seen — so CRM names our request in payload.salesOrderId (e.g. TRING001).
+        // That decides which request it is; the route's identifier is then the new ticket.
         var activationRequest =
-            await _requestRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
-            ?? await _requestRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
+            await FindSalesOrderTargetAsync(evt, cancellationToken).ConfigureAwait(false)
+            ?? await _requestRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
+            ?? await _requestRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
+            ?? await _requestRepository.FindBySalesOrderIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
 
         if (activationRequest is not null)
         {
-            await ApplyToActivationRequestAsync(integrationMessageId, evt with { Identifier = activationRequest.PublicId }, activationRequest, cancellationToken)
+            await ApplyToActivationRequestAsync(
+                integrationMessageId, evt with { Identifier = activationRequest.PublicId }, evt.Identifier, activationRequest, cancellationToken)
                 .ConfigureAwait(false);
             return;
         }
@@ -120,7 +129,11 @@ public sealed class InboundEventService : IInboundEventService
         }
 
         throw new InboundEventNotFoundException(
-            $"No activation request or complaint ticket found for identifier '{evt.Identifier}' (looked up as portal ID and as CRM ticket number).");
+            string.Equals(evt.EventType, ActivationEventTypes.SalesOrderOpened, StringComparison.Ordinal)
+                ? $"No activation request found for payload.salesOrderId '{evt.Payload.SalesOrderId}' (it must be the portal's request ID, e.g. TRING001), " +
+                  $"nor for identifier '{evt.Identifier}'."
+                : $"No activation request or complaint ticket found for identifier '{evt.Identifier}' " +
+                  "(looked up as portal ID, as CRM ticket number and as sales order ticket).");
     }
 
     public async Task ReplayAsync(string? ticketPublicId, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, CancellationToken cancellationToken = default)
@@ -145,8 +158,20 @@ public sealed class InboundEventService : IInboundEventService
         }
     }
 
+    /// <summary>For SALES_ORDER_OPENED, the request named by <c>payload.salesOrderId</c> (the portal's request ID); null otherwise or when it names none.</summary>
+    private async Task<ActivationRequest?> FindSalesOrderTargetAsync(InboundTicketEvent evt, CancellationToken cancellationToken) =>
+        string.Equals(evt.EventType, ActivationEventTypes.SalesOrderOpened, StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId)
+            ? await _requestRepository.FindByPublicIdAsync(evt.Payload.SalesOrderId.Trim(), cancellationToken).ConfigureAwait(false)
+            : null;
+
+    /// <param name="integrationMessageId">The stored inbound message.</param>
+    /// <param name="evt">The event, its identifier already replaced by the request's public ID.</param>
+    /// <param name="routeIdentifier">The identifier CRM addressed the event to (portal ID, CRM ticket or the sales order's new ticket).</param>
+    /// <param name="request">The matched request.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
     private async Task ApplyToActivationRequestAsync(
-        long integrationMessageId, InboundTicketEvent evt, ActivationRequest request, CancellationToken cancellationToken)
+        long integrationMessageId, InboundTicketEvent evt, string routeIdentifier, ActivationRequest request, CancellationToken cancellationToken)
     {
         // TR-INT-25 / TR-PAS-17: an event no later than the last one already applied is
         // discarded, not applied — and this is not an error, so the message is still marked
@@ -182,7 +207,15 @@ public sealed class InboundEventService : IInboundEventService
                     throw new ActivationRequestValidationException("payload.salesOrderId is required for a SALES_ORDER_OPENED event.");
                 }
 
-                await _activationRequestService.ApplySalesOrderAsync(evt.Identifier, evt.Payload.SalesOrderId, cancellationToken).ConfigureAwait(false);
+                // Normally CRM sends the new sales-order ticket in the route and our request ID in
+                // salesOrderId: the new ticket is what is kept. An event addressed to the request
+                // itself (portal ID or the original CRM ticket) keeps salesOrderId as sent.
+                var addressedToRequest =
+                    string.Equals(routeIdentifier, request.PublicId, StringComparison.Ordinal)
+                    || string.Equals(routeIdentifier, request.CrmTicketId, StringComparison.Ordinal);
+                var salesOrderTicket = addressedToRequest ? evt.Payload.SalesOrderId.Trim() : routeIdentifier;
+
+                await _activationRequestService.ApplySalesOrderAsync(evt.Identifier, salesOrderTicket, cancellationToken).ConfigureAwait(false);
                 break;
 
             case ActivationEventTypes.LineActivated:

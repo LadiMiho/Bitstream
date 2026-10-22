@@ -15,6 +15,12 @@ public interface IActivationRequestRepository
     /// <summary>Looked up by CRM's ticket number (EV_TICKET_NO), the identifier CRM itself holds for the request.</summary>
     Task<ActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Looked up by the ticket CRM opens for the sales order (SALES_ORDER_OPENED), which CRM then
+    /// uses to address the request's later events.
+    /// </summary>
+    Task<ActivationRequest?> FindBySalesOrderIdAsync(string salesOrderId, CancellationToken cancellationToken = default);
+
     Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>

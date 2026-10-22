@@ -18,14 +18,18 @@ public sealed class ActivationHistoryReader : IActivationHistoryReader
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // CRM may address an inbound event by its own ticket number instead of the portal ID,
-        // and that is what the stored message's RelatedPublicId then holds.
+        // CRM may address an inbound event by its own ticket number, or by the ticket it opened for
+        // the sales order, instead of the portal ID; that is what the stored message's
+        // RelatedPublicId then holds.
         var publicId = request.PublicId;
         var crmTicketId = request.CrmTicketId;
+        var salesOrderId = request.SalesOrderId;
 
         var messages = await _dbContext.IntegrationMessages
             .AsNoTracking()
-            .Where(m => m.RelatedPublicId == publicId || (crmTicketId != null && m.RelatedPublicId == crmTicketId))
+            .Where(m => m.RelatedPublicId == publicId
+                || (crmTicketId != null && m.RelatedPublicId == crmTicketId)
+                || (salesOrderId != null && m.RelatedPublicId == salesOrderId))
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

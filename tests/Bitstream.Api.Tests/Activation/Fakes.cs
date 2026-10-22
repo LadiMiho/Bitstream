@@ -26,6 +26,9 @@ public sealed class FakeActivationRequestRepository : IActivationRequestReposito
     public Task<ActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Requests.Values.FirstOrDefault(request => request.CrmTicketId == crmTicketId));
 
+    public Task<ActivationRequest?> FindBySalesOrderIdAsync(string salesOrderId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Requests.Values.FirstOrDefault(request => request.SalesOrderId == salesOrderId));
+
     public Task AddAsync(ActivationRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

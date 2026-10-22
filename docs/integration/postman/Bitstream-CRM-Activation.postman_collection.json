@@ -57,8 +57,8 @@
       "value": "8009521719"
     },
     {
-      "key": "salesOrderId",
-      "value": "SO-4500123"
+      "key": "salesOrderTicket",
+      "value": "8009530001"
     }
   ],
   "item": [
@@ -181,7 +181,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "raw": "{{baseUrl}}/api/v1/tickets/{{salesOrderTicket}}/events",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -189,20 +189,20 @@
                 "api",
                 "v1",
                 "tickets",
-                "{{identifier}}",
+                "{{salesOrderTicket}}",
                 "events"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"SALES_ORDER_OPENED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"{{salesOrderId}}\",\n    \"businessPartner\": \"1102017112\"\n  }\n}",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"SALES_ORDER_OPENED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"{{identifier}}\",\n    \"businessPartner\": \"1102017112\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "**LineAvailable → SalesOrderOpened**, shown in the portal as *Activation in progress*. `payload.salesOrderId` is required."
+            "description": "**LineAvailable → SalesOrderOpened**, shown in the portal as *Activation in progress*. Sent to the **new ticket CRM opened for the sales order** (`{{salesOrderTicket}}`), which the portal does not know yet: `payload.salesOrderId` must be the **portal's request ID** (`{{identifier}}`, e.g. TRING001) — that is how the request is found. The new ticket is stored on the request, so later events may be addressed to it."
           },
           "event": [
             {

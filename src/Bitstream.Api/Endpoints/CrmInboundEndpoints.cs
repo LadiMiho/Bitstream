@@ -50,13 +50,19 @@ public static class CrmInboundEndpoints
                 """
                 Single inbound interface for every CRM-originated update (TR-INT-22).
 
-                {identifier} is the portal's request ID (e.g. TRING001) or CRM's own ticket number
-                (EV_TICKET_NO). Authenticate with the X-Api-Key header.
+                {identifier} is the portal's request ID (e.g. TRING001), CRM's own ticket number
+                (EV_TICKET_NO), or the new ticket CRM opened for the sales order. Authenticate with
+                the X-Api-Key header.
+
+                SALES_ORDER_OPENED is sent on that new sales order ticket, which the portal does not
+                know yet: payload.salesOrderId must carry the portal's request ID (e.g. TRING001),
+                which is how the request is found. The new ticket number is stored on the request,
+                and later events (e.g. LINE_ACTIVATED) may be addressed to it.
 
                 Activation request steps (eventType: required status before -> status after):
                   LINE_AVAILABLE        AwaitingGisVerification -> LineAvailable
                   NO_LINE               AwaitingGisVerification -> RejectedNoLine (payload.reason required)
-                  SALES_ORDER_OPENED    LineAvailable -> SalesOrderOpened ("Activation in progress"; payload.salesOrderId required)
+                  SALES_ORDER_OPENED    LineAvailable -> SalesOrderOpened ("Activation in progress"; payload.salesOrderId = portal request ID, required)
                   LINE_ACTIVATED        SalesOrderOpened -> AwaitingOperatorConfirmation
 
                 After LINE_ACTIVATED the ISP's operator confirms in the portal whether the line works

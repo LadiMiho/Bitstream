@@ -18,7 +18,13 @@ The key is configured in `Bitstream.Api`'s `appsettings.json` as `Integration:Cr
 
 `{identifier}` is **either** the portal's request ID (for example `TRING001`) **or** CRM's own
 ticket number (the `EV_TICKET_NO` returned by `BITSTREAM_TICKET_CREATE`, for example
-`8009521719`). The portal tries its own ID first, then the CRM ticket number.
+`8009521719`), or — after `SALES_ORDER_OPENED` — the new ticket CRM opened for the sales order. The
+portal tries its own ID first, then the CRM ticket number, then the sales order ticket.
+
+**`SALES_ORDER_OPENED` is the exception.** CRM sends it on the new ticket it opens for the sales
+order, which the portal does not know yet, so `payload.salesOrderId` must carry the **portal's
+request ID** (e.g. `TRING001`): that is how the request is found. The new ticket number in the URL
+is stored on the request, and later events (e.g. `LINE_ACTIVATED`) may be addressed to it.
 
 Body — the same shape for every step:
 
@@ -29,7 +35,7 @@ Body — the same shape for every step:
   "identifier": "TRING001",
   "crmTicketId": "8009521719",
   "occurredAt": "2026-10-05T09:15:00Z",
-  "payload": { "salesOrderId": "SO-4500123" }
+  "payload": { "salesOrderId": "TRING001" }
 }
 ```
 
@@ -52,7 +58,7 @@ waits in **AwaitingGisVerification**. From there CRM reports each step:
 |---|---|---|---|---|---|
 | 1a | Line check: line available | `LINE_AVAILABLE` | AwaitingGisVerification | LineAvailable | `{}` |
 | 1b | Line check: no line | `NO_LINE` | AwaitingGisVerification | RejectedNoLine | `reason` (required) |
-| 2 | Sales order opened ("Activation in progress") | `SALES_ORDER_OPENED` | LineAvailable | SalesOrderOpened | `salesOrderId` (required), `businessPartner` (optional) |
+| 2 | Sales order opened ("Activation in progress"), sent to the new sales order ticket | `SALES_ORDER_OPENED` | LineAvailable | SalesOrderOpened | `salesOrderId` (required) = the **portal's request ID**, e.g. `TRING001`; `businessPartner` (optional) |
 | 3 | Line activated in CRM | `LINE_ACTIVATED` | SalesOrderOpened | AwaitingOperatorConfirmation | `{}` |
 
 Steps must arrive in this order. An administrator can still record the line check in the portal
@@ -91,10 +97,10 @@ POST /api/v1/tickets/8009521719/events
 ```
 
 ```json
-POST /api/v1/tickets/8009521719/events
+POST /api/v1/tickets/8009530001/events          (8009530001 = the new sales order ticket)
 { "eventId": "crm-evt-1003", "eventType": "SALES_ORDER_OPENED",
   "occurredAt": "2026-10-05T09:15:00Z",
-  "payload": { "salesOrderId": "SO-4500123", "businessPartner": "1102017112" } }
+  "payload": { "salesOrderId": "TRING001", "businessPartner": "1102017112" } }
 ```
 
 ```json

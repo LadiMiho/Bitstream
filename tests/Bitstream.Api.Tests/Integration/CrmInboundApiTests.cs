@@ -215,4 +215,58 @@ public sealed class CrmInboundApiTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+    private const string SalesOrderTicket = "8009529999";
+
+    private static TicketEventRequest SalesOrderOpened(string? salesOrderId) =>
+        new(Guid.NewGuid().ToString(), "SALES_ORDER_OPENED", null, null, DateTimeOffset.UtcNow,
+            new TicketEventPayload(null, null, null, null, null, null, null, null, salesOrderId, null));
+
+    private static async Task<string?> ReadSalesOrderAsync(CrmApiFactory factory, long requestId)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        var request = await scope.ServiceProvider.GetRequiredService<BitstreamDbContext>().ActivationRequests.FindAsync(requestId);
+        return request!.SalesOrderId;
+    }
+
+    [Fact]
+    public async Task SALES_ORDER_OPENED_on_CRMs_new_ticket_is_matched_by_the_request_ID_in_salesOrderId()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.LineAvailable);
+        using var client = factory.CreateClient();
+
+        // The route carries the new ticket CRM opened for the sales order, unknown to the portal;
+        // payload.salesOrderId carries our request ID.
+        using var response = await client.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{SalesOrderTicket}/events", UriKind.Relative), SalesOrderOpened("TRING001"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
+        Assert.Equal(SalesOrderTicket, await ReadSalesOrderAsync(factory, requestId));
+
+        // Later events addressed to that new ticket reach the same request.
+        using var activated = await client.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{SalesOrderTicket}/events", UriKind.Relative),
+            Event("LINE_ACTIVATED", identifier: null) with { OccurredAt = DateTimeOffset.UtcNow.AddSeconds(5) });
+
+        Assert.Equal(HttpStatusCode.OK, activated.StatusCode);
+        Assert.Equal(ActivationRequestStatus.AwaitingOperatorConfirmation, (await ReadAsync(factory, requestId)).Status);
+    }
+
+    [Fact]
+    public async Task SALES_ORDER_OPENED_naming_an_unknown_request_is_404_and_says_salesOrderId_must_be_the_request_ID()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.LineAvailable);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{SalesOrderTicket}/events", UriKind.Relative), SalesOrderOpened("TRING999"));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("payload.salesOrderId 'TRING999'", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(ActivationRequestStatus.LineAvailable, (await ReadAsync(factory, requestId)).Status);
+    }
 }
