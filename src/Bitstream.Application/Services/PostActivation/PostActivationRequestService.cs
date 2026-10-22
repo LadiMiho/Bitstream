@@ -240,8 +240,18 @@ public sealed class PostActivationRequestService : IPostActivationRequestService
         return new PagedResult<PostActivationRequest>(items, totalCount);
     }
 
-    public Task<PagedResult<PostActivationRequest>> ExportAsync(PostActivationRequestSearchFilter filter, CancellationToken cancellationToken = default) =>
-        SearchAsync(filter, 0, MaxExportRows, cancellationToken);
+    public async Task<PagedResult<PostActivationRequest>> ExportAsync(PostActivationRequestSearchFilter filter, CancellationToken cancellationToken = default)
+    {
+        var result = await SearchAsync(filter, 0, MaxExportRows, cancellationToken).ConfigureAwait(false);
+
+        // TR-REP-08: every export is audited, with what was asked for and how much was handed out.
+        await _auditWriter.WriteAsync(
+            "PostActivationRequest.Exported", EntityType, null, null,
+            $"{{\"filter\":{JsonSerializer.Serialize(filter)},\"rows\":{result.Items.Count.ToString(CultureInfo.InvariantCulture)}}}",
+            cancellationToken).ConfigureAwait(false);
+
+        return result;
+    }
 
     public async Task<PostActivationFilterOptions> GetFilterOptionsAsync(CancellationToken cancellationToken = default)
     {

@@ -145,6 +145,11 @@ public sealed class PostActivationSearchAndExportTests
         Assert.Contains(">PAR_1<", ownSheet, StringComparison.Ordinal);
         Assert.Contains(">PAR_2<", ownSheet, StringComparison.Ordinal);
         Assert.DoesNotContain("PAR_3", ownSheet, StringComparison.Ordinal);
+
+        // TR-REP-08: both exports are in the audit log.
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        Assert.Equal(2, db.AuditLog.Count(a => a.ActionCode == "PostActivationRequest.Exported"));
     }
 
     private static async Task<string> ReadSheetAsync(HttpResponseMessage response)

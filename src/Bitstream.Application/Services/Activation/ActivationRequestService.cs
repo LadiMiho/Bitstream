@@ -385,8 +385,18 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         return [.. isps.OrderBy(isp => isp.Name, StringComparer.CurrentCultureIgnoreCase)];
     }
 
-    public Task<PagedResult<ActivationRequest>> ExportAsync(ActivationRequestSearchFilter filter, CancellationToken cancellationToken = default) =>
-        SearchAsync(filter, 0, MaxExportRows, cancellationToken);
+    public async Task<PagedResult<ActivationRequest>> ExportAsync(ActivationRequestSearchFilter filter, CancellationToken cancellationToken = default)
+    {
+        var result = await SearchAsync(filter, 0, MaxExportRows, cancellationToken).ConfigureAwait(false);
+
+        // TR-REP-08: every export is audited, with what was asked for and how much was handed out.
+        await _auditWriter.WriteAsync(
+            "ActivationRequest.Exported", "ActivationRequest", null, null,
+            $"{{\"filter\":{JsonSerializer.Serialize(filter)},\"rows\":{result.Items.Count.ToString(CultureInfo.InvariantCulture)}}}",
+            cancellationToken).ConfigureAwait(false);
+
+        return result;
+    }
 
     public async Task RecordGisOutcomeAsync(long requestId, bool lineAvailable, string? reason, CancellationToken cancellationToken = default)
     {

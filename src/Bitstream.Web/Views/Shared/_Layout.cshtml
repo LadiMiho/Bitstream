@@ -84,7 +84,10 @@
                         <div class="nav-dropdown" hidden data-nav-panel>
                             <a class="nav-dropdown-item @(IsActive("/AccessManagement/Isps") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Isps") ? "page" : null)" href="/AccessManagement/Isps">ISP Administration</a>
                             <a class="nav-dropdown-item @(IsActive("/AccessManagement/Users") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Users") ? "page" : null)" href="/AccessManagement/Users">User Administration</a>
-                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
+                            @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.AuditRead))
+                            {
+                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
+                            }
                         </div>
                     </div>
 

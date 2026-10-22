@@ -145,6 +145,11 @@ public sealed class ActivationSearchAndExportTests
         Assert.Contains(">BETA_1<", sheet, StringComparison.Ordinal);
         Assert.DoesNotContain(">ALPHA_2<", sheet, StringComparison.Ordinal);
         Assert.Contains(">Completed<", sheet, StringComparison.Ordinal);
+
+        // TR-REP-08: the export itself is in the audit log.
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        Assert.True(db.AuditLog.Any(a => a.ActionCode == "ActivationRequest.Exported"));
     }
 
     [Fact]

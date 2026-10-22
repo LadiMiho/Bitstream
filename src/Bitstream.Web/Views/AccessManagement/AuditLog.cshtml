@@ -1,22 +1,151 @@
-<div class="grid gap-6">
-    <div>
-        <a href="/AccessManagement" class="text-sm text-brand-600 underline">&larr; Access Management</a>
-        <h1 class="mt-2 text-xl font-semibold">Audit Log</h1>
+@model Bitstream.Application.Services.Audit.AuditLogFilterOptions
+@{
+    ViewData["Title"] = "Audit Logs";
+}
+
+<div class="grid gap-6" data-role="audit-log-page">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-xl font-semibold">Audit Logs</h1>
+            <p class="mt-1 text-sm text-ink-muted">Every change made in the portal, by a user or by the system, newest first. Entries can't be edited or deleted.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="audit-export-button" class="btn-secondary" title="Download every entry matching the search and filters, all pages">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4" aria-hidden="true"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v2h12v-2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                Export to Excel
+            </button>
+        </div>
     </div>
 
-    <section class="card border-l-4 border-state-blocked" aria-labelledby="audit-gap-heading">
-        <h2 id="audit-gap-heading" class="text-sm font-semibold uppercase tracking-wide text-ink-muted">Not available — no backend endpoint</h2>
-        <p class="mt-2 max-w-2xl text-sm text-ink-muted">
-            Every write to the audit log goes through <code class="rounded bg-surface-muted px-1">IAuditWriter</code>,
-            so audit entries are being recorded. There is, however, no way to search or export
-            them yet: no <code class="rounded bg-surface-muted px-1">GET /AccessManagement/AuditLog/Search</code> (or
-            equivalent) action exists, even though the <code class="rounded bg-surface-muted px-1">audit.read</code>
-            permission is already seeded and granted to the Auditor and Administrator roles.
-        </p>
-        <p class="mt-3 max-w-2xl text-sm text-ink-muted">
-            This screen intentionally stays a placeholder rather than querying the database
-            directly or otherwise reimplementing that read path in the frontend — the search
-            and export endpoint needs to be built on the backend first.
-        </p>
+    @* Search, the Filters popup and the applied-filter pills, in their own card above the grid. *@
+    <section class="card min-w-0 px-5 py-4" aria-labelledby="audit-filters-heading">
+        <h2 id="audit-filters-heading" class="sr-only">Search and filters</h2>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <form id="audit-search-form" class="search-input-group flex-1 min-w-[16rem] max-w-sm" novalidate>
+                <label class="sr-only" for="audit-search-query">Search by action, record ID or correlation ID</label>
+                <span class="search-input-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><circle cx="9" cy="9" r="6" /><path d="m17 17-3.5-3.5" stroke-linecap="round" /></svg>
+                </span>
+                <input class="field-input mt-0" id="audit-search-query" name="search" type="search" placeholder="Search by action, record ID or correlation ID" />
+            </form>
+
+            <div class="relative">
+                <button type="button" id="audit-filters-button" class="btn-secondary" aria-expanded="false" aria-controls="audit-filters-panel">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="M3 4h14M6 10h8M9 16h2" stroke-linecap="round" /></svg>
+                    Filters
+                    <span id="audit-filters-count" class="badge bg-brand-50 text-brand-700" hidden>0</span>
+                </button>
+
+                <div id="audit-filters-panel" class="popover-panel" hidden>
+                    <form id="audit-filters-form" novalidate>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="audit-filter-actor">User</label>
+                                <select class="field-input" id="audit-filter-actor" name="actor">
+                                    <option value="">All</option>
+                                    <option value="@AccessManagementController.SystemActor">System (no user)</option>
+                                    @foreach (var actor in Model.Actors)
+                                    {
+                                        <option value="@actor.UserId">@actor.Name (@actor.Email)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="audit-filter-entity">Record type</label>
+                                <select class="field-input" id="audit-filter-entity" name="entityType">
+                                    <option value="">All</option>
+                                    @foreach (var entityType in Model.EntityTypes)
+                                    {
+                                        <option value="@entityType">@entityType</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="field-label" for="audit-filter-action">Action</label>
+                                <select class="field-input" id="audit-filter-action" name="actionCode">
+                                    <option value="">All</option>
+                                    @foreach (var action in Model.ActionCodes)
+                                    {
+                                        <option value="@action">@action</option>
+                                    }
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label" for="audit-filter-from">From</label>
+                                <input class="field-input" id="audit-filter-from" name="from" type="date" />
+                            </div>
+                            <div>
+                                <label class="field-label" for="audit-filter-to">To</label>
+                                <input class="field-input" id="audit-filter-to" name="to" type="date" />
+                            </div>
+                        </div>
+                        <div class="mt-4 flex justify-end gap-2">
+                            <button type="button" id="audit-filters-reset" class="btn-secondary">Reset</button>
+                            <button type="submit" class="btn-primary">Apply</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="audit-filter-chips" class="flex flex-wrap items-center gap-2"></div>
+        </div>
+
+        <p id="audit-search-error" class="field-error mt-2" role="alert" hidden></p>
+    </section>
+
+    <section class="card min-w-0 p-0" aria-labelledby="audit-grid-heading">
+        <h2 id="audit-grid-heading" class="sr-only">Audit entries</h2>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head">Time</th>
+                        <th class="table-head">User</th>
+                        <th class="table-head">Action</th>
+                        <th class="table-head">Record</th>
+                        <th class="table-head w-12"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody id="audit-search-results"></tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-10" id="audit-empty-wrapper" hidden>
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "No audit entries yet",
+                "Changes made in the portal will be recorded here.", Id: "audit-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Search, "No audit entries match",
+                "Try a different search, or clear the search and filters.",
+                ActionLabel: "Clear search and filters", ActionAttributes: "data-empty-clear", Id: "audit-empty-filtered", Hidden: true))" />
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-3 text-sm text-ink-muted">
+            <span id="audit-search-summary"></span>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2">
+                    <span>Per page</span>
+                    <select id="audit-page-size" class="field-input mt-0 w-auto py-1.5">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="audit-search-prev" class="icon-button" disabled aria-label="Previous page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m12 4-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <span id="audit-page-number" class="min-w-[2rem] rounded-md bg-brand-600 px-2.5 py-1 text-center text-xs font-semibold text-white">1</span>
+                    <button type="button" id="audit-search-next" class="icon-button" disabled aria-label="Next page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m8 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
     </section>
 </div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/audit-log.js"></script>
+}

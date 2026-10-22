@@ -13,9 +13,12 @@
             <div class="text-sm font-semibold">User administration</div>
             <div class="mt-1 text-sm text-ink-muted">Create users, look one up, lock or unlock it.</div>
         </a>
-        <a href="/AccessManagement/AuditLog" class="rounded-md border border-line p-4 hover:bg-surface-muted">
-            <div class="text-sm font-semibold">Audit log</div>
-            <div class="mt-1 text-sm text-ink-muted">Search and export — not available yet, see the page for why.</div>
-        </a>
+        @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.AuditRead))
+        {
+            <a href="/AccessManagement/AuditLog" class="rounded-md border border-line p-4 hover:bg-surface-muted">
+                <div class="text-sm font-semibold">Audit logs</div>
+                <div class="mt-1 text-sm text-ink-muted">Search, view and export every change made in the portal.</div>
+            </a>
+        }
     </div>
 </section>

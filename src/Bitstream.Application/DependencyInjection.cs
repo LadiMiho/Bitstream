@@ -90,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogueService, CatalogueService>();
         services.AddScoped<Services.PostActivation.ISupportClassificationService, Services.PostActivation.SupportClassificationService>();
         services.AddScoped<Services.PostActivation.IPostActivationRequestService, Services.PostActivation.PostActivationRequestService>();
+        services.AddScoped<Services.Audit.IAuditLogService, Services.Audit.AuditLogService>();
 
         // TRD 7.3 — CRM integration. Direction A: the dispatcher claims the outbox and calls
         // ICrmGateway (Integration layer). Direction B: InboundEventService interprets a
