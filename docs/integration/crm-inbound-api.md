@@ -21,10 +21,10 @@ ticket number (the `EV_TICKET_NO` returned by `BITSTREAM_TICKET_CREATE`, for exa
 `8009521719`), or — after `SALES_ORDER_OPENED` — the new ticket CRM opened for the sales order. The
 portal tries its own ID first, then the CRM ticket number, then the sales order ticket.
 
-**`SALES_ORDER_OPENED` is the exception.** CRM sends it on the new ticket it opens for the sales
-order, which the portal does not know yet, so `payload.salesOrderId` must carry the **portal's
-request ID** (e.g. `TRING001`): that is how the request is found. The new ticket number in the URL
-is stored on the request, and later events (e.g. `LINE_ACTIVATED`) may be addressed to it.
+**`SALES_ORDER_OPENED` and `LINE_ACTIVATED` are the exception.** CRM sends them on the new ticket
+it opens for the sales order, which the portal may not know, so `payload.salesOrderId` must carry the
+**portal's request ID** (e.g. `TRING001`): that is how the request is found. The new ticket number
+from `SALES_ORDER_OPENED` is stored on the request, so later events may also be addressed to it.
 
 Body — the same shape for every step:
 
@@ -59,7 +59,7 @@ waits in **AwaitingGisVerification**. From there CRM reports each step:
 | 1a | Line check: line available | `LINE_AVAILABLE` | AwaitingGisVerification | LineAvailable | `{}` |
 | 1b | Line check: no line | `NO_LINE` | AwaitingGisVerification | RejectedNoLine | `reason` (required) |
 | 2 | Sales order opened ("Activation in progress"), sent to the new sales order ticket | `SALES_ORDER_OPENED` | LineAvailable | SalesOrderOpened | `salesOrderId` (required) = the **portal's request ID**, e.g. `TRING001`; `businessPartner` (optional) |
-| 3 | Line activated in CRM | `LINE_ACTIVATED` | SalesOrderOpened | AwaitingOperatorConfirmation | `{}` |
+| 3 | Line activated in CRM, sent to the sales order ticket | `LINE_ACTIVATED` | SalesOrderOpened | AwaitingOperatorConfirmation | `salesOrderId` = the **portal's request ID**, e.g. `TRING001` |
 
 Steps must arrive in this order. An administrator can still record the line check in the portal
 as a fallback; whichever arrives first applies, and the other is then refused with 409.
@@ -104,9 +104,9 @@ POST /api/v1/tickets/8009530001/events          (8009530001 = the new sales orde
 ```
 
 ```json
-POST /api/v1/tickets/8009521719/events
+POST /api/v1/tickets/8009530001/events          (8009530001 = the sales order ticket)
 { "eventId": "crm-evt-1004", "eventType": "LINE_ACTIVATED",
-  "occurredAt": "2026-10-08T14:00:00Z", "payload": {} }
+  "occurredAt": "2026-10-08T14:00:00Z", "payload": { "salesOrderId": "TRING001" } }
 ```
 
 ## Complaint ticket events

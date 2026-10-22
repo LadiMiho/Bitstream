@@ -41,9 +41,9 @@ public static class ComplaintTicketEventTypes
 /// portal's public identifier (e.g. TRING001), CRM's own ticket number (CrmTicketId) or the ticket
 /// CRM opened for the sales order (SalesOrderId); it is looked up in that order, as an activation
 /// request first and a complaint ticket second, and whichever lookup finds a row decides the
-/// routing. SALES_ORDER_OPENED is the exception: it comes on the sales order's new ticket, which
-/// the portal does not know yet, so its <c>payload.salesOrderId</c> carries the portal's request
-/// ID and that is what finds the request. From then on the event is applied under the row's
+/// routing. SALES_ORDER_OPENED and LINE_ACTIVATED are the exception: they may come on a ticket the
+/// portal does not know (the sales order's new ticket), so their <c>payload.salesOrderId</c>
+/// carries the portal's request ID and that is what finds the request. From then on the event is applied under the row's
 /// public identifier.
 /// </para>
 /// </summary>
@@ -100,17 +100,27 @@ public sealed class InboundEventService : IInboundEventService
         var evt = JsonSerializer.Deserialize<InboundTicketEvent>(message.Payload) ??
             throw new InvalidOperationException($"Integration message {integrationMessageId} payload could not be deserialised.");
 
-        // SALES_ORDER_OPENED arrives on the new ticket CRM opens for the sales order — a number the
-        // portal has never seen — so CRM names our request in payload.salesOrderId (e.g. TRING001).
-        // That decides which request it is; the route's identifier is then the new ticket.
+        // SALES_ORDER_OPENED and LINE_ACTIVATED may arrive on a ticket the portal has never seen
+        // (the new one CRM opens for the sales order), so CRM names our request in
+        // payload.salesOrderId (e.g. TRING001). That decides which request it is; the route's
+        // identifier is only the fallback.
+        var namedInPayload = await FindRequestNamedInPayloadAsync(evt, cancellationToken).ConfigureAwait(false);
         var activationRequest =
-            await FindSalesOrderTargetAsync(evt, cancellationToken).ConfigureAwait(false)
+            namedInPayload
             ?? await _requestRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
             ?? await _requestRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
             ?? await _requestRepository.FindBySalesOrderIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
 
         if (activationRequest is not null)
         {
+            // Keep the stored message on the request's timeline: an event found through its
+            // payload may be addressed to a ticket the request does not otherwise carry.
+            if (namedInPayload is not null && !IsKnownIdentifier(namedInPayload, evt.Identifier)
+                && !string.Equals(evt.EventType, ActivationEventTypes.SalesOrderOpened, StringComparison.Ordinal))
+            {
+                message.RelatedPublicId = namedInPayload.PublicId;
+            }
+
             await ApplyToActivationRequestAsync(
                 integrationMessageId, evt with { Identifier = activationRequest.PublicId }, evt.Identifier, activationRequest, cancellationToken)
                 .ConfigureAwait(false);
@@ -129,7 +139,7 @@ public sealed class InboundEventService : IInboundEventService
         }
 
         throw new InboundEventNotFoundException(
-            string.Equals(evt.EventType, ActivationEventTypes.SalesOrderOpened, StringComparison.Ordinal)
+            IdentifiesRequestInPayload(evt) && !string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId)
                 ? $"No activation request found for payload.salesOrderId '{evt.Payload.SalesOrderId}' (it must be the portal's request ID, e.g. TRING001), " +
                   $"nor for identifier '{evt.Identifier}'."
                 : $"No activation request or complaint ticket found for identifier '{evt.Identifier}' " +
@@ -158,12 +168,25 @@ public sealed class InboundEventService : IInboundEventService
         }
     }
 
-    /// <summary>For SALES_ORDER_OPENED, the request named by <c>payload.salesOrderId</c> (the portal's request ID); null otherwise or when it names none.</summary>
-    private async Task<ActivationRequest?> FindSalesOrderTargetAsync(InboundTicketEvent evt, CancellationToken cancellationToken) =>
+    /// <summary>The events CRM may send on a ticket the portal does not know, naming our request in <c>payload.salesOrderId</c>.</summary>
+    private static bool IdentifiesRequestInPayload(InboundTicketEvent evt) =>
         string.Equals(evt.EventType, ActivationEventTypes.SalesOrderOpened, StringComparison.Ordinal)
-        && !string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId)
+        || string.Equals(evt.EventType, ActivationEventTypes.LineActivated, StringComparison.Ordinal);
+
+    /// <summary>
+    /// For SALES_ORDER_OPENED and LINE_ACTIVATED, the request named by <c>payload.salesOrderId</c>
+    /// (the portal's request ID, e.g. TRING001); null for other events or when it names none.
+    /// </summary>
+    private async Task<ActivationRequest?> FindRequestNamedInPayloadAsync(InboundTicketEvent evt, CancellationToken cancellationToken) =>
+        IdentifiesRequestInPayload(evt) && !string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId)
             ? await _requestRepository.FindByPublicIdAsync(evt.Payload.SalesOrderId.Trim(), cancellationToken).ConfigureAwait(false)
             : null;
+
+    /// <summary>Whether <paramref name="identifier"/> is one the request already carries (portal ID, CRM ticket or sales order ticket).</summary>
+    private static bool IsKnownIdentifier(ActivationRequest request, string identifier) =>
+        string.Equals(identifier, request.PublicId, StringComparison.Ordinal)
+        || string.Equals(identifier, request.CrmTicketId, StringComparison.Ordinal)
+        || string.Equals(identifier, request.SalesOrderId, StringComparison.Ordinal);
 
     /// <param name="integrationMessageId">The stored inbound message.</param>
     /// <param name="evt">The event, its identifier already replaced by the request's public ID.</param>

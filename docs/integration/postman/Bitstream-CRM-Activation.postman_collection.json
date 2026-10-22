@@ -231,7 +231,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "raw": "{{baseUrl}}/api/v1/tickets/{{salesOrderTicket}}/events",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -239,20 +239,20 @@
                 "api",
                 "v1",
                 "tickets",
-                "{{identifier}}",
+                "{{salesOrderTicket}}",
                 "events"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"{{identifier}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "**SalesOrderOpened → AwaitingOperatorConfirmation.** The line is active on CRM's side; the ISP's operator now confirms in the portal whether it works (Yes → Completed; No → Waiting for service desk). Those portal steps are not API calls."
+            "description": "**SalesOrderOpened → AwaitingOperatorConfirmation**. Sent to the sales order ticket (`{{salesOrderTicket}}`); `payload.salesOrderId` must be the **portal's request ID** (`{{identifier}}`, e.g. TRING001) — that is how the request is found."
           },
           "event": [
             {
@@ -559,7 +559,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/tickets/{{identifier}}/events",
+              "raw": "{{baseUrl}}/api/v1/tickets/{{salesOrderTicket}}/events",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -567,20 +567,20 @@
                 "api",
                 "v1",
                 "tickets",
-                "{{identifier}}",
+                "{{salesOrderTicket}}",
                 "events"
               ]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"identifier\": \"{{identifier}}\",\n  \"crmTicketId\": \"{{crmTicketNumber}}\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"{{identifier}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Send while the request is still AwaitingGisVerification: LINE_ACTIVATED is only allowed from SalesOrderOpened."
+            "description": "**SalesOrderOpened → AwaitingOperatorConfirmation**. Sent to the sales order ticket (`{{salesOrderTicket}}`); `payload.salesOrderId` must be the **portal's request ID** (`{{identifier}}`, e.g. TRING001) — that is how the request is found."
           },
           "event": [
             {
