@@ -213,7 +213,7 @@ public sealed class ActivationRequestsController : Controller
                 "Request", "ISP", "Package", "Contract (months)", "Package + duration code", "Classification",
                 "Status", "Status reason",
                 "Location", "Latitude", "Longitude",
-                "Business partner", "CRM ticket", "Sales order",
+                "Business partner", "Activation ticket (CRM)", "Sales order ticket (CRM)",
                 "Submitted", "Last updated", "Line activated",
                 "Operator confirmed", "Operator comment", "Service desk: activated", "Service desk comment",
                 "Comments"

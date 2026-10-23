@@ -57,8 +57,8 @@
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@request.LocationLat, @request.LocationLng</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Classification</dt><dd class="mt-1 text-sm">@request.Classification</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Business Partner</dt><dd class="mt-1 text-sm">@(request.Bp ?? "—")</dd></div>
-        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">CRM ticket</dt><dd class="mt-1 text-sm">@(request.CrmTicketId ?? "—")</dd></div>
-        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Sales order</dt><dd class="mt-1 text-sm">@(request.SalesOrderId ?? "Not yet raised")</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Activation ticket (CRM)</dt><dd class="mt-1 text-sm">@(request.CrmTicketId ?? "—")</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Sales order ticket (CRM)</dt><dd class="mt-1 text-sm">@(request.SalesOrderId ?? "Not yet raised")</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Submitted</dt><dd class="mt-1 text-sm">@request.CreatedAt.ToString("g")</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Last updated</dt><dd class="mt-1 text-sm">@(request.LastUpdatedAt?.ToString("g") ?? "—")</dd></div>
         <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Comments</dt><dd class="mt-1 whitespace-pre-wrap text-sm">@(request.Comments ?? "(none)")</dd></div>

@@ -218,8 +218,6 @@ function renderResults(items) {
     statusCell.appendChild(statusPill(request.status));
     row.appendChild(statusCell);
 
-    row.appendChild(cell('font-mono text-xs', request.crmTicketId ?? '—'));
-
     const created = new Date(request.createdAt);
     row.appendChild(cell('whitespace-nowrap text-ink-muted',
       `${created.toLocaleDateString()} ${created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`));
