@@ -323,4 +323,44 @@ public sealed class CrmInboundApiTests
         Assert.Contains("payload.salesOrderId 'TRING999'", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
     }
+    [Fact]
+    public async Task The_200_response_says_whether_the_event_was_applied_discarded_or_a_duplicate()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING001");
+        using var client = factory.CreateClient();
+        var uri = new Uri($"/api/v1/tickets/{CrmTicketNumber}/events", UriKind.Relative);
+
+        // Applied: the request changed, and the response names it.
+        var applied = Event("LINE_AVAILABLE", identifier: null);
+        using (var response = await client.PostAsJsonAsync(uri, applied))
+        {
+            var body = await response.Content.ReadFromJsonAsync<TicketEventAccepted>();
+            Assert.Equal("applied", body!.Outcome);
+            Assert.Equal("TRING001", body.RequestId);
+            Assert.Null(body.Detail);
+        }
+
+        // Duplicate: the same eventId again.
+        using (var response = await client.PostAsJsonAsync(uri, applied))
+        {
+            var body = await response.Content.ReadFromJsonAsync<TicketEventAccepted>();
+            Assert.Equal("duplicate", body!.Outcome);
+            Assert.True(body.Duplicate);
+        }
+
+        // Discarded: a new event whose occurredAt is not later than the last applied one.
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.SalesOrderOpened);
+        var stale = Event("LINE_ACTIVATED", identifier: null) with { OccurredAt = applied.OccurredAt.AddDays(-1) };
+        using (var response = await client.PostAsJsonAsync(uri, stale))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<TicketEventAccepted>();
+            Assert.Equal("discarded", body!.Outcome);
+            Assert.Equal("TRING001", body.RequestId);
+            Assert.Contains("is not later than the last event applied to TRING001", body.Detail, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
+    }
 }

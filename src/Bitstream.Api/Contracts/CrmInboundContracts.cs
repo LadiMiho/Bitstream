@@ -67,11 +67,17 @@ public sealed record TicketEventPayload(
 /// <param name="Identifier">Portal identifier the event was matched to.</param>
 /// <param name="Duplicate">True when this eventId had already been accepted. Not an error.</param>
 /// <param name="ReceivedAt">Time the portal persisted the event.</param>
+/// <param name="Outcome"><c>applied</c> (the request changed), <c>discarded</c> (received but not applied — see <paramref name="Detail"/>) or <c>duplicate</c>.</param>
+/// <param name="RequestId">The portal request the event was matched to, e.g. TRING001.</param>
+/// <param name="Detail">Why a discarded event was not applied; null otherwise.</param>
 public sealed record TicketEventAccepted(
     [property: JsonPropertyName("eventId")] string EventId,
     [property: JsonPropertyName("identifier")] string Identifier,
     [property: JsonPropertyName("duplicate")] bool Duplicate,
-    [property: JsonPropertyName("receivedAt")] DateTimeOffset ReceivedAt);
+    [property: JsonPropertyName("receivedAt")] DateTimeOffset ReceivedAt,
+    [property: JsonPropertyName("outcome")] string Outcome = "applied",
+    [property: JsonPropertyName("requestId")] string? RequestId = null,
+    [property: JsonPropertyName("detail")] string? Detail = null);
 
 /// <summary>Request to reprocess events for a ticket or a time window during recovery (TR-INT-31).</summary>
 /// <param name="TicketIdentifier">Portal identifier to replay; null replays the whole window.</param>

@@ -70,8 +70,10 @@ public static class CrmInboundEndpoints
                 Completed or ActivationFailed). Those steps are not CRM events.
 
                 Response codes:
-                  200 — accepted: newly applied, applied-but-discarded-as-stale, or a duplicate
-                        eventId (Duplicate=true in the body; nothing re-applied, TR-INT-25).
+                  200 — received; the body's outcome says what happened: "applied" (the request,
+                        named in requestId, changed), "discarded" (not applied: occurredAt is not
+                        later than the last event applied to that request; detail says why) or
+                        "duplicate" (this eventId was already received; nothing re-applied, TR-INT-25).
                   400 — malformed request, or the body's identifier does not match the route's.
                   401 — missing or wrong X-Api-Key.
                   404 — identifier does not resolve to any known request or ticket.
@@ -188,7 +190,15 @@ public static class CrmInboundEndpoints
             }
         }
 
-        return Results.Ok(new TicketEventAccepted(request.EventId, identifier, isDuplicate, message.CreatedAt));
+        // Say what became of the event: a 200 alone does not tell CRM whether the request changed.
+        var processed = await outbox.FindByIdAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
+        var (discarded, requestId, detail) = ReadOutcome(processed?.ResponsePayload);
+
+        return Results.Ok(new TicketEventAccepted(
+            request.EventId, identifier, isDuplicate, message.CreatedAt,
+            isDuplicate ? "duplicate" : discarded ? "discarded" : "applied",
+            requestId,
+            isDuplicate ? "This eventId was already received; nothing was applied again." : detail));
     }
 
     /// <summary>
@@ -216,6 +226,29 @@ public static class CrmInboundEndpoints
         await inboundEventService.ReplayAsync(request.TicketIdentifier, request.FromUtc, request.ToUtc, cancellationToken).ConfigureAwait(false);
 
         return Results.Accepted();
+    }
+
+    /// <summary>What the event service recorded on the message: discarded or applied, the matched request and why.</summary>
+    private static (bool Discarded, string? RequestId, string? Detail) ReadOutcome(string? responsePayload)
+    {
+        if (string.IsNullOrWhiteSpace(responsePayload))
+        {
+            return (false, null, null);
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(responsePayload);
+            var root = document.RootElement;
+            var discarded = root.TryGetProperty("discarded", out var d) && d.ValueKind == JsonValueKind.True;
+            var requestId = root.TryGetProperty("publicId", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var detail = discarded && root.TryGetProperty("reason", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
+            return (discarded, requestId, detail);
+        }
+        catch (JsonException)
+        {
+            return (false, null, null);
+        }
     }
 
     private static InboundTicketEvent ToApplicationEvent(TicketEventRequest request, string identifier) =>

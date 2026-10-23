@@ -392,16 +392,24 @@ public sealed class InboundEventService : IInboundEventService
             "Discarding stale event {EventId} for {Identifier}: occurredAt {OccurredAt:O} is not after the last applied event {LastApplied:O}.",
             evt.EventId, evt.Identifier, evt.OccurredAt, lastApplied);
 
+        // The endpoint reads this back to tell CRM the event was received but not applied, and why.
         await _outbox.MarkSucceededAsync(
             integrationMessageId,
-            "{\"discarded\":true,\"reason\":\"stale: occurredAt is not after the last applied event\"}",
+            JsonSerializer.Serialize(new
+            {
+                discarded = true,
+                publicId = evt.Identifier,
+                reason = $"Not applied: occurredAt {evt.OccurredAt:O} is not later than the last event applied to {evt.Identifier} " +
+                         $"({lastApplied:O}). Events for a request must be sent in order, each with a later occurredAt.",
+                lastAppliedAt = lastApplied
+            }),
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task MarkAppliedAsync(long integrationMessageId, InboundTicketEvent evt, CancellationToken cancellationToken)
     {
         await _outbox.MarkSucceededAsync(
-            integrationMessageId, $"{{\"applied\":true,\"eventType\":{JsonSerializer.Serialize(evt.EventType)}}}", cancellationToken)
+            integrationMessageId, JsonSerializer.Serialize(new { applied = true, eventType = evt.EventType, publicId = evt.Identifier }), cancellationToken)
             .ConfigureAwait(false);
     }
 }

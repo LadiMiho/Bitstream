@@ -67,6 +67,21 @@ as a fallback; whichever arrives first applies, and the other is then refused wi
 `PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` are no longer accepted for activation
 requests (422): `LINE_ACTIVATED` replaces both.
 
+### Reading the 200 response
+
+A 200 means the event was **received**. Check `outcome` to see whether the request changed:
+
+```json
+{ "eventId": "crm-evt-1003", "identifier": "8009530001", "duplicate": false,
+  "receivedAt": "2026-10-05T09:15:01Z", "outcome": "applied", "requestId": "TRING001", "detail": null }
+```
+
+| `outcome` | Meaning |
+|---|---|
+| `applied` | The request named in `requestId` moved to its next status. |
+| `discarded` | Received but **not applied**: `occurredAt` is not later than the last event already applied to that request (`detail` gives both times). Resend with a new `eventId` and the real, later `occurredAt`. |
+| `duplicate` | This `eventId` was already received; nothing was applied again. |
+
 ### After LINE_ACTIVATED (in the portal, not CRM events)
 
 1. The ISP's operator (or an Administrator) answers **"Is the line working?"** with Yes or No.
