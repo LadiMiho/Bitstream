@@ -144,6 +144,11 @@ public static class ActivationTimeline
         using var payload = TryParse(message.Payload);
         var eventPayload = payload is null || !payload.RootElement.TryGetProperty("Payload", out var inner) ? (JsonElement?)null : inner;
 
+        // The identifier CRM sent the event to: for SALES_ORDER_OPENED, the number of the new order.
+        var routeIdentifier = payload is not null && payload.RootElement.TryGetProperty("Identifier", out var route) && route.ValueKind == JsonValueKind.String
+            ? route.GetString()
+            : null;
+
         string? Field(string name) =>
             eventPayload is { ValueKind: JsonValueKind.Object } value && value.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String
                 ? field.GetString()
@@ -153,7 +158,8 @@ public static class ActivationTimeline
         {
             "LINE_AVAILABLE" => ("CRM: line available", (string?)"GIS line check found a line"),
             "NO_LINE" => ("CRM: no line", Field("Reason")),
-            "SALES_ORDER_OPENED" => ("CRM: sales order opened", Field("SalesOrderId") is { } so ? $"Sales order {so}" : null),
+            "SALES_ORDER_OPENED" => ("CRM: sales order opened",
+                routeIdentifier is { } order && !string.Equals(order, Field("SalesOrderId"), StringComparison.Ordinal) ? $"New CRM order {order}" : null),
             "LINE_ACTIVATED" => ("CRM: line activated", "Waiting for the operator to confirm the line works"),
             _ => ($"CRM: {message.MessageType}", null)
         };

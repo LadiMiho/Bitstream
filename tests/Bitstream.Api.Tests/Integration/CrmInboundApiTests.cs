@@ -363,4 +363,36 @@ public sealed class CrmInboundApiTests
 
         Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
     }
+    [Fact]
+    public async Task SALES_ORDER_OPENED_stores_the_order_number_from_the_URL_never_the_request_ID_in_salesOrderId()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.LineAvailable);
+        using var client = factory.CreateClient();
+
+        // Even when the order number CRM sends is the request's own CRM ticket number.
+        using var response = await client.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{CrmTicketNumber}/events", UriKind.Relative), SalesOrderOpened("TRING001"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
+        Assert.Equal(CrmTicketNumber, await ReadSalesOrderAsync(factory, requestId));
+    }
+
+    [Fact]
+    public async Task SALES_ORDER_OPENED_sent_to_our_own_request_ID_records_no_order_number()
+    {
+        await using var factory = new CrmApiFactory();
+        var requestId = await SeedAwaitingGisAsync(factory, "TRING001");
+        await SetStatusAsync(factory, requestId, ActivationRequestStatus.LineAvailable);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            new Uri("/api/v1/tickets/TRING001/events", UriKind.Relative), SalesOrderOpened("TRING001"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ActivationRequestStatus.SalesOrderOpened, (await ReadAsync(factory, requestId)).Status);
+        Assert.Null(await ReadSalesOrderAsync(factory, requestId));
+    }
 }

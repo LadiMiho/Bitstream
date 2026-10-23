@@ -230,15 +230,15 @@ public sealed class InboundEventService : IInboundEventService
                     throw new ActivationRequestValidationException("payload.salesOrderId is required for a SALES_ORDER_OPENED event.");
                 }
 
-                // Normally CRM sends the new sales-order ticket in the route and our request ID in
-                // salesOrderId: the new ticket is what is kept. An event addressed to the request
-                // itself (portal ID or the original CRM ticket) keeps salesOrderId as sent.
-                var addressedToRequest =
-                    string.Equals(routeIdentifier, request.PublicId, StringComparison.Ordinal)
-                    || string.Equals(routeIdentifier, request.CrmTicketId, StringComparison.Ordinal);
-                var salesOrderTicket = addressedToRequest ? evt.Payload.SalesOrderId.Trim() : routeIdentifier;
+                // CRM creates a new order for this step and sends its number in the URL;
+                // payload.salesOrderId only names our request (e.g. TRING001) so the event can be
+                // matched, and is never the order number. Addressed to our own request ID, the
+                // event carries no order number at all.
+                var salesOrderNumber = string.Equals(routeIdentifier, request.PublicId, StringComparison.Ordinal)
+                    ? null
+                    : routeIdentifier;
 
-                await _activationRequestService.ApplySalesOrderAsync(evt.Identifier, salesOrderTicket, cancellationToken).ConfigureAwait(false);
+                await _activationRequestService.ApplySalesOrderAsync(evt.Identifier, salesOrderNumber, cancellationToken).ConfigureAwait(false);
                 break;
 
             case ActivationEventTypes.LineActivated:

@@ -54,7 +54,7 @@ public sealed class ActivationTimelineTests
         var history = new ActivationHistory(
             [
                 Message(IntegrationDirection.Inbound, "INT-CRM-EVENT", "SALES_ORDER_OPENED",
-                    """{"EventId":"e2","Payload":{"SalesOrderId":"SO-1"}}""", IntegrationMessageStatus.Succeeded, T0.AddMinutes(30), "{}"),
+                    """{"EventId":"e2","Identifier":"8009530001","Payload":{"SalesOrderId":"TRING001"}}""", IntegrationMessageStatus.Succeeded, T0.AddMinutes(30), "{}"),
                 Message(IntegrationDirection.Outbound, "INT-CRM-01", "CREATE_CUSTOMER", "{}", IntegrationMessageStatus.Succeeded,
                     T0.AddMinutes(1), """{"CrmCustomerId":"C1","BusinessPartner":"1102017112"}"""),
                 Message(IntegrationDirection.Outbound, "INT-CRM-02", "CREATE_TICKET", """{"OfferCode":"5100020013"}""",
@@ -91,7 +91,7 @@ public sealed class ActivationTimelineTests
         Assert.Contains("CRM ticket 8009521719", timeline[2].Summary, StringComparison.Ordinal);
         Assert.Equal(ActivationTimelineOutcome.Rejected, timeline[3].Outcome);
         Assert.Contains("409", timeline[3].Error, StringComparison.Ordinal);
-        Assert.Equal("Sales order SO-1", timeline[4].Summary);
+        Assert.Equal("New CRM order 8009530001", timeline[4].Summary);
         Assert.Equal(ActivationTimelineOutcome.Discarded, timeline[5].Outcome);
         Assert.Contains("Line working: No", timeline[6].Summary, StringComparison.Ordinal);
         Assert.Contains("No sync on the ONT", timeline[6].Summary, StringComparison.Ordinal);

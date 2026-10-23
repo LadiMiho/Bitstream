@@ -433,10 +433,8 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task ApplySalesOrderAsync(string requestPublicId, string salesOrderId, CancellationToken cancellationToken = default)
+    public async Task ApplySalesOrderAsync(string requestPublicId, string? salesOrderId, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(salesOrderId);
-
         var request = await _requestRepository.FindByPublicIdAsync(requestPublicId, cancellationToken).ConfigureAwait(false) ??
             throw new ActivationRequestNotFoundException($"Activation request '{requestPublicId}' does not exist.");
 
@@ -449,7 +447,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
                 "not 'LineAvailable'.");
         }
 
-        request.SalesOrderId = salesOrderId;
+        request.SalesOrderId = string.IsNullOrWhiteSpace(salesOrderId) ? request.SalesOrderId : salesOrderId.Trim();
         Transition(request, ActivationRequestStatus.SalesOrderOpened, _clock.UtcNow);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

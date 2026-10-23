@@ -29,7 +29,10 @@ public interface IActivationRequestService
     Task RecordGisOutcomeAsync(long requestId, bool lineAvailable, string? reason, CancellationToken cancellationToken = default);
 
     /// <summary>Applies a sales order notification received on the inbound API (TR-ACT-18).</summary>
-    Task ApplySalesOrderAsync(string requestPublicId, string salesOrderId, CancellationToken cancellationToken = default);
+    /// <param name="requestPublicId">The request.</param>
+    /// <param name="salesOrderId">The number of the order CRM created; null when CRM did not send one (the request keeps any it has).</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    Task ApplySalesOrderAsync(string requestPublicId, string? salesOrderId, CancellationToken cancellationToken = default);
 
     Task<ActivationRequest?> GetByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
