@@ -80,7 +80,7 @@ public sealed class FakeCrmGateway : ICrmGateway
 
         var sequence = Interlocked.Increment(ref _ticketSequence);
         return Task.FromResult(IntegrationResult<CreatePhoneTicketResult>.Success(
-            new CreatePhoneTicketResult($"80095{sequence:D5}", "Service ticket created", AlreadyExists: false)));
+            new CreatePhoneTicketResult($"80095{sequence:D5}", "Service ticket created")));
     }
 
     public Task<IntegrationResult<CreateCrmTicketResult>> CreateComplaintTicketAsync(

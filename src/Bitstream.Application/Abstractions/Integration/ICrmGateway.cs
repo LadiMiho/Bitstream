@@ -52,8 +52,8 @@ public interface ICrmGateway
 
     /// <summary>
     /// INT-CRM-11. Creates a post-activation ticket for a phone number through CRM's
-    /// <c>BITSTREAM_TO_CRM</c> workflow. CRM answering that a ticket already exists is a success
-    /// with <see cref="CreatePhoneTicketResult.AlreadyExists"/> set, not a failure.
+    /// <c>BITSTREAM_TO_CRM</c> workflow. CRM answering AlreadyExists = X is a business rejection
+    /// carrying CRM's <c>Message</c>.
     /// </summary>
     Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
         CreatePhoneTicketCommand command,

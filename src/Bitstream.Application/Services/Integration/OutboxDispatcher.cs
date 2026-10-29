@@ -288,8 +288,8 @@ public sealed class OutboxDispatcher : BackgroundService
     }
 
     /// <summary>
-    /// INT-CRM-11: a post-activation request. CRM answering AlreadyExists is a final outcome
-    /// (the request shows the open ticket CRM already has), not a failure.
+    /// INT-CRM-11: a post-activation request. CRM answering AlreadyExists = X arrives as a
+    /// business rejection, so HandleFailureAsync marks the request Failed with CRM's Message.
     /// </summary>
     private static async Task DispatchCreatePhoneTicketAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
     {
@@ -311,7 +311,7 @@ public sealed class OutboxDispatcher : BackgroundService
         var answer = result.Value!;
         await services.GetRequiredService<IPostActivationRequestService>().MarkCrmResultAsync(
             command.RequestPublicId,
-            answer.AlreadyExists ? PostActivationRequestStatus.AlreadyExists : PostActivationRequestStatus.Submitted,
+            PostActivationRequestStatus.Submitted,
             answer.TicketId,
             answer.Message,
             cancellationToken).ConfigureAwait(false);

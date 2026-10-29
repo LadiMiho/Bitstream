@@ -122,10 +122,10 @@ internal static class CrmSoap
             ("Notes", command.Note));
 
     /// <summary>
-    /// Success when <c>EvSuccess</c> is X and <c>EvServiceticketid</c> names the new ticket, or
-    /// when <c>EvAlreadyExists</c> is X: CRM already has a ticket open for the number, which
-    /// <c>EvServiceticketid</c> names (a success with the flag set, so it is not retried). Anything
-    /// else is CRM refusing the request, carrying its <c>EvMessage</c>.
+    /// Success only when <c>TicketID</c> names the new ticket and <c>AlreadyExists</c> is empty.
+    /// <c>AlreadyExists</c> = X is a failure whose text is CRM's <c>Message</c> (shown on the
+    /// request as is); no <c>TicketID</c> is a failure too. Neither is retried: a blind second
+    /// call could open a duplicate ticket.
     /// </summary>
     public static IntegrationResult<CreatePhoneTicketResult> ParseCreatePhoneTicketResponse(string body)
     {
@@ -136,32 +136,29 @@ internal static class CrmSoap
             return IntegrationResult<CreatePhoneTicketResult>.TechnicalFailure(failure);
         }
 
-        response.Context.TryGetValue("EvSuccess", out var success);
-        response.Context.TryGetValue("EvMessage", out var message);
-        response.Context.TryGetValue("EvServiceticketid", out var ticketId);
-        response.Context.TryGetValue("EvAlreadyExists", out var alreadyExists);
+        response.Context.TryGetValue("TicketID", out var ticketId);
+        response.Context.TryGetValue("Message", out var message);
+        response.Context.TryGetValue("AlreadyExists", out var alreadyExists);
 
-        var exists = string.Equals(alreadyExists, "X", StringComparison.OrdinalIgnoreCase);
-
-        if (!exists && !string.Equals(success, "X", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(alreadyExists))
         {
             return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
-                response.ResponseCode ?? "EV_SUCCESS",
-                $"CRM did not create the ticket (responseCode {response.ResponseCode}, EvSuccess '{success}'): " +
-                $"{(string.IsNullOrEmpty(message) ? "no EvMessage" : message)}");
+                "ALREADY_EXISTS",
+                string.IsNullOrWhiteSpace(message)
+                    ? $"CRM answered AlreadyExists {alreadyExists}{(string.IsNullOrEmpty(ticketId) ? "" : $" (TicketID {ticketId})")} with no Message."
+                    : message);
         }
 
-        if (string.IsNullOrEmpty(ticketId))
+        if (string.IsNullOrWhiteSpace(ticketId))
         {
-            // Not retried: a blind second call could open a duplicate ticket.
             return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
                 "NO_TICKET_ID",
-                $"CRM answered EvSuccess {success}{(exists ? ", EvAlreadyExists X" : "")} but returned no EvServiceticketid{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
+                $"CRM returned no TicketID{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
                 $"CRM returned: {(response.Context.Count == 0 ? "no context values" : Describe(response.Context).Trim(' ', '(', ')'))}.");
         }
 
         return IntegrationResult<CreatePhoneTicketResult>.Success(
-            new CreatePhoneTicketResult(ticketId, string.IsNullOrEmpty(message) ? null : message, exists));
+            new CreatePhoneTicketResult(ticketId, string.IsNullOrEmpty(message) ? null : message));
     }
 
     // --- INT-CRM-10 executeWorkflow BITSTREAM_TO_CRM ------------------------------------------

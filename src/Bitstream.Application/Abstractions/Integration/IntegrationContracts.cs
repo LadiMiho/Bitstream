@@ -151,10 +151,9 @@ public sealed record CreatePhoneTicketCommand(
     string Classification,
     string? Note);
 
-/// <param name="TicketId">CRM's <c>EvServiceticketid</c>: the new ticket, or the open one when <paramref name="AlreadyExists"/>.</param>
-/// <param name="Message">CRM's <c>EvMessage</c>.</param>
-/// <param name="AlreadyExists">CRM's <c>EvAlreadyExists</c> = X: no ticket was created because one is already open for this number.</param>
-public sealed record CreatePhoneTicketResult(string? TicketId, string? Message, bool AlreadyExists);
+/// <param name="TicketId">CRM's <c>TicketID</c>: the ticket created for this request.</param>
+/// <param name="Message">CRM's <c>Message</c>.</param>
+public sealed record CreatePhoneTicketResult(string TicketId, string? Message);
 
 // --- INT-CRM-09 Service Change ---------------------------------------------------
 

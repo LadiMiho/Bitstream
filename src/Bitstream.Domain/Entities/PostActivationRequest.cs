@@ -39,7 +39,7 @@ public sealed class PostActivationRequest
     /// <summary>One of <see cref="PostActivationRequestStatus"/>.</summary>
     public required string Status { get; set; }
 
-    /// <summary>CRM's <c>EvServiceticketid</c>: the new ticket, or the open one when CRM answered EvAlreadyExists.</summary>
+    /// <summary>CRM's <c>TicketID</c>: the ticket created for this request (used in later calls about it).</summary>
     public string? CrmTicketId { get; set; }
 
     /// <summary>CRM's <c>Message</c>, or the failure reason.</summary>
@@ -61,7 +61,7 @@ public static class PostActivationRequestStatus
     /// <summary>CRM created the ticket.</summary>
     public const string Submitted = "Submitted";
 
-    /// <summary>CRM already has an open ticket for this phone number (EvAlreadyExists = X).</summary>
+    /// <summary>CRM already had an open ticket for this phone number. Only requests sent before AlreadyExists = X became a failure (shown as Failed with CRM's Message) carry this status.</summary>
     public const string AlreadyExists = "AlreadyExists";
 
     /// <summary>CRM refused the request, or every retry failed.</summary>

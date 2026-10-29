@@ -223,7 +223,7 @@ public sealed class PostActivationRequestTests
     }
 
     [Fact]
-    public async Task CRM_answering_AlreadyExists_or_refusing_is_recorded_on_the_request()
+    public async Task CRM_answering_AlreadyExists_or_refusing_fails_the_request_with_its_message()
     {
         await using var factory = new CrmApiFactory();
         await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
@@ -235,14 +235,14 @@ public sealed class PostActivationRequestTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        factory.CrmGateway.NextCreatePhoneTicketResult = IntegrationResult<CreatePhoneTicketResult>.Success(
-            new CreatePhoneTicketResult("8009521751", "Ticket: 8009521751  already exist with status E0007", AlreadyExists: true));
+        factory.CrmGateway.NextCreatePhoneTicketResult = IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
+            "ALREADY_EXISTS", "Ticket: 8009521751  already exist with status E0007");
         await DispatchAsync(factory);
 
         var existing = await ReadAsync(factory, "TRING_1");
-        Assert.Equal(PostActivationRequestStatus.AlreadyExists, existing.Status);
-        Assert.Equal("8009521751", existing.CrmTicketId);
-        Assert.Contains("already exist", existing.CrmMessage, StringComparison.Ordinal);
+        Assert.Equal(PostActivationRequestStatus.Failed, existing.Status);
+        Assert.Null(existing.CrmTicketId);
+        Assert.Equal("Ticket: 8009521751  already exist with status E0007", existing.CrmMessage);
 
         using (var response = await SubmitAsync(adminClient, "ABC_1", seeded.Level3Id))
         {
