@@ -151,9 +151,19 @@ public sealed record CreatePhoneTicketCommand(
     string Classification,
     string? Note);
 
-/// <param name="TicketId">CRM's <c>TicketID</c>: the ticket created for this request.</param>
-/// <param name="Message">CRM's <c>Message</c>.</param>
-public sealed record CreatePhoneTicketResult(string TicketId, string? Message);
+/// <param name="TicketId">CRM's <c>EvServiceTicketId</c>: the ticket created for this request.</param>
+/// <param name="Message">CRM's <c>EvMessage</c>.</param>
+/// <param name="AlreadyExists">CRM's <c>EvAlreadyExists</c> has a value (X): the request is refused.</param>
+/// <param name="CrmResponse">Every value CRM returned, stored and shown as CRM's answer.</param>
+public sealed record CreatePhoneTicketResult(
+    string? TicketId,
+    string? Message,
+    bool AlreadyExists = false,
+    IReadOnlyDictionary<string, string>? CrmResponse = null)
+{
+    /// <summary>CRM created the ticket: a ticket ID and no EvAlreadyExists.</summary>
+    public bool IsCreated => !AlreadyExists && !string.IsNullOrWhiteSpace(TicketId);
+}
 
 // --- INT-CRM-09 Service Change ---------------------------------------------------
 

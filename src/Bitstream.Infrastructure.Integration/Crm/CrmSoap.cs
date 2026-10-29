@@ -122,10 +122,11 @@ internal static class CrmSoap
             ("Notes", command.Note));
 
     /// <summary>
-    /// Success only when <c>TicketID</c> names the new ticket and <c>AlreadyExists</c> is empty.
-    /// <c>AlreadyExists</c> = X is a failure whose text is CRM's <c>Message</c> (shown on the
-    /// request as is); no <c>TicketID</c> is a failure too. Neither is retried: a blind second
-    /// call could open a duplicate ticket.
+    /// CRM's answer: <c>EvServiceTicketId</c> (also accepted as spelled in CRM's description,
+    /// <c>EvServciceTicketId</c>), <c>EvMessage</c> and <c>EvAlreadyExists</c>, with every value
+    /// CRM returned kept for display. Any readable answer is a success here, so it is stored on the
+    /// message; whether CRM created the ticket (<see cref="CreatePhoneTicketResult.IsCreated"/>) is
+    /// decided from the values. Only an unreadable answer, a SOAP fault or no answer is a failure.
     /// </summary>
     public static IntegrationResult<CreatePhoneTicketResult> ParseCreatePhoneTicketResponse(string body)
     {
@@ -136,29 +137,18 @@ internal static class CrmSoap
             return IntegrationResult<CreatePhoneTicketResult>.TechnicalFailure(failure);
         }
 
-        response.Context.TryGetValue("TicketID", out var ticketId);
-        response.Context.TryGetValue("Message", out var message);
-        response.Context.TryGetValue("AlreadyExists", out var alreadyExists);
-
-        if (!string.IsNullOrWhiteSpace(alreadyExists))
+        response.Context.TryGetValue("EvMessage", out var message);
+        response.Context.TryGetValue("EvAlreadyExists", out var alreadyExists);
+        if (!response.Context.TryGetValue("EvServiceTicketId", out var ticketId))
         {
-            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
-                "ALREADY_EXISTS",
-                string.IsNullOrWhiteSpace(message)
-                    ? $"CRM answered AlreadyExists {alreadyExists}{(string.IsNullOrEmpty(ticketId) ? "" : $" (TicketID {ticketId})")} with no Message."
-                    : message);
+            response.Context.TryGetValue("EvServciceTicketId", out ticketId);
         }
 
-        if (string.IsNullOrWhiteSpace(ticketId))
-        {
-            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
-                "NO_TICKET_ID",
-                $"CRM returned no TicketID{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
-                $"CRM returned: {(response.Context.Count == 0 ? "no context values" : Describe(response.Context).Trim(' ', '(', ')'))}.");
-        }
-
-        return IntegrationResult<CreatePhoneTicketResult>.Success(
-            new CreatePhoneTicketResult(ticketId, string.IsNullOrEmpty(message) ? null : message));
+        return IntegrationResult<CreatePhoneTicketResult>.Success(new CreatePhoneTicketResult(
+            string.IsNullOrWhiteSpace(ticketId) ? null : ticketId,
+            string.IsNullOrWhiteSpace(message) ? null : message,
+            !string.IsNullOrWhiteSpace(alreadyExists),
+            response.Context));
     }
 
     // --- INT-CRM-10 executeWorkflow BITSTREAM_TO_CRM ------------------------------------------

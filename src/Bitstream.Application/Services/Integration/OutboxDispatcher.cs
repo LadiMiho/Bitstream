@@ -288,8 +288,10 @@ public sealed class OutboxDispatcher : BackgroundService
     }
 
     /// <summary>
-    /// INT-CRM-11: a post-activation request. CRM answering AlreadyExists = X arrives as a
-    /// business rejection, so HandleFailureAsync marks the request Failed with CRM's Message.
+    /// INT-CRM-11: a post-activation request. CRM's answer is stored on the message whatever it
+    /// says (shown as JSON in the request's drawer). The request is Submitted, with the ticket ID,
+    /// only when CRM returned EvServiceTicketId and no EvAlreadyExists; otherwise it is Failed
+    /// with CRM's EvMessage. Neither outcome is retried: a second call could open a duplicate.
     /// </summary>
     private static async Task DispatchCreatePhoneTicketAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)
     {
@@ -305,16 +307,26 @@ public sealed class OutboxDispatcher : BackgroundService
             return;
         }
 
-        var outbox = services.GetRequiredService<IIntegrationOutbox>();
-        await outbox.MarkSucceededAsync(message.MessageId, JsonSerializer.Serialize(result.Value), cancellationToken).ConfigureAwait(false);
-
         var answer = result.Value!;
-        await services.GetRequiredService<IPostActivationRequestService>().MarkCrmResultAsync(
-            command.RequestPublicId,
-            PostActivationRequestStatus.Submitted,
-            answer.TicketId,
-            answer.Message,
+        var outbox = services.GetRequiredService<IIntegrationOutbox>();
+        await outbox.MarkSucceededAsync(
+            message.MessageId,
+            JsonSerializer.Serialize<object>(answer.CrmResponse ?? (object)answer),
             cancellationToken).ConfigureAwait(false);
+
+        var postActivation = services.GetRequiredService<IPostActivationRequestService>();
+        if (answer.IsCreated)
+        {
+            await postActivation.MarkCrmResultAsync(
+                command.RequestPublicId, PostActivationRequestStatus.Submitted, answer.TicketId, answer.Message, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var reason = answer.Message
+                ?? (answer.AlreadyExists ? "CRM answered EvAlreadyExists with no EvMessage." : "CRM returned no EvServiceTicketId and no EvMessage.");
+            await postActivation.MarkCrmResultAsync(
+                command.RequestPublicId, PostActivationRequestStatus.Failed, null, reason, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task DispatchReplicateCommentAsync(IServiceProvider services, IntegrationMessage message, CancellationToken cancellationToken)

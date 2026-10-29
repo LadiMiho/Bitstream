@@ -222,8 +222,8 @@ public sealed class CrmHttpGateway : ICrmGateway
 
     /// <summary>
     /// INT-CRM-11: creates a post-activation ticket through the <c>BITSTREAM_TO_CRM</c> workflow
-    /// (Username = phone number, ClassificationId3 = level-3 code, Notes). Success needs a
-    /// <c>TicketID</c> and an empty <c>AlreadyExists</c>; AlreadyExists = X fails with CRM's <c>Message</c>.
+    /// (Username = phone number, ClassificationId3 = level-3 code, Notes). CRM answers
+    /// <c>EvServiceTicketId</c>, <c>EvMessage</c> and <c>EvAlreadyExists</c>.
     /// </summary>
     public Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
         CreatePhoneTicketCommand command,

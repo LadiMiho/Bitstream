@@ -235,14 +235,25 @@ public sealed class PostActivationRequestTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        factory.CrmGateway.NextCreatePhoneTicketResult = IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
-            "ALREADY_EXISTS", "Ticket: 8009521751  already exist with status E0007");
+        factory.CrmGateway.NextCreatePhoneTicketResult = IntegrationResult<CreatePhoneTicketResult>.Success(new CreatePhoneTicketResult(
+            "8009521751", "Ticket: 8009521751  already exist with status E0007", AlreadyExists: true,
+            new Dictionary<string, string>
+            {
+                ["EvServiceTicketId"] = "8009521751",
+                ["EvMessage"] = "Ticket: 8009521751  already exist with status E0007",
+                ["EvAlreadyExists"] = "X"
+            }));
         await DispatchAsync(factory);
 
         var existing = await ReadAsync(factory, "TRING_1");
         Assert.Equal(PostActivationRequestStatus.Failed, existing.Status);
         Assert.Null(existing.CrmTicketId);
         Assert.Equal("Ticket: 8009521751  already exist with status E0007", existing.CrmMessage);
+
+        // CRM's answer is kept and shown as JSON in the drawer.
+        var drawer = await adminClient.GetStringAsync(new Uri($"/PostActivation/Requests/{existing.PublicId}/ViewDrawer", UriKind.Relative));
+        Assert.Contains("CRM response", drawer, StringComparison.Ordinal);
+        Assert.Contains("&quot;EvAlreadyExists&quot;: &quot;X&quot;", drawer, StringComparison.Ordinal);
 
         using (var response = await SubmitAsync(adminClient, "ABC_1", seeded.Level3Id))
         {

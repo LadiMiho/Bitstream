@@ -449,23 +449,23 @@ public sealed class CrmHttpGatewayTests
     private static CreatePhoneTicketCommand PhoneTicketCommand() =>
         new(new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "PAR_1", DateTimeOffset.UtcNow), "PAR_1", "Tring_768", "5100010001", "Test koti nga SOAP");
 
-    private static HttpResponseMessage PhoneTicketResponse(string ticketId, string message, string alreadyExists = "") =>
+    private static HttpResponseMessage PhoneTicketResponse(string ticketId, string message, string alreadyExists = "", string ticketIdName = "EvServiceTicketId") =>
         new(HttpStatusCode.OK)
         {
             Content = new StringContent(
                 "<S:Envelope xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><S:Body>" +
                 "<ns2:executeWorkflowResponse xmlns:ns2=\"http://workflow.pi.altima.hr/\"><workflowExecutionResponse>" +
                 "<responseCode>0</responseCode><executionStatus>0</executionStatus><runId>40911</runId><context>" +
-                $"<string name=\"AlreadyExists\">{alreadyExists}</string>" +
-                $"<string name=\"Message\">{message}</string>" +
-                $"<string name=\"TicketID\">{ticketId}</string>" +
+                $"<string name=\"EvAlreadyExists\">{alreadyExists}</string>" +
+                $"<string name=\"EvMessage\">{message}</string>" +
+                $"<string name=\"{ticketIdName}\">{ticketId}</string>" +
                 "</context></workflowExecutionResponse></ns2:executeWorkflowResponse></S:Body></S:Envelope>",
                 Encoding.UTF8,
                 "text/xml")
         };
 
     [Fact]
-    public async Task CreatePhoneTicketAsync_runs_the_BITSTREAM_TO_CRM_workflow_and_returns_the_TicketID()
+    public async Task CreatePhoneTicketAsync_runs_the_BITSTREAM_TO_CRM_workflow_and_returns_the_EvServiceTicketId()
     {
         var handler = new RecordingHandler { Respond = _ => PhoneTicketResponse("8009521751", "Service ticket created") };
         var gateway = CreateGateway(handler);
@@ -473,8 +473,11 @@ public sealed class CrmHttpGatewayTests
         var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("8009521751", result.Value!.TicketId);
+        Assert.True(result.Value!.IsCreated);
+        Assert.Equal("8009521751", result.Value.TicketId);
         Assert.Equal("Service ticket created", result.Value.Message);
+        Assert.Equal("8009521751", result.Value.CrmResponse!["EvServiceTicketId"]);
+        Assert.Equal(string.Empty, result.Value.CrmResponse["EvAlreadyExists"]);
 
         var envelope = XDocument.Parse(handler.LastBody!);
         XNamespace workflow = "http://workflow.pi.altima.hr/";
@@ -490,8 +493,22 @@ public sealed class CrmHttpGatewayTests
         Assert.Equal("Test koti nga SOAP", values["Notes"]);
     }
 
+    [Theory]
+    [InlineData("EvServciceTicketId")]
+    [InlineData("EVSERVICETICKETID")]
+    public async Task The_ticket_ID_is_read_under_either_spelling_and_any_case(string name)
+    {
+        var handler = new RecordingHandler { Respond = _ => PhoneTicketResponse("8009521752", "Service ticket created", ticketIdName: name) };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
+
+        Assert.True(result.Value!.IsCreated);
+        Assert.Equal("8009521752", result.Value.TicketId);
+    }
+
     [Fact]
-    public async Task A_phone_ticket_answer_with_AlreadyExists_X_fails_with_CRMs_Message_and_is_not_retried()
+    public async Task A_phone_ticket_answer_with_EvAlreadyExists_X_is_not_created_and_keeps_CRMs_answer()
     {
         var handler = new RecordingHandler
         {
@@ -501,37 +518,24 @@ public sealed class CrmHttpGatewayTests
 
         var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
 
-        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
-        Assert.False(result.IsRetryable);
-        Assert.Equal("Ticket: 8009521751  already exist with status E0007", result.ErrorMessage);
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.IsCreated);
+        Assert.True(result.Value.AlreadyExists);
+        Assert.Equal("Ticket: 8009521751  already exist with status E0007", result.Value.Message);
+        Assert.Equal("X", result.Value.CrmResponse!["EvAlreadyExists"]);
     }
 
     [Fact]
-    public async Task A_phone_ticket_answer_with_no_TicketID_fails_naming_what_CRM_returned_and_is_not_retried()
+    public async Task A_phone_ticket_answer_with_no_EvServiceTicketId_is_not_created()
     {
         var handler = new RecordingHandler { Respond = _ => PhoneTicketResponse(string.Empty, "Classification not valid") };
         var gateway = CreateGateway(handler);
 
         var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
 
-        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
-        Assert.False(result.IsRetryable);
-        Assert.Contains("Message=Classification not valid", result.ErrorMessage, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Phone_ticket_answer_names_are_matched_ignoring_case()
-    {
-        var handler = new RecordingHandler
-        {
-            Respond = _ => SoapResponse("0", "<string name=\"TicketId\">8009521752</string><string name=\"MESSAGE\">Service ticket created</string><string name=\"alreadyexists\"/>")
-        };
-        var gateway = CreateGateway(handler);
-
-        var result = await gateway.CreatePhoneTicketAsync(PhoneTicketCommand());
-
         Assert.True(result.IsSuccess);
-        Assert.Equal("8009521752", result.Value!.TicketId);
+        Assert.False(result.Value!.IsCreated);
+        Assert.Equal("Classification not valid", result.Value.Message);
     }
 
     [Fact]

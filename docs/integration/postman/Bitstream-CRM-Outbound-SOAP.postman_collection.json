@@ -225,7 +225,7 @@
             }
           }
         },
-        "description": "Sent for a post-activation request, through the same workflow as the operator confirmation. `Username` = the phone number from BI (the New request dropdown), `ClassificationId3` = the level-3 code, `Notes` = the note. CRM answers `TicketID`, `Message` and `AlreadyExists`: success needs a `TicketID` and an empty `AlreadyExists`; `AlreadyExists` = X is a failure, and the portal shows `Message`."
+        "description": "Sent for a post-activation request, through the same workflow as the operator confirmation. `Username` = the phone number from BI (the New request dropdown), `ClassificationId3` = the level-3 code, `Notes` = the note. CRM answers `EvServiceTicketId`, `EvMessage` and `EvAlreadyExists`: success needs `EvServiceTicketId` and an empty `EvAlreadyExists`; otherwise the request fails and the portal shows `EvMessage`."
       },
       "event": [
         {
@@ -235,9 +235,9 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const text = pm.response.text();",
-              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)', 'i')); return m ? (m[1] || '') : null; };",
               "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
-              "pm.test('TicketID present and AlreadyExists empty', () => { pm.expect(value('AlreadyExists') || '', value('Message')).to.eql(''); pm.expect(value('TicketID'), value('Message')).to.be.ok; });"
+              "pm.test('EvServiceTicketId present and EvAlreadyExists empty', () => { pm.expect(value('EvAlreadyExists') || '', value('EvMessage')).to.eql(''); pm.expect(value('EvServiceTicketId') || value('EvServciceTicketId'), value('EvMessage')).to.be.ok; });"
             ]
           }
         }
