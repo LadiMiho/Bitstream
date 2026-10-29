@@ -9,7 +9,7 @@
 const STATUS_PRESENTATION = {
   Submitted: { label: 'Submitted', tone: 'progress' },
   PendingCrmSync: { label: 'Pending CRM Sync', tone: 'pending' },
-  AwaitingGisVerification: { label: 'Awaiting GIS Verification', tone: 'progress' },
+  AwaitingGisVerification: { label: 'Waiting GIS Verification', tone: 'progress' },
   RejectedNoLine: { label: 'Rejected — No Line', tone: 'blocked' },
   LineAvailable: { label: 'Line Available', tone: 'progress' },
   SalesOrderOpened: { label: 'Activation in progress', tone: 'progress' },

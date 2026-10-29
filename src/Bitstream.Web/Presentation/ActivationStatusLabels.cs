@@ -12,7 +12,7 @@ public static class ActivationStatusLabels
     {
         ActivationRequestStatus.Submitted => "Submitted",
         ActivationRequestStatus.PendingCrmSync => "Pending CRM Sync",
-        ActivationRequestStatus.AwaitingGisVerification => "Awaiting GIS Verification",
+        ActivationRequestStatus.AwaitingGisVerification => "Waiting GIS Verification",
         ActivationRequestStatus.RejectedNoLine => "Rejected — No Line",
         ActivationRequestStatus.LineAvailable => "Line Available",
         ActivationRequestStatus.SalesOrderOpened => "Activation in progress",
