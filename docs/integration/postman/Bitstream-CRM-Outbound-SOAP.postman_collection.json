@@ -1,0 +1,281 @@
+{
+  "info": {
+    "_postman_id": "b6f3e0c1-6d2a-4f8e-9a71-3c5d2e1f0a42",
+    "name": "Bitstream – SOAP calls the portal makes to CRM",
+    "description": "The calls the Bitstream portal sends to CRM's SOAP workflow endpoint, exactly as the portal builds them — for testing the CRM side directly. Set `crmSoapEndpoint` and the sample values in the collection variables (request ID, order ticket, offer code, …) before sending. Not part of the API CRM calls; see the \"CRM inbound API\" collection for that.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. CRM_BP_CREATE – create the Business Partner (INT-CRM-01)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "\"\""
+          }
+        ],
+        "url": {
+          "raw": "{{crmSoapEndpoint}}",
+          "host": [
+            "{{crmSoapEndpoint}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeOperation>\n      <operationExecutionRequest>\n        <code>CRM_BP_CREATE</code>\n        <context name=\"requestContext\">\n          <string name=\"GEOLOCATION\">41.3275,19.8187</string>\n          <string name=\"EMAIL\">contact@isp.al</string>\n          <string name=\"IDNUMBER\">L12345678A</string>\n          <string name=\"NAME\">{{requestId}}</string>\n          <string name=\"SHORT_ADDR\"></string>\n          <string name=\"CUSTOMERTYPE\">O000</string>\n          <string name=\"BP_CAT\">2</string>\n          <string name=\"PARTNERTYPE\">O100</string>\n          <string name=\"MOBILE\">672017664</string>\n        </context>\n      </operationExecutionRequest>\n    </wor:executeOperation>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "description": "Sent right after an activation request is submitted. `NAME` is the request ID (e.g. TRING001). Success: `responseCode` 0 and a `BP_NO`."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const text = pm.response.text();",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
+              "pm.test('responseCode 0 and BP_NO', () => { pm.expect(responseCode).to.eql('0'); pm.expect(value('BP_NO')).to.be.ok; });",
+              "if (value('BP_NO')) pm.collectionVariables.set('businessPartner', value('BP_NO'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. BITSTREAM_TICKET_CREATE – create the activation ticket (INT-CRM-02)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "\"\""
+          }
+        ],
+        "url": {
+          "raw": "{{crmSoapEndpoint}}",
+          "host": [
+            "{{crmSoapEndpoint}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeOperation>\n      <operationExecutionRequest>\n        <code>BITSTREAM_TICKET_CREATE</code>\n        <context name=\"requestContext\">\n          <string name=\"BP_NO\">{{businessPartner}}</string>\n          <string name=\"CLASS_3\">{{offerCode}}</string>\n          <string name=\"NOTE\">Test from Postman</string>\n        </context>\n      </operationExecutionRequest>\n    </wor:executeOperation>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "description": "Sent after the Business Partner exists. `CLASS_3` is the package + contract duration code. Success: `responseCode` 0, `EV_SUCCESS` = X; the ticket is `EV_TICKET_NO`."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const text = pm.response.text();",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
+              "pm.test('EV_SUCCESS = X and EV_TICKET_NO', () => { pm.expect(value('EV_SUCCESS')).to.eql('X'); pm.expect(value('EV_TICKET_NO')).to.be.ok; });",
+              "if (value('EV_TICKET_NO')) pm.collectionVariables.set('activationTicket', value('EV_TICKET_NO'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. BITSTREAM_TO_CRM – operator confirmation, Yes (INT-CRM-10)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "\"\""
+          }
+        ],
+        "url": {
+          "raw": "{{crmSoapEndpoint}}",
+          "host": [
+            "{{crmSoapEndpoint}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeWorkflow>\n      <workflowExecutionRequest>\n        <code>BITSTREAM_TO_CRM</code>\n        <context name=\"?\">\n          <string name=\"TicketId\">{{orderTicket}}</string>\n          <string name=\"Username\">{{requestId}}</string>\n          <string name=\"BitstreamConfirmation\">Confirmed</string>\n          <string name=\"Status\">Close</string>\n          <string name=\"Note\">Line tested by the operator</string>\n        </context>\n      </workflowExecutionRequest>\n    </wor:executeWorkflow>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "description": "Sent when the ISP operator answers **Yes** to \"Is the line working?\". `TicketId` = the CRM order ticket from SALES_ORDER_OPENED; `Username` = the request ID. Success: `EvSuccess` = X."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const text = pm.response.text();",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
+              "pm.test('EvSuccess = X', () => pm.expect(value('EvSuccess'), value('EvMessage')).to.eql('X'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. BITSTREAM_TO_CRM – operator confirmation, No (INT-CRM-10)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "\"\""
+          }
+        ],
+        "url": {
+          "raw": "{{crmSoapEndpoint}}",
+          "host": [
+            "{{crmSoapEndpoint}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeWorkflow>\n      <workflowExecutionRequest>\n        <code>BITSTREAM_TO_CRM</code>\n        <context name=\"?\">\n          <string name=\"TicketId\">{{orderTicket}}</string>\n          <string name=\"Username\">{{requestId}}</string>\n          <string name=\"BitstreamConfirmation\">Notconfirmed</string>\n          <string name=\"Status\">Open</string>\n          <string name=\"Note\">Line tested by the operator</string>\n        </context>\n      </workflowExecutionRequest>\n    </wor:executeWorkflow>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "description": "Sent when the ISP operator answers **No**: `BitstreamConfirmation` = Notconfirmed, `Status` = Open, `Note` = the operator's comment (required). Success: `EvSuccess` = X."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const text = pm.response.text();",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
+              "pm.test('EvSuccess = X', () => pm.expect(value('EvSuccess'), value('EvMessage')).to.eql('X'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. CREATE_TICKET_BYPHONENR – post-activation request (INT-CRM-11)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "text/xml; charset=utf-8"
+          },
+          {
+            "key": "SOAPAction",
+            "value": "\"\""
+          }
+        ],
+        "url": {
+          "raw": "{{crmSoapEndpoint}}",
+          "host": [
+            "{{crmSoapEndpoint}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeOperation>\n      <operationExecutionRequest>\n        <code>CREATE_TICKET_BYPHONENR</code>\n        <context name=\"requestContext\">\n          <string name=\"Classification\">{{classificationCode}}</string>\n          <string name=\"Phonenumber\">{{phoneNumber}}</string>\n          <string name=\"Note\">Test from Postman</string>\n          <string name=\"ShortDescription\"></string>\n        </context>\n      </operationExecutionRequest>\n    </wor:executeOperation>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "options": {
+            "raw": {
+              "language": "xml"
+            }
+          }
+        },
+        "description": "Sent for a post-activation request. `Classification` = the level-3 code, `Phonenumber` = the BI number. Success: `responseCode` 0 and a `TicketID` (`AlreadyExists` = X means a ticket is already open for the number)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const text = pm.response.text();",
+              "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
+              "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
+              "pm.test('responseCode 0 and TicketID', () => { pm.expect(responseCode).to.eql('0'); pm.expect(value('TicketID') || value('TicketiD')).to.be.ok; });"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "crmSoapEndpoint",
+      "value": "http://10.3.21.103:5040/integration/sap"
+    },
+    {
+      "key": "requestId",
+      "value": "TRING001"
+    },
+    {
+      "key": "businessPartner",
+      "value": "1102017112"
+    },
+    {
+      "key": "offerCode",
+      "value": "5100020013"
+    },
+    {
+      "key": "activationTicket",
+      "value": ""
+    },
+    {
+      "key": "orderTicket",
+      "value": "8009521846"
+    },
+    {
+      "key": "classificationCode",
+      "value": "4001440010"
+    },
+    {
+      "key": "phoneNumber",
+      "value": "TRING_768"
+    }
+  ]
+}

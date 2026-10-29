@@ -2,7 +2,7 @@
   "info": {
     "name": "Bitstream – CRM inbound API (activation)",
     "_postman_id": "3c7e9b52-41d8-4f6a-9e0d-5b2a7c1e8f43",
-    "description": "Calls CRM makes to the Bitstream portal's integration API to report the progress of an activation request. See the accompanying document \"Bitstream CRM Inbound API\".\n\nBefore sending: set `apiKey` (supplied separately) in the environment, and set `identifier` to a real request ID (e.g. TRING001) or use the CRM ticket number variant. `eventId` and `occurredAt` are generated fresh before each send.",
+    "description": "Calls CRM makes to the Bitstream portal's integration API to report the progress of an activation request. See the accompanying document \"Bitstream CRM Inbound API\".\n\nBefore sending: set `apiKey` (supplied separately) in the environment, and set `identifier` to a real request ID (e.g. TRING001) or use the CRM ticket number variant. `eventId` and `occurredAt` are generated fresh before each send.\n\n**Check `outcome` in every 200 response.** `applied` = the request (`requestId`) changed; `discarded` = received but not applied, because `occurredAt` is not later than the last event applied to that request (`detail` says why); `duplicate` = this `eventId` was already received. The step requests below test for `applied`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -110,7 +110,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
                 ]
               }
             }
@@ -160,7 +165,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
                 ]
               }
             }
@@ -210,7 +220,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
                 ]
               }
             }
@@ -260,7 +275,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
                 ]
               }
             }
@@ -310,7 +330,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
                 ]
               }
             }
@@ -545,6 +570,57 @@
           ]
         },
         {
+          "name": "404 – salesOrderId names no request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{salesOrderTicket}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{salesOrderTicket}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"SALES_ORDER_OPENED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"salesOrderId\": \"TRING999999\",\n    \"businessPartner\": \"1102017112\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`payload.salesOrderId` must be the portal's request ID. An unknown one (on an order ticket the portal does not know) is refused with 404, and `detail` says so."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('detail names salesOrderId', () => pm.expect(pm.response.json().detail).to.include('salesOrderId'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "409 – step out of order",
           "request": {
             "method": "POST",
@@ -690,6 +766,61 @@
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('Second send is a duplicate', () => { if (pm.response.code === 200) { pm.expect(pm.response.json()).to.have.property('duplicate'); } });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "200 – discarded (occurredAt older than the last applied event)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{salesOrderTicket}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{salesOrderTicket}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"eventType\": \"LINE_ACTIVATED\",\n  \"occurredAt\": \"2020-01-01T00:00:00Z\",\n  \"payload\": {\n    \"salesOrderId\": \"{{identifier}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Received but **not applied**: `occurredAt` (2020) is not later than the last event applied to the request. The response says `\"outcome\": \"discarded\"` and `detail` gives both times. Always send the real time the step happened."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = discarded, with the reason', () => {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.outcome).to.eql('discarded');",
+                  "    pm.expect(body.detail).to.be.a('string');",
+                  "});"
                 ]
               }
             }
