@@ -5,6 +5,7 @@
  */
 import { api, ApiError, reportClientError } from '../api-client.js';
 import { openDrawer } from '../drawer.js';
+import { createGridRefresher } from '../grid-auto-refresh.js';
 
 const BASE = '/AccessManagement/AuditLog';
 
@@ -202,31 +203,32 @@ function queryParams() {
   return params;
 }
 
-async function search() {
-  const searchError = el('#audit-search-error');
-  showError(searchError, '');
+let refresher = null;
 
-  try {
-    const params = queryParams();
-    params.set('skip', String(currentSkip));
-    params.set('take', String(currentPageSize));
+async function fetchPage() {
+  const params = queryParams();
+  params.set('skip', String(currentSkip));
+  params.set('take', String(currentPageSize));
+  return api.get(`${BASE}/Search?${params}`);
+}
 
-    const result = await api.get(`${BASE}/Search?${params}`);
-    currentTotalCount = result.totalCount;
+function renderPage(result) {
+  currentTotalCount = result.totalCount;
+  renderResults(result.items);
+  showEmptyState(result.items.length === 0);
 
-    renderResults(result.items);
-    showEmptyState(result.items.length === 0);
+  const shown = result.items.length === 0 ? 0 : currentSkip + 1;
+  const shownTo = currentSkip + result.items.length;
+  el('#audit-search-summary').textContent =
+    result.totalCount === 0 ? 'No results' : `Showing ${shown}–${shownTo} of ${result.totalCount}`;
+  el('#audit-search-prev').disabled = currentSkip === 0;
+  el('#audit-search-next').disabled = currentSkip + currentPageSize >= result.totalCount;
+  el('#audit-page-number').textContent = String(Math.floor(currentSkip / currentPageSize) + 1);
+}
 
-    const shown = result.items.length === 0 ? 0 : currentSkip + 1;
-    const shownTo = currentSkip + result.items.length;
-    el('#audit-search-summary').textContent =
-      result.totalCount === 0 ? 'No results' : `Showing ${shown}–${shownTo} of ${result.totalCount}`;
-    el('#audit-search-prev').disabled = currentSkip === 0;
-    el('#audit-search-next').disabled = currentSkip + currentPageSize >= result.totalCount;
-    el('#audit-page-number').textContent = String(Math.floor(currentSkip / currentPageSize) + 1);
-  } catch (error) {
-    showError(searchError, describeError(error));
-  }
+/** Loads the grid; it also reloads itself every minute (grid-auto-refresh.js). */
+function search() {
+  return refresher.load();
 }
 
 function showEmptyState(isEmpty) {
@@ -376,6 +378,16 @@ function init() {
     currentSearch = '';
     el('#audit-search-query').value = '';
     applyFilters({});
+  });
+
+  refresher = createGridRefresher({
+    statusElement: el('#audit-refresh-status'),
+    button: el('#audit-refresh-button'),
+    errorElement: el('#audit-search-error'),
+    fetchPage,
+    render: renderPage,
+    describeError,
+    isMenuOpen: () => openMenuTrigger !== null
   });
 
   initFilters();

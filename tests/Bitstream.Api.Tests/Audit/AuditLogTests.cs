@@ -88,6 +88,19 @@ public sealed class AuditLogTests
     }
 
     [Fact]
+    public async Task The_grid_shows_when_it_was_last_refreshed()
+    {
+        await using var factory = new IdentityApiFactory();
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, AuditorEmail);
+
+        var page = await client.GetStringAsync(new Uri("/AccessManagement/AuditLog", UriKind.Relative));
+
+        Assert.Contains("id=\"audit-refresh-status\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"audit-refresh-button\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Each_filter_narrows_the_entries_and_actor_names_are_shown()
     {
         await using var factory = new IdentityApiFactory();
