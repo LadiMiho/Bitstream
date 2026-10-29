@@ -114,23 +114,28 @@ public sealed record ClosureDecisionCommand(
 
 public sealed record ClosureDecisionResult(string CrmTicketStatus);
 
-// --- INT-CRM-10 Operator Confirmation (placeholder: no CRM contract yet) ------------
+// --- INT-CRM-10 Operator Confirmation (CRM workflow BITSTREAM_TO_CRM) ------------------
 
 /// <param name="Envelope">Message identity; the idempotency key is <c>{RequestPublicId}:operator-confirmation</c>.</param>
-/// <param name="RequestPublicId">Portal activation request identifier.</param>
-/// <param name="CrmTicketId">CRM ticket number (EV_TICKET_NO), when known.</param>
+/// <param name="RequestPublicId">Portal activation request identifier; sent as <c>Username</c>.</param>
+/// <param name="CrmTicketId">The activation ticket (EV_TICKET_NO), for reference only.</param>
 /// <param name="Confirmed">"Y" when the operator confirmed the line works, "N" otherwise.</param>
-/// <param name="Comment">The operator's comment; always present when <paramref name="Confirmed"/> is "N".</param>
+/// <param name="Comment">The operator's comment; sent as <c>Note</c>. Always present when <paramref name="Confirmed"/> is "N".</param>
 /// <param name="DecidedAt">When the operator answered.</param>
+/// <param name="SalesOrderTicketId">The CRM order ticket (from SALES_ORDER_OPENED); sent as <c>TicketId</c>. Null in messages queued before it was carried; the dispatcher then reads it from the request.</param>
 public sealed record OperatorConfirmationCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
     string? CrmTicketId,
     string Confirmed,
     string? Comment,
-    DateTimeOffset DecidedAt);
+    DateTimeOffset DecidedAt,
+    string? SalesOrderTicketId = null);
 
-public sealed record OperatorConfirmationResult(string? CrmReference);
+/// <param name="CrmReference">CRM's <c>EvServiceticketid</c>.</param>
+/// <param name="Message">CRM's <c>EvMessage</c>, e.g. "Order successfully saved !".</param>
+/// <param name="RunId">CRM's workflow <c>runId</c>.</param>
+public sealed record OperatorConfirmationResult(string? CrmReference, string? Message = null, string? RunId = null);
 
 // --- INT-CRM-11 Post-activation ticket by phone number (CREATE_TICKET_BYPHONENR) -----
 

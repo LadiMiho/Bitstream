@@ -88,11 +88,21 @@ A 200 means the event was **received**. Check `outcome` to see whether the reque
    A comment is required for No.
    - **Yes** → **Completed**.
    - **No** → **WaitingForServiceDesk**.
-2. The operator's answer and comment are sent to CRM as **INT-CRM-10**. CRM has not defined
-   that operation yet, so for now the message is queued and dead-lettered on purpose, with the
-   error "INT-CRM-10 contract not yet defined" (`GET /api/v1/ops/integration/dead-letter`). It
-   will be replayed once the contract exists. Proposed fields: `requestPublicId`,
-   `crmTicketId`, `confirmed` (`Y`/`N`), `comment`, `decidedAt`.
+2. The portal sends the operator's answer to CRM (**INT-CRM-10**) through the SOAP workflow
+   `BITSTREAM_TO_CRM` (`executeWorkflow`), on the **order ticket** CRM opened at
+   `SALES_ORDER_OPENED`:
+
+   | Field | Yes | No |
+   |---|---|---|
+   | `TicketId` | the CRM order ticket | the CRM order ticket |
+   | `Username` | the portal request ID, e.g. `TRING001` | same |
+   | `BitstreamConfirmation` | `Confirmed` | `Notconfirmed` |
+   | `Status` | `Close` | `Open` |
+   | `Note` | the operator's comment | the operator's comment (required) |
+
+   CRM's answer is successful when `EvSuccess` is `X`; otherwise `EvMessage` is shown on the
+   request's timeline. A failed call is retried only for technical errors (no answer, SOAP
+   fault).
 3. For **WaitingForServiceDesk**, a service desk user chooses **Success** (→ Completed) or
    **Fail** (→ **ActivationFailed**), with a required comment. That is the final status. It is
    recorded in the portal only and not sent to CRM.

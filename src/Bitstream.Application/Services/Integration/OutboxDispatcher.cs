@@ -364,6 +364,15 @@ public sealed class OutboxDispatcher : BackgroundService
         var command = Deserialize<OperatorConfirmationCommand>(message);
         var gateway = services.GetRequiredService<ICrmGateway>();
 
+        // Messages queued before the order ticket was carried (or before CRM sent it) take it
+        // from the request now, so replaying them works.
+        if (string.IsNullOrWhiteSpace(command.SalesOrderTicketId))
+        {
+            var request = await services.GetRequiredService<IActivationRequestRepository>()
+                .FindByPublicIdAsync(command.RequestPublicId, cancellationToken).ConfigureAwait(false);
+            command = command with { SalesOrderTicketId = request?.SalesOrderId };
+        }
+
         var result = await gateway.SubmitOperatorConfirmationAsync(command, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)

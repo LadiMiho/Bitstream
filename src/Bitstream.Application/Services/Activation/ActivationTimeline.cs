@@ -114,8 +114,9 @@ public static class ActivationTimeline
                     Read(payload, "OfferCode") is { } offer ? $"offer code {offer}" : null)),
             "INT-CRM-10" => ("Send operator confirmation to CRM",
                 Join(
-                    Read(payload, "Confirmed") switch { "Y" => "Line working: Yes", "N" => "Line working: No", _ => null },
-                    Read(payload, "Comment") is { } comment ? $"“{comment}”" : null)),
+                    Read(payload, "Confirmed") switch { "Y" => "Line working: Yes (Confirmed, Close)", "N" => "Line working: No (Notconfirmed, Open)", _ => null },
+                    Read(payload, "Comment") is { } comment ? $"“{comment}”" : null,
+                    Read(response, "Message"))),
             _ => ($"{message.InterfaceCode} {message.MessageType}".Trim(), null)
         };
 

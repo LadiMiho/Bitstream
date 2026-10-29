@@ -7,7 +7,8 @@ namespace Bitstream.Infrastructure.Integration.Crm;
 /// <summary>
 /// Request/response mapping for CRM's SOAP workflow operations (<c>executeOperation</c>):
 /// <c>CRM_BP_CREATE</c> (INT-CRM-01), <c>BITSTREAM_TICKET_CREATE</c> (INT-CRM-02) and
-/// <c>CREATE_TICKET_BYPHONENR</c> (INT-CRM-11).
+/// <c>CREATE_TICKET_BYPHONENR</c> (INT-CRM-11), plus the <c>executeWorkflow</c> call
+/// <c>BITSTREAM_TO_CRM</c> (INT-CRM-10).
 /// Built with LINQ to XML so every value is XML-escaped.
 /// </summary>
 internal static class CrmSoap
@@ -156,6 +157,70 @@ internal static class CrmSoap
             new CreatePhoneTicketResult(string.IsNullOrEmpty(ticketId) ? null : ticketId, string.IsNullOrEmpty(message) ? null : message, exists));
     }
 
+    // --- INT-CRM-10 executeWorkflow BITSTREAM_TO_CRM ------------------------------------------
+
+    /// <summary>
+    /// The operator's answer: TicketId = the CRM order ticket, Username = our request ID,
+    /// BitstreamConfirmation = Confirmed / Notconfirmed, Status = Close / Open, Note = the comment.
+    /// </summary>
+    public static string BuildOperatorConfirmationRequest(CrmOperatorConfirmationOptions options, OperatorConfirmationCommand command, string orderTicketId)
+    {
+        var confirmed = string.Equals(command.Confirmed, "Y", StringComparison.OrdinalIgnoreCase);
+
+        var envelope = new XElement(
+            SoapEnv + "Envelope",
+            new XAttribute(XNamespace.Xmlns + "soapenv", SoapEnv),
+            new XAttribute(XNamespace.Xmlns + "wor", Workflow),
+            new XElement(SoapEnv + "Header"),
+            new XElement(
+                SoapEnv + "Body",
+                new XElement(
+                    Workflow + "executeWorkflow",
+                    new XElement(
+                        "workflowExecutionRequest",
+                        new XElement("code", options.WorkflowCode),
+                        new XElement(
+                            "context",
+                            new XAttribute("name", options.ContextName),
+                            String("TicketId", orderTicketId),
+                            String("Username", command.RequestPublicId),
+                            String("BitstreamConfirmation", confirmed ? "Confirmed" : "Notconfirmed"),
+                            String("Status", confirmed ? "Close" : "Open"),
+                            String("Note", command.Comment))))));
+
+        return envelope.ToString(SaveOptions.DisableFormatting);
+
+        static XElement String(string name, string? value) => new("string", new XAttribute("name", name), value ?? string.Empty);
+    }
+
+    /// <summary>Success only when <c>EvSuccess</c> is X; anything else CRM answered is a business rejection carrying <c>EvMessage</c>.</summary>
+    public static IntegrationResult<OperatorConfirmationResult> ParseOperatorConfirmationResponse(string body)
+    {
+        var response = ParseResponse(body, "BITSTREAM_TO_CRM");
+
+        if (response.Failure is { } failure)
+        {
+            return IntegrationResult<OperatorConfirmationResult>.TechnicalFailure(failure);
+        }
+
+        response.Context.TryGetValue("EvSuccess", out var success);
+        response.Context.TryGetValue("EvMessage", out var message);
+        response.Context.TryGetValue("EvServiceticketid", out var ticket);
+
+        if (!string.Equals(success, "X", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntegrationResult<OperatorConfirmationResult>.BusinessRejection(
+                response.ResponseCode ?? "EV_SUCCESS",
+                $"CRM did not save the operator confirmation (responseCode {response.ResponseCode}, EvSuccess '{success}'): " +
+                $"{(string.IsNullOrEmpty(message) ? "no EvMessage" : message)}");
+        }
+
+        return IntegrationResult<OperatorConfirmationResult>.Success(new OperatorConfirmationResult(
+            string.IsNullOrEmpty(ticket) ? null : ticket,
+            string.IsNullOrEmpty(message) ? null : message,
+            response.RunId));
+    }
+
     // --- Shared -----------------------------------------------------------------------------
 
     /// <summary>The SOAP Fault's faultstring, when <paramref name="body"/> is a readable fault.</summary>
@@ -229,7 +294,8 @@ internal static class CrmSoap
             return SoapResponse.Failed(fault);
         }
 
-        var response = document.Descendants().FirstOrDefault(e => e.Name.LocalName == "operationExecutionResponse");
+        // executeOperation answers operationExecutionResponse; executeWorkflow, workflowExecutionResponse.
+        var response = document.Descendants().FirstOrDefault(e => e.Name.LocalName is "operationExecutionResponse" or "workflowExecutionResponse");
         var responseCode = response?.Elements().FirstOrDefault(e => e.Name.LocalName == "responseCode")?.Value.Trim();
 
         if (response is null || responseCode is null)
@@ -246,7 +312,9 @@ internal static class CrmSoap
             .GroupBy(e => e.Attribute("name")!.Value.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Value.Trim(), StringComparer.OrdinalIgnoreCase);
 
-        return new SoapResponse(responseCode, context, null);
+        var runId = response.Elements().FirstOrDefault(e => e.Name.LocalName == "runId")?.Value.Trim();
+
+        return new SoapResponse(responseCode, context, null, string.IsNullOrEmpty(runId) ? null : runId);
     }
 
     private static string Describe(IReadOnlyDictionary<string, string> context) =>
@@ -265,7 +333,7 @@ internal static class CrmSoap
         return $"CRM returned a SOAP fault: {(string.IsNullOrEmpty(faultString) ? "(no faultstring)" : faultString)}";
     }
 
-    private sealed record SoapResponse(string? ResponseCode, IReadOnlyDictionary<string, string> Context, string? Failure)
+    private sealed record SoapResponse(string? ResponseCode, IReadOnlyDictionary<string, string> Context, string? Failure, string? RunId = null)
     {
         public static SoapResponse Failed(string failure) =>
             new(null, new Dictionary<string, string>(StringComparer.Ordinal), failure);

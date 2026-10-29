@@ -89,6 +89,11 @@ public sealed class CrmOptionsValidator : IValidateOptions<CrmOptions>
             failures.Add("Integration:Crm:Soap:PhoneTicket:OperationCode must be set.");
         }
 
+        if (string.IsNullOrWhiteSpace(soap.OperatorConfirmation.WorkflowCode))
+        {
+            failures.Add("Integration:Crm:Soap:OperatorConfirmation:WorkflowCode must be set.");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

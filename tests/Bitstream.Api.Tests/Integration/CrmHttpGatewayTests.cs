@@ -366,22 +366,84 @@ public sealed class CrmHttpGatewayTests
         Assert.True(result.IsRetryable);
     }
 
+    // --- INT-CRM-10 executeWorkflow BITSTREAM_TO_CRM --------------------------------------
+
+    private static OperatorConfirmationCommand ConfirmationCommand(string confirmed, string? orderTicket = "8009521846") =>
+        new(new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "TRINGGPON018:operator-confirmation", DateTimeOffset.UtcNow),
+            "TRINGGPON018", "8009521719", confirmed, "Some notes for testing purposes", DateTimeOffset.UtcNow, orderTicket);
+
+    private static HttpResponseMessage WorkflowResponse(string evSuccess, string evMessage) =>
+        new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "<S:Envelope xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><S:Body>" +
+                "<ns2:executeWorkflowResponse xmlns:ns2=\"http://workflow.pi.altima.hr/\"><workflowExecutionResponse>" +
+                "<responseCode>0</responseCode><executionStatus>0</executionStatus><runId>40910</runId><context>" +
+                "<string name=\"EvAlreadyExists\"/>" +
+                $"<string name=\"EvMessage\">{evMessage}</string>" +
+                $"<string name=\"EvSuccess\">{evSuccess}</string>" +
+                "<string name=\"EvServiceticketid\">8009521846</string>" +
+                "</context></workflowExecutionResponse></ns2:executeWorkflowResponse></S:Body></S:Envelope>",
+                Encoding.UTF8,
+                "text/xml")
+        };
+
+    [Theory]
+    [InlineData("Y", "Confirmed", "Close")]
+    [InlineData("N", "Notconfirmed", "Open")]
+    public async Task Operator_confirmation_runs_the_BITSTREAM_TO_CRM_workflow_on_the_order_ticket(string confirmed, string confirmation, string status)
+    {
+        var handler = new RecordingHandler { Respond = _ => WorkflowResponse("X", "Order successfully saved !") };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.SubmitOperatorConfirmationAsync(ConfirmationCommand(confirmed));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("8009521846", result.Value!.CrmReference);
+        Assert.Equal("Order successfully saved !", result.Value.Message);
+        Assert.Equal("40910", result.Value.RunId);
+
+        var envelope = XDocument.Parse(handler.LastBody!);
+        XNamespace workflow = "http://workflow.pi.altima.hr/";
+        Assert.Single(envelope.Descendants(workflow + "executeWorkflow"));
+        Assert.Equal("BITSTREAM_TO_CRM", envelope.Descendants("workflowExecutionRequest").Single().Element("code")!.Value);
+
+        var context = envelope.Descendants("context").Single();
+        Assert.Equal("?", context.Attribute("name")!.Value);
+        var values = context.Elements("string").ToDictionary(e => e.Attribute("name")!.Value, e => e.Value);
+        Assert.Equal("8009521846", values["TicketId"]);
+        Assert.Equal("TRINGGPON018", values["Username"]);
+        Assert.Equal(confirmation, values["BitstreamConfirmation"]);
+        Assert.Equal(status, values["Status"]);
+        Assert.Equal("Some notes for testing purposes", values["Note"]);
+    }
+
     [Fact]
-    public async Task Operator_confirmation_is_a_visible_non_retryable_failure_until_the_contract_exists()
+    public async Task Operator_confirmation_without_EvSuccess_X_is_a_business_rejection_carrying_EvMessage()
+    {
+        var handler = new RecordingHandler { Respond = _ => WorkflowResponse(string.Empty, "Ticket not found") };
+        var gateway = CreateGateway(handler);
+
+        var result = await gateway.SubmitOperatorConfirmationAsync(ConfirmationCommand("Y"));
+
+        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("Ticket not found", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Operator_confirmation_without_an_order_ticket_is_rejected_without_calling_CRM()
     {
         var handler = new RecordingHandler();
         var gateway = CreateGateway(handler);
 
-        var result = await gateway.SubmitOperatorConfirmationAsync(new OperatorConfirmationCommand(
-            new IntegrationEnvelope(Guid.NewGuid(), "corr-1", "ISP_1:operator-confirmation", DateTimeOffset.UtcNow),
-            "ISP_1", "8009521719", "N", "Not working", DateTimeOffset.UtcNow));
+        var result = await gateway.SubmitOperatorConfirmationAsync(ConfirmationCommand("Y", orderTicket: null));
 
-        Assert.False(result.IsSuccess);
-        Assert.False(result.IsRetryable);
-        Assert.Equal(CrmHttpGateway.OperatorConfirmationContractMissing, result.ErrorCode);
-        Assert.Contains("contract not yet defined", result.ErrorMessage, StringComparison.Ordinal);
+        Assert.Equal(IntegrationOutcome.BusinessRejection, result.Outcome);
+        Assert.Equal(CrmHttpGateway.NoOrderTicket, result.ErrorCode);
         Assert.Null(handler.LastRequest);
     }
+
     // --- INT-CRM-11 CREATE_TICKET_BYPHONENR ---------------------------------------------
 
     private static CreatePhoneTicketCommand PhoneTicketCommand() =>

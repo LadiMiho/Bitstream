@@ -576,13 +576,14 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         request.StatusReason = working ? null : cleanComment;
         Transition(request, target, now);
 
-        // INT-CRM-10: CRM is told the operator's answer. Enqueued in the same unit of work as the
-        // status change, so neither happens without the other. No contract exists yet, so the
-        // real gateway dead-letters it; the status change here does not depend on it.
+        // INT-CRM-10: CRM is told the operator's answer (workflow BITSTREAM_TO_CRM, on the order
+        // ticket CRM opened at SALES_ORDER_OPENED). Enqueued in the same unit of work as the
+        // status change, so neither happens without the other; the status change here does not
+        // depend on CRM's answer.
         var idempotencyKey = $"{request.PublicId}:operator-confirmation";
         var envelope = new IntegrationEnvelope(Guid.NewGuid(), _currentUser.CorrelationId, idempotencyKey, now);
         var command = new OperatorConfirmationCommand(
-            envelope, request.PublicId, request.CrmTicketId, working ? "Y" : "N", cleanComment, now);
+            envelope, request.PublicId, request.CrmTicketId, working ? "Y" : "N", cleanComment, now, request.SalesOrderId);
 
         await _outbox.EnqueueOutboundAsync(
             TargetSystem.Crm, "INT-CRM-10", "OPERATOR_CONFIRMATION", idempotencyKey,

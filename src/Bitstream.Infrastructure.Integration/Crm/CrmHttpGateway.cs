@@ -86,6 +86,8 @@ public sealed class CrmSoapOptions
     public CrmTicketOptions Ticket { get; set; } = new();
 
     public CrmPhoneTicketOptions PhoneTicket { get; set; } = new();
+
+    public CrmOperatorConfirmationOptions OperatorConfirmation { get; set; } = new();
 }
 
 /// <summary>INT-CRM-01: the <c>CRM_BP_CREATE</c> operation and the fixed codes it is sent with.</summary>
@@ -107,6 +109,15 @@ public sealed class CrmBusinessPartnerOptions
 public sealed class CrmTicketOptions
 {
     public string OperationCode { get; set; } = "BITSTREAM_TICKET_CREATE";
+}
+
+/// <summary>INT-CRM-10: the <c>BITSTREAM_TO_CRM</c> workflow (<c>executeWorkflow</c>) that receives the operator's confirmation.</summary>
+public sealed class CrmOperatorConfirmationOptions
+{
+    public string WorkflowCode { get; set; } = "BITSTREAM_TO_CRM";
+
+    /// <summary>The <c>name</c> attribute of the request's <c>context</c> element, as in CRM's sample.</summary>
+    public string ContextName { get; set; } = "?";
 }
 
 /// <summary>INT-CRM-11: the <c>CREATE_TICKET_BYPHONENR</c> operation (post-activation requests).</summary>
@@ -351,11 +362,9 @@ public sealed class CrmHttpGateway : ICrmGateway
     }
 
     /// <summary>
-    /// INT-CRM-10 placeholder: CRM has not defined the operation that receives the operator's
-    /// decision yet. Returns a non-retryable failure so the outbox message goes straight to the
-    /// dead letter, visibly (GET /api/v1/ops/integration/dead-letter), instead of pretending it
-    /// was delivered. Once the contract exists, implement the call here and replay the
-    /// dead-lettered messages.
+    /// INT-CRM-10: tells CRM the operator's answer through the <c>BITSTREAM_TO_CRM</c> workflow
+    /// (<c>executeWorkflow</c>) on the order ticket CRM opened at SALES_ORDER_OPENED. Success
+    /// needs <c>EvSuccess</c> = X; any other answer is a business rejection carrying <c>EvMessage</c>.
     /// </summary>
     public Task<IntegrationResult<OperatorConfirmationResult>> SubmitOperatorConfirmationAsync(
         OperatorConfirmationCommand command,
@@ -363,16 +372,23 @@ public sealed class CrmHttpGateway : ICrmGateway
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        _logger.LogWarning(
-            "INT-CRM-10 operator confirmation for {RequestPublicId} not sent: the CRM contract is not yet defined.",
-            command.RequestPublicId);
+        if (string.IsNullOrWhiteSpace(command.SalesOrderTicketId))
+        {
+            return Task.FromResult(IntegrationResult<OperatorConfirmationResult>.BusinessRejection(
+                NoOrderTicket,
+                $"Activation request {command.RequestPublicId} has no CRM order ticket (SALES_ORDER_OPENED) to send the operator confirmation to."));
+        }
 
-        return Task.FromResult(IntegrationResult<OperatorConfirmationResult>.BusinessRejection(
-            OperatorConfirmationContractMissing, "INT-CRM-10 contract not yet defined: the operator confirmation was not sent to CRM."));
+        var options = _options.Soap.OperatorConfirmation;
+        var envelope = CrmSoap.BuildOperatorConfirmationRequest(options, command, command.SalesOrderTicketId);
+
+        return SendSoapAsync(
+            command.RequestPublicId, options.WorkflowCode, envelope,
+            CrmSoap.ParseOperatorConfirmationResponse, cancellationToken);
     }
 
-    /// <summary>Error code of the INT-CRM-10 placeholder failure.</summary>
-    public const string OperatorConfirmationContractMissing = "CONTRACT_NOT_DEFINED";
+    /// <summary>Error code when a request has no CRM order ticket to send the operator confirmation to.</summary>
+    public const string NoOrderTicket = "NO_ORDER_TICKET";
 
     public async Task<IntegrationResult<ServiceChangeResult>> SubmitServiceChangeAsync(
         ServiceChangeCommand command,

@@ -125,9 +125,12 @@ public sealed class CrmClosureEndToEndTests
         // --- Direction B: sales order, provisioning, completion (TRD 5.3) -------------------
         var t0 = DateTimeOffset.UtcNow;
 
+        // CRM opens a new order ticket and sends SALES_ORDER_OPENED on it, naming our request in
+        // payload.salesOrderId.
+        const string orderTicket = "8009530001";
         using var salesOrderResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/tickets/{publicId}/events", UriKind.Relative),
-            SalesOrderEvent("evt-sales-order-1", publicId, t0.AddMinutes(1)));
+            new Uri($"/api/v1/tickets/{orderTicket}/events", UriKind.Relative),
+            SalesOrderEvent("evt-sales-order-1", orderTicket, t0.AddMinutes(1), publicId));
         Assert.Equal(HttpStatusCode.OK, salesOrderResponse.StatusCode);
         var salesOrderAccepted = await salesOrderResponse.Content.ReadFromJsonAsync<TicketEventAccepted>();
         Assert.False(salesOrderAccepted!.Duplicate);
@@ -136,8 +139,8 @@ public sealed class CrmClosureEndToEndTests
 
         // TR-INT-25: the same eventId again is a no-op, not a second application.
         using var duplicateResponse = await client.PostAsJsonAsync(
-            new Uri($"/api/v1/tickets/{publicId}/events", UriKind.Relative),
-            SalesOrderEvent("evt-sales-order-1", publicId, t0.AddMinutes(1)));
+            new Uri($"/api/v1/tickets/{orderTicket}/events", UriKind.Relative),
+            SalesOrderEvent("evt-sales-order-1", orderTicket, t0.AddMinutes(1), publicId));
         Assert.Equal(HttpStatusCode.OK, duplicateResponse.StatusCode);
         var duplicateAccepted = await duplicateResponse.Content.ReadFromJsonAsync<TicketEventAccepted>();
         Assert.True(duplicateAccepted!.Duplicate);
@@ -179,6 +182,8 @@ public sealed class CrmClosureEndToEndTests
         var confirmation = Assert.Single(factory.CrmGateway.OperatorConfirmationCalls);
         Assert.Equal(publicId, confirmation.RequestPublicId);
         Assert.Equal("Y", confirmation.Confirmed);
+        // Sent as TicketId: the order ticket from SALES_ORDER_OPENED, not the activation ticket.
+        Assert.Equal(orderTicket, confirmation.SalesOrderTicketId);
     }
 
     [Fact]
@@ -390,9 +395,9 @@ public sealed class CrmClosureEndToEndTests
         Assert.Equal(expected, request!.Status);
     }
 
-    private static TicketEventRequest SalesOrderEvent(string eventId, string identifier, DateTimeOffset occurredAt) =>
+    private static TicketEventRequest SalesOrderEvent(string eventId, string identifier, DateTimeOffset occurredAt, string? salesOrderId = null) =>
         new(eventId, "SALES_ORDER_OPENED", identifier, null, occurredAt,
-            new TicketEventPayload(null, null, null, null, null, null, null, null, "SO-12345", "BP-000001"));
+            new TicketEventPayload(null, null, null, null, null, null, null, null, salesOrderId ?? identifier, "BP-000001"));
 
     private static TicketEventRequest LineActivatedEvent(string eventId, string identifier, DateTimeOffset occurredAt) =>
         new(eventId, "LINE_ACTIVATED", identifier, null, occurredAt,
