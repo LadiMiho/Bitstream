@@ -21,6 +21,20 @@ public sealed class BrandingTests
     }
 
     [Fact]
+    public async Task The_login_page_offers_remember_me_and_keeps_the_verification_code_step()
+    {
+        await using var factory = new IdentityApiFactory();
+        using var client = factory.CreateClient();
+
+        var html = await client.GetStringAsync(new Uri("/Login", UriKind.Relative));
+
+        Assert.Contains("id=\"login-remember\"", html, StringComparison.Ordinal);
+        Assert.Contains("autocomplete=\"username\"", html, StringComparison.Ordinal);
+        Assert.Contains("autocomplete=\"current-password\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"login-code-form\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_signed_in_page_has_the_header_with_the_logo()
     {
         await using var factory = new IdentityApiFactory();

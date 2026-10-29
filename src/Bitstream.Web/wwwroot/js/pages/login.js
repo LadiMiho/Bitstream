@@ -25,6 +25,39 @@ function showError(target, message) {
   target.hidden = !message;
 }
 
+// --- Remember me -----------------------------------------------------------------------------
+// Only the email is kept, in this browser's localStorage. The password is handed to the
+// browser's own password manager (Credential Management API, where the browser has it; other
+// browsers offer to save it from the form's autocomplete attributes), never stored by the portal.
+// The second factor is not remembered: the code is asked for at every sign-in.
+const REMEMBERED_EMAIL_KEY = 'bitstream.login.rememberedEmail';
+
+function readRememberedEmail() {
+  try {
+    return window.localStorage.getItem(REMEMBERED_EMAIL_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function rememberLogin(remember, email, password) {
+  try {
+    if (remember) {
+      window.localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+    } else {
+      window.localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+    }
+  } catch {
+    // Storage blocked (private window, site data cleared): nothing to remember with.
+  }
+
+  if (remember && 'PasswordCredential' in window && navigator.credentials?.store) {
+    // Shows the browser's own "Save password?" prompt.
+    navigator.credentials.store(new window.PasswordCredential({ id: email, password, name: email }))
+      .catch(() => { /* the user declined, or the browser does not allow it here */ });
+  }
+}
+
 function init() {
   const root = el('[data-role="login-page"]');
   if (!root) {
@@ -41,6 +74,14 @@ function init() {
   const codeChannel = el('#login-code-channel');
   const totpEnrollment = el('#login-totp-enrollment');
   const totpQrImage = el('#login-totp-qr');
+  const rememberBox = el('#login-remember');
+
+  const rememberedEmail = readRememberedEmail();
+  if (rememberedEmail) {
+    el('#login-email').value = rememberedEmail;
+    rememberBox.checked = true;
+    el('#login-password').focus();
+  }
 
   credentialsForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -53,6 +94,9 @@ function init() {
 
     try {
       const challenge = await api.post('/Auth/Login', { email, password });
+      // The email and password were accepted: remember them now (or forget them) whatever the
+      // second factor turns out to be.
+      rememberLogin(rememberBox.checked, email, password);
 
       if (!challenge.channel) {
         // Signed in without a second factor: the session cookie is already set.

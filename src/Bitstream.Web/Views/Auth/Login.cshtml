@@ -1,11 +1,12 @@
 @{
     var safeReturnUrl = (string)(ViewBag.SafeReturnUrl ?? "/Dashboard");
 
-    // No page header here: only the logo above the sign-in box, centred on the screen.
+    // No page header here: only the logo above the sign-in box, centred across and set a little
+    // above the middle of the screen (the bottom padding is larger than the top).
     ViewData["HideHeader"] = true;
 }
 
-<div class="flex min-h-screen flex-col items-center justify-center px-4 py-8">
+<div class="flex min-h-screen flex-col items-center justify-center px-4 pb-[18vh] pt-8">
 <img src="~/img/one-logo.png" alt="one" width="148" height="80" class="mb-8 h-20 w-auto" />
 
 <section class="card w-full max-w-md border-t-4 border-t-brand-600" aria-labelledby="login-heading" data-role="login-page" data-return-url="@safeReturnUrl">
@@ -23,6 +24,17 @@
             <label class="field-label" for="login-password">Password</label>
             <input class="field-input" id="login-password" name="password" type="password" autocomplete="current-password" required />
         </div>
+
+        @* Remembers the email on this device and asks the browser's password manager to save the
+           password (login.js); the portal never stores the password itself. The verification code
+           is still asked for at every sign-in. *@
+        <label class="flex items-start gap-2 text-sm">
+            <input id="login-remember" name="remember" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-line accent-brand-600" />
+            <span>
+                Remember me on this device
+                <span class="block text-xs text-ink-muted">Your email is filled in for you and your browser can save the password. You will still enter a verification code each time.</span>
+            </span>
+        </label>
 
         <div>
             <button type="submit" class="btn-primary">Continue</button>
