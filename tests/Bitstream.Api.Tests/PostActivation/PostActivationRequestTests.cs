@@ -42,7 +42,7 @@ public sealed class PostActivationRequestTests
         await IdentitySeeder.AddUserAsync(db, adminRole, ispId: null, AdminEmail);
         await IdentitySeeder.AddUserAsync(db, viewerRole, tring.IspId, ViewerEmail);
 
-        foreach (var phone in new[] { "Tring_768", "TRING_1", "TRINGX_1", "ABC_1", "NOPE_1" })
+        foreach (var phone in new[] { "Tring_768", "TRING_1", "TRINGX_1", "ABC_1", "NOPE_1", "TRING024", "TRINGGPON024", "0672005050" })
         {
             db.BiPhoneNumbers.Add(new BiPhoneNumber { Phonenumber = phone });
         }
@@ -93,7 +93,9 @@ public sealed class PostActivationRequestTests
 
         Assert.Contains("value=\"Tring_768\"", ispDrawer, StringComparison.Ordinal);
         Assert.Contains("value=\"TRING_1\"", ispDrawer, StringComparison.Ordinal);
+        Assert.Contains("value=\"TRING024\"", ispDrawer, StringComparison.Ordinal);
         Assert.DoesNotContain("TRINGX_1", ispDrawer, StringComparison.Ordinal);
+        Assert.DoesNotContain("TRINGGPON024", ispDrawer, StringComparison.Ordinal);
         Assert.DoesNotContain("ABC_1", ispDrawer, StringComparison.Ordinal);
         // Only active classifications reach the linked dropdowns.
         Assert.Contains("4001440010", ispDrawer, StringComparison.Ordinal);
@@ -106,6 +108,23 @@ public sealed class PostActivationRequestTests
         {
             Assert.Contains($"value=\"{phone}\"", adminDrawer, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public async Task A_phone_number_without_an_underscore_belongs_to_the_ISP_whose_ticket_code_starts_it()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        var seeded = await SeedAsync(factory);
+
+        using var ispClient = await SignInAsync(portal, IspUserEmail);
+        using var response = await SubmitAsync(ispClient, "TRING024", seeded.Level3Id);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var saved = await ReadAsync(factory, "TRING024");
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        Assert.Equal("TRING", (await db.Isps.AsNoTracking().SingleAsync(i => i.IspId == saved.IspId)).TicketCode);
     }
 
     [Fact]
@@ -123,6 +142,8 @@ public sealed class PostActivationRequestTests
             (ispClient, "ABC_1", seeded.Level3Id, null, "phonenumber"),          // another ISP's number
             (ispClient, "UNKNOWN_9", seeded.Level3Id, null, "phonenumber"),      // not in BI's table
             (adminClient, "NOPE_1", seeded.Level3Id, null, "phonenumber"),       // no ISP has ticket code NOPE
+            (adminClient, "TRINGGPON024", seeded.Level3Id, null, "phonenumber"), // no ISP has ticket code TRINGGPON
+            (adminClient, "0672005050", seeded.Level3Id, null, "phonenumber"),   // no ticket code at all
             (ispClient, "Tring_768", seeded.Level2Id, null, "classificationId"), // not a level-3 item
             (ispClient, "Tring_768", seeded.InactiveLevel3Id, null, "classificationId"),
             (ispClient, "Tring_768", seeded.Level3Id, new string('x', 4001), "note")

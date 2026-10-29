@@ -17,9 +17,11 @@ public sealed class PostActivationRequestRepository : IPostActivationRequestRepo
 
         if (ispTicketCode is not null)
         {
-            // Upper-cased on both sides so the match ignores case whatever the column collation
-            // (and under the InMemory provider); PrefixOf re-checks the exact prefix below.
-            var prefix = ispTicketCode.ToUpperInvariant() + BiPhoneNumber.PrefixSeparator;
+            // Narrows to numbers starting with the code (TRING024 or TRING_024), upper-cased on
+            // both sides so the match ignores case whatever the column collation (and under the
+            // InMemory provider); PrefixOf re-checks the exact code below, so TRINGGPON024 is not
+            // taken for TRING.
+            var prefix = ispTicketCode.ToUpperInvariant();
             query = query.Where(p => p.ToUpper().StartsWith(prefix));
         }
 

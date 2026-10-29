@@ -70,7 +70,7 @@ public interface IPostActivationRequestService
 /// Implements <see cref="IPostActivationRequestService"/>: a phone number from BI
 /// (portal.BiPhoneNumber), a level-3 support classification and an optional note, sent to CRM
 /// through CRM's <c>BITSTREAM_TO_CRM</c> workflow via the outbox (INT-CRM-11). A phone number belongs to
-/// the ISP whose ticket code is its prefix (the text before the first <c>_</c>).
+/// the ISP whose ticket code is its prefix (the letters before the number, or before the <c>_</c>).
 /// </summary>
 public sealed class PostActivationRequestService : IPostActivationRequestService
 {
@@ -138,7 +138,7 @@ public sealed class PostActivationRequestService : IPostActivationRequestService
         }
         else if (BiPhoneNumber.PrefixOf(cleanPhone) is not { } prefix)
         {
-            errors["phonenumber"] = [$"Phone number {cleanPhone} has no ISP ticket code (the part before '_')."];
+            errors["phonenumber"] = [$"Phone number {cleanPhone} does not start with an ISP ticket code (letters followed by the number, e.g. TRING024)."];
         }
         else
         {
