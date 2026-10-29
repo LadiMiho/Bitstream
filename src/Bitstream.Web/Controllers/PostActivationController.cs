@@ -19,7 +19,7 @@ namespace Bitstream.Web.Controllers;
 /// <summary>
 /// Post-Activation Support: the list of post-activation requests, the New request drawer (phone
 /// number from BI, three linked classifications, note) and its submit, which queues CRM's
-/// <c>CREATE_TICKET_BYPHONENR</c> (INT-CRM-11). Script: <c>wwwroot/js/pages/post-activation.js</c>.
+/// <c>BITSTREAM_TO_CRM</c> workflow (INT-CRM-11). Script: <c>wwwroot/js/pages/post-activation.js</c>.
 /// </summary>
 [Route("PostActivation")]
 public sealed class PostActivationController : Controller

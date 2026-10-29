@@ -6,9 +6,9 @@ namespace Bitstream.Infrastructure.Integration.Crm;
 
 /// <summary>
 /// Request/response mapping for CRM's SOAP workflow operations (<c>executeOperation</c>):
-/// <c>CRM_BP_CREATE</c> (INT-CRM-01), <c>BITSTREAM_TICKET_CREATE</c> (INT-CRM-02) and
-/// <c>CREATE_TICKET_BYPHONENR</c> (INT-CRM-11), plus the <c>executeWorkflow</c> call
-/// <c>BITSTREAM_TO_CRM</c> (INT-CRM-10).
+/// <c>CRM_BP_CREATE</c> (INT-CRM-01) and <c>BITSTREAM_TICKET_CREATE</c> (INT-CRM-02), plus the
+/// <c>executeWorkflow</c> call <c>BITSTREAM_TO_CRM</c> for the operator confirmation (INT-CRM-10)
+/// and the post-activation ticket (INT-CRM-11).
 /// Built with LINQ to XML so every value is XML-escaped.
 /// </summary>
 internal static class CrmSoap
@@ -106,55 +106,62 @@ internal static class CrmSoap
         return IntegrationResult<CreateCrmTicketResult>.Success(new CreateCrmTicketResult(ticketNumber));
     }
 
-    // --- INT-CRM-11 CREATE_TICKET_BYPHONENR -------------------------------------------------
-
-    public static string BuildCreatePhoneTicketRequest(CrmPhoneTicketOptions options, CreatePhoneTicketCommand command) =>
-        BuildRequest(
-            options.OperationCode,
-            ("Classification", command.Classification),
-            ("Phonenumber", command.Phonenumber),
-            ("Note", command.Note),
-            ("ShortDescription", string.Empty));
+    // --- INT-CRM-11 executeWorkflow BITSTREAM_TO_CRM (post-activation ticket) ---------------
 
     /// <summary>
-    /// <c>responseCode</c> 0 with a <c>TicketID</c> is success: a new ticket, or — when
-    /// <c>AlreadyExists</c> is X — the ticket CRM already has open for this number (reported as a
-    /// success with the flag set, so it is not retried). Any other <c>responseCode</c> is CRM
-    /// refusing the request, carrying its <c>Message</c>.
+    /// A post-activation request, through the same workflow as the operator confirmation:
+    /// Username = the phone number, ClassificationId3 = the level-3 classification code,
+    /// Notes = the note.
+    /// </summary>
+    public static string BuildCreatePhoneTicketRequest(CrmPhoneTicketOptions options, CreatePhoneTicketCommand command) =>
+        BuildWorkflowRequest(
+            options.WorkflowCode,
+            options.ContextName,
+            ("Username", command.Phonenumber),
+            ("ClassificationId3", command.Classification),
+            ("Notes", command.Note));
+
+    /// <summary>
+    /// Success when <c>EvSuccess</c> is X and <c>EvServiceticketid</c> names the new ticket, or
+    /// when <c>EvAlreadyExists</c> is X: CRM already has a ticket open for the number, which
+    /// <c>EvServiceticketid</c> names (a success with the flag set, so it is not retried). Anything
+    /// else is CRM refusing the request, carrying its <c>EvMessage</c>.
     /// </summary>
     public static IntegrationResult<CreatePhoneTicketResult> ParseCreatePhoneTicketResponse(string body)
     {
-        var response = ParseResponse(body, "CREATE_TICKET_BYPHONENR");
+        var response = ParseResponse(body, "BITSTREAM_TO_CRM");
 
         if (response.Failure is { } failure)
         {
             return IntegrationResult<CreatePhoneTicketResult>.TechnicalFailure(failure);
         }
 
-        response.Context.TryGetValue("TicketID", out var ticketId);
-        response.Context.TryGetValue("Message", out var message);
-        response.Context.TryGetValue("AlreadyExists", out var alreadyExists);
-
-        if (response.ResponseCode != "0")
-        {
-            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
-                response.ResponseCode!,
-                $"CRM did not create the ticket (responseCode {response.ResponseCode}): {(string.IsNullOrEmpty(message) ? "no Message" : message)}");
-        }
+        response.Context.TryGetValue("EvSuccess", out var success);
+        response.Context.TryGetValue("EvMessage", out var message);
+        response.Context.TryGetValue("EvServiceticketid", out var ticketId);
+        response.Context.TryGetValue("EvAlreadyExists", out var alreadyExists);
 
         var exists = string.Equals(alreadyExists, "X", StringComparison.OrdinalIgnoreCase);
 
-        if (!exists && string.IsNullOrEmpty(ticketId))
+        if (!exists && !string.Equals(success, "X", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
+                response.ResponseCode ?? "EV_SUCCESS",
+                $"CRM did not create the ticket (responseCode {response.ResponseCode}, EvSuccess '{success}'): " +
+                $"{(string.IsNullOrEmpty(message) ? "no EvMessage" : message)}");
+        }
+
+        if (string.IsNullOrEmpty(ticketId))
         {
             // Not retried: a blind second call could open a duplicate ticket.
             return IntegrationResult<CreatePhoneTicketResult>.BusinessRejection(
                 "NO_TICKET_ID",
-                $"CRM answered responseCode 0 but returned no TicketID{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
+                $"CRM answered EvSuccess {success}{(exists ? ", EvAlreadyExists X" : "")} but returned no EvServiceticketid{(string.IsNullOrEmpty(message) ? "" : $": {message}")}. " +
                 $"CRM returned: {(response.Context.Count == 0 ? "no context values" : Describe(response.Context).Trim(' ', '(', ')'))}.");
         }
 
         return IntegrationResult<CreatePhoneTicketResult>.Success(
-            new CreatePhoneTicketResult(string.IsNullOrEmpty(ticketId) ? null : ticketId, string.IsNullOrEmpty(message) ? null : message, exists));
+            new CreatePhoneTicketResult(ticketId, string.IsNullOrEmpty(message) ? null : message, exists));
     }
 
     // --- INT-CRM-10 executeWorkflow BITSTREAM_TO_CRM ------------------------------------------
@@ -167,6 +174,19 @@ internal static class CrmSoap
     {
         var confirmed = string.Equals(command.Confirmed, "Y", StringComparison.OrdinalIgnoreCase);
 
+        return BuildWorkflowRequest(
+            options.WorkflowCode,
+            options.ContextName,
+            ("TicketId", orderTicketId),
+            ("Username", command.RequestPublicId),
+            ("BitstreamConfirmation", confirmed ? "Confirmed" : "Notconfirmed"),
+            ("Status", confirmed ? "Close" : "Open"),
+            ("Note", command.Comment));
+    }
+
+    /// <summary>An <c>executeWorkflow</c> envelope: the workflow code and one context of named strings.</summary>
+    private static string BuildWorkflowRequest(string workflowCode, string contextName, params (string Name, string? Value)[] context)
+    {
         var envelope = new XElement(
             SoapEnv + "Envelope",
             new XAttribute(XNamespace.Xmlns + "soapenv", SoapEnv),
@@ -178,19 +198,13 @@ internal static class CrmSoap
                     Workflow + "executeWorkflow",
                     new XElement(
                         "workflowExecutionRequest",
-                        new XElement("code", options.WorkflowCode),
+                        new XElement("code", workflowCode),
                         new XElement(
                             "context",
-                            new XAttribute("name", options.ContextName),
-                            String("TicketId", orderTicketId),
-                            String("Username", command.RequestPublicId),
-                            String("BitstreamConfirmation", confirmed ? "Confirmed" : "Notconfirmed"),
-                            String("Status", confirmed ? "Close" : "Open"),
-                            String("Note", command.Comment))))));
+                            new XAttribute("name", contextName),
+                            context.Select(item => new XElement("string", new XAttribute("name", item.Name), item.Value ?? string.Empty)))))));
 
         return envelope.ToString(SaveOptions.DisableFormatting);
-
-        static XElement String(string name, string? value) => new("string", new XAttribute("name", name), value ?? string.Empty);
     }
 
     /// <summary>Success only when <c>EvSuccess</c> is X; anything else CRM answered is a business rejection carrying <c>EvMessage</c>.</summary>

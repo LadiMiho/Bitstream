@@ -3,7 +3,7 @@ namespace Bitstream.Domain.Entities;
 /// <summary>
 /// A post-activation request (portal.PostActivationRequest, db/mssql/0024): a phone number from
 /// BI, a level-3 support classification and an optional note, sent to CRM as
-/// <c>CREATE_TICKET_BYPHONENR</c>. The classification chain is copied at submission so later
+/// the <c>BITSTREAM_TO_CRM</c> workflow. The classification chain is copied at submission so later
 /// renames never change a past request.
 /// </summary>
 public sealed class PostActivationRequest
@@ -39,7 +39,7 @@ public sealed class PostActivationRequest
     /// <summary>One of <see cref="PostActivationRequestStatus"/>.</summary>
     public required string Status { get; set; }
 
-    /// <summary>CRM's <c>TicketID</c>: the new ticket, or the existing one when CRM answered AlreadyExists.</summary>
+    /// <summary>CRM's <c>EvServiceticketid</c>: the new ticket, or the open one when CRM answered EvAlreadyExists.</summary>
     public string? CrmTicketId { get; set; }
 
     /// <summary>CRM's <c>Message</c>, or the failure reason.</summary>
@@ -61,7 +61,7 @@ public static class PostActivationRequestStatus
     /// <summary>CRM created the ticket.</summary>
     public const string Submitted = "Submitted";
 
-    /// <summary>CRM already has an open ticket for this phone number (AlreadyExists = X).</summary>
+    /// <summary>CRM already has an open ticket for this phone number (EvAlreadyExists = X).</summary>
     public const string AlreadyExists = "AlreadyExists";
 
     /// <summary>CRM refused the request, or every retry failed.</summary>

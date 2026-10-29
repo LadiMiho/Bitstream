@@ -15,7 +15,7 @@ namespace Bitstream.Api.Tests.PostActivation;
 
 /// <summary>
 /// Post-activation requests end to end: the portal's form and submit, then the API host's outbox
-/// dispatcher sending CREATE_TICKET_BYPHONENR (INT-CRM-11) to a fake CRM.
+/// dispatcher sending the BITSTREAM_TO_CRM workflow (INT-CRM-11) to a fake CRM.
 /// </summary>
 public sealed class PostActivationRequestTests
 {

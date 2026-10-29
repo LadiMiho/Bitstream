@@ -120,10 +120,13 @@ public sealed class CrmOperatorConfirmationOptions
     public string ContextName { get; set; } = "?";
 }
 
-/// <summary>INT-CRM-11: the <c>CREATE_TICKET_BYPHONENR</c> operation (post-activation requests).</summary>
+/// <summary>INT-CRM-11: the <c>BITSTREAM_TO_CRM</c> workflow (<c>executeWorkflow</c>) that creates post-activation tickets.</summary>
 public sealed class CrmPhoneTicketOptions
 {
-    public string OperationCode { get; set; } = "CREATE_TICKET_BYPHONENR";
+    public string WorkflowCode { get; set; } = "BITSTREAM_TO_CRM";
+
+    /// <summary>The <c>name</c> attribute of the request's <c>context</c> element, as in CRM's sample.</summary>
+    public string ContextName { get; set; } = "?";
 }
 
 /// <summary>
@@ -218,8 +221,9 @@ public sealed class CrmHttpGateway : ICrmGateway
     }
 
     /// <summary>
-    /// INT-CRM-11: creates a post-activation ticket through the <c>CREATE_TICKET_BYPHONENR</c>
-    /// SOAP operation (Classification = level-3 code, Phonenumber, Note, empty ShortDescription).
+    /// INT-CRM-11: creates a post-activation ticket through the <c>BITSTREAM_TO_CRM</c> workflow
+    /// (Username = phone number, ClassificationId3 = level-3 code, Notes). Success needs
+    /// <c>EvSuccess</c> = X; the new ticket is <c>EvServiceticketid</c>.
     /// </summary>
     public Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
         CreatePhoneTicketCommand command,
@@ -230,7 +234,7 @@ public sealed class CrmHttpGateway : ICrmGateway
         var envelope = CrmSoap.BuildCreatePhoneTicketRequest(_options.Soap.PhoneTicket, command);
 
         return SendSoapAsync(
-            command.RequestPublicId, _options.Soap.PhoneTicket.OperationCode, envelope,
+            command.RequestPublicId, _options.Soap.PhoneTicket.WorkflowCode, envelope,
             CrmSoap.ParseCreatePhoneTicketResponse, cancellationToken);
     }
 

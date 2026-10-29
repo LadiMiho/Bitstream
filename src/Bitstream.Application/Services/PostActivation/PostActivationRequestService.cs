@@ -69,13 +69,13 @@ public interface IPostActivationRequestService
 /// <summary>
 /// Implements <see cref="IPostActivationRequestService"/>: a phone number from BI
 /// (portal.BiPhoneNumber), a level-3 support classification and an optional note, sent to CRM
-/// as <c>CREATE_TICKET_BYPHONENR</c> through the outbox (INT-CRM-11). A phone number belongs to
+/// through CRM's <c>BITSTREAM_TO_CRM</c> workflow via the outbox (INT-CRM-11). A phone number belongs to
 /// the ISP whose ticket code is its prefix (the text before the first <c>_</c>).
 /// </summary>
 public sealed class PostActivationRequestService : IPostActivationRequestService
 {
     public const string InterfaceCode = "INT-CRM-11";
-    public const string MessageType = "CREATE_TICKET_BYPHONENR";
+    public const string MessageType = "BITSTREAM_TO_CRM";
     public const int MaxNoteLength = 4000;
 
     /// <summary>The most rows one Excel export returns; the file says so when there were more.</summary>

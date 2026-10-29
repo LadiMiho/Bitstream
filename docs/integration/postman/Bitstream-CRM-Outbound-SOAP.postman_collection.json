@@ -197,7 +197,7 @@
       ]
     },
     {
-      "name": "5. CREATE_TICKET_BYPHONENR – post-activation request (INT-CRM-11)",
+      "name": "5. BITSTREAM_TO_CRM – post-activation request (INT-CRM-11)",
       "request": {
         "method": "POST",
         "header": [
@@ -218,14 +218,14 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeOperation>\n      <operationExecutionRequest>\n        <code>CREATE_TICKET_BYPHONENR</code>\n        <context name=\"requestContext\">\n          <string name=\"Classification\">{{classificationCode}}</string>\n          <string name=\"Phonenumber\">{{phoneNumber}}</string>\n          <string name=\"Note\">Test from Postman</string>\n          <string name=\"ShortDescription\"></string>\n        </context>\n      </operationExecutionRequest>\n    </wor:executeOperation>\n  </soapenv:Body>\n</soapenv:Envelope>",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:wor=\"http://workflow.pi.altima.hr/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <wor:executeWorkflow>\n      <workflowExecutionRequest>\n        <code>BITSTREAM_TO_CRM</code>\n        <context name=\"?\">\n          <string name=\"Username\">{{phoneNumber}}</string>\n          <string name=\"ClassificationId3\">{{classificationCode}}</string>\n          <string name=\"Notes\">Test from Postman</string>\n        </context>\n      </workflowExecutionRequest>\n    </wor:executeWorkflow>\n  </soapenv:Body>\n</soapenv:Envelope>",
           "options": {
             "raw": {
               "language": "xml"
             }
           }
         },
-        "description": "Sent for a post-activation request. `Classification` = the level-3 code, `Phonenumber` = the BI number. Success: `responseCode` 0 and a `TicketID` (`AlreadyExists` = X means a ticket is already open for the number)."
+        "description": "Sent for a post-activation request, through the same workflow as the operator confirmation. `Username` = the phone number from BI (the New request dropdown), `ClassificationId3` = the level-3 code, `Notes` = the note. Success: `EvSuccess` = X; `EvServiceticketid` is the new ticket (`EvAlreadyExists` = X means a ticket is already open for the number)."
       },
       "event": [
         {
@@ -237,7 +237,7 @@
               "const text = pm.response.text();",
               "const value = (name) => { const m = text.match(new RegExp('<string name=\"' + name + '\"(?:/>|>([^<]*)</string>)')); return m ? (m[1] || '') : null; };",
               "const responseCode = (text.match(/<responseCode>([^<]*)<\\/responseCode>/) || [])[1];",
-              "pm.test('responseCode 0 and TicketID', () => { pm.expect(responseCode).to.eql('0'); pm.expect(value('TicketID') || value('TicketiD')).to.be.ok; });"
+              "pm.test('EvSuccess = X (or EvAlreadyExists = X) and EvServiceticketid', () => { pm.expect(value('EvSuccess') === 'X' || value('EvAlreadyExists') === 'X', value('EvMessage')).to.be.true; pm.expect(value('EvServiceticketid')).to.be.ok; });"
             ]
           }
         }

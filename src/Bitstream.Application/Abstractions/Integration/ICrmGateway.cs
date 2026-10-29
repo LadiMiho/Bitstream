@@ -51,8 +51,8 @@ public interface ICrmGateway
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// INT-CRM-11. Creates a post-activation ticket for a phone number (CRM's
-    /// <c>CREATE_TICKET_BYPHONENR</c>). CRM answering that a ticket already exists is a success
+    /// INT-CRM-11. Creates a post-activation ticket for a phone number through CRM's
+    /// <c>BITSTREAM_TO_CRM</c> workflow. CRM answering that a ticket already exists is a success
     /// with <see cref="CreatePhoneTicketResult.AlreadyExists"/> set, not a failure.
     /// </summary>
     Task<IntegrationResult<CreatePhoneTicketResult>> CreatePhoneTicketAsync(
