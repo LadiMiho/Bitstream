@@ -422,7 +422,7 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount);
 /// <param name="Nipt">Albanian tax identification number.</param>
 /// <param name="ContactPerson">Primary contact's name.</param>
 /// <param name="ContactEmail">Primary contact's email.</param>
-/// <param name="ContactMobile">E.164 format (TR-SEC-14, TR-SEC-15).</param>
+/// <param name="ContactMobile">A '+' followed by 12 digits, e.g. +355672005050.</param>
 /// <param name="CrmBpReference">CRM Business Partner reference; verified against CRM before activation per TR-SEC-16 (Should — CRM contract is TRD 11.4 open item 1, so this is recorded but not yet cross-checked).</param>
 /// <param name="TicketCode">Unique 2-20 letter code prefixing this ISP's activation request identifiers (TRING → TRING001); case-insensitive on input, stored uppercase.</param>
 public sealed record CreateIspRequest(

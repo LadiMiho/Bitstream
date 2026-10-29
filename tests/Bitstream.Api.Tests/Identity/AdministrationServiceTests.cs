@@ -116,15 +116,33 @@ public sealed class AdministrationServiceTests
         Assert.Equal("TRING", isp.TicketCode);
     }
 
-    [Fact]
-    public async Task CreateIspAsync_rejects_an_invalid_mobile_number()
+    [Theory]
+    [InlineData("0691234567")]
+    [InlineData("355672005050")]
+    [InlineData("+35567200505")]
+    [InlineData("+3556720050501")]
+    [InlineData("+355 672005050")]
+    public async Task CreateIspAsync_rejects_a_contact_mobile_that_is_not_plus_and_12_digits(string mobile)
     {
         var service = CreateService();
 
         var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.CreateIspAsync(
-            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "0691234567", "BP2", "NEWISP")));
+            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", mobile, "BP2", "NEWISP")));
 
-        Assert.Contains(exception.Violations, v => v.Contains("E.164", StringComparison.Ordinal));
+        Assert.True(exception.FieldErrors.ContainsKey("contactMobile"));
+    }
+
+    [Fact]
+    public async Task UpdateIspAsync_rejects_a_contact_mobile_that_is_not_12_digits()
+    {
+        var service = CreateService();
+        var isp = await service.CreateIspAsync(
+            new CreateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "+355672005050", "BP2", "NEWISP"));
+
+        var exception = await Assert.ThrowsAsync<AdministrationValidationException>(() => service.UpdateIspAsync(
+            isp.IspId, new UpdateIspRequest("New ISP", "L12345678A", "B", "b@example.com", "+3556720050", "BP2", "NEWISP")));
+
+        Assert.True(exception.FieldErrors.ContainsKey("contactMobile"));
     }
 
     [Fact]

@@ -136,7 +136,7 @@ public sealed partial class AdministrationService : IAdministrationService
         RequireValidNipt(request.Nipt, violations);
         RequireNonEmpty(request.ContactPerson, "contactPerson", "Contact person", violations);
         RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
-        RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
+        RequireValidIspMobile(request.ContactMobile, violations);
         RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
         var ticketCode = NormaliseTicketCode(request.TicketCode);
         RequireValidTicketCode(ticketCode, violations);
@@ -237,7 +237,7 @@ public sealed partial class AdministrationService : IAdministrationService
         RequireValidNipt(request.Nipt, violations);
         RequireNonEmpty(request.ContactPerson, "contactPerson", "Contact person", violations);
         RequireValidEmail(request.ContactEmail, "contactEmail", "Contact email", violations);
-        RequireValidE164(request.ContactMobile, "contactMobile", "Contact mobile", violations);
+        RequireValidIspMobile(request.ContactMobile, violations);
         RequireNonEmpty(request.CrmBpReference, "crmBpReference", "CRM Business Partner reference", violations);
         var ticketCode = NormaliseTicketCode(request.TicketCode);
         RequireValidTicketCode(ticketCode, violations);
@@ -724,6 +724,24 @@ public sealed partial class AdministrationService : IAdministrationService
         if (!E164Pattern().IsMatch(value))
         {
             violations.Add(fieldKey, $"{fieldName} must be in E.164 format, e.g. +35569XXXXXXX.");
+        }
+    }
+
+    [GeneratedRegex(@"^\+[0-9]{12}$")]
+    private static partial Regex IspMobilePattern();
+
+    /// <summary>The ISP contact mobile is a '+' followed by exactly 12 digits, e.g. +355672005050.</summary>
+    private static void RequireValidIspMobile(string value, ValidationCollector violations)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            violations.Add("contactMobile", "Contact mobile is required.");
+            return;
+        }
+
+        if (!IspMobilePattern().IsMatch(value))
+        {
+            violations.Add("contactMobile", "Contact mobile must be 12 digits after the + sign, e.g. +355672005050.");
         }
     }
 
