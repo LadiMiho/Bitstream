@@ -123,6 +123,19 @@ public sealed class PostActivationSearchAndExportTests
     }
 
     [Fact]
+    public async Task The_grid_shows_when_it_was_last_refreshed()
+    {
+        await using var factory = new IdentityApiFactory();
+        await SeedAsync(factory);
+        using var admin = await SignInAsync(factory, AdminEmail);
+
+        var page = await admin.GetStringAsync(new Uri("/PostActivation", UriKind.Relative));
+
+        Assert.Contains("id=\"pa-refresh-status\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"pa-refresh-button\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task The_export_holds_every_matching_request_across_pages_and_only_the_users_own_ISPs()
     {
         await using var factory = new IdentityApiFactory();
