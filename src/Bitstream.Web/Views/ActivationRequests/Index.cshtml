@@ -130,6 +130,14 @@
             </div>
 
             <div id="activation-filter-chips" class="flex flex-wrap items-center gap-2"></div>
+
+            @* The grid refreshes itself in the background (activation-admin.js); this shows when. *@
+            <div class="ml-auto flex items-center gap-1.5 text-xs text-ink-muted" title="The list refreshes automatically every minute, keeping your search and filters.">
+                <span id="activation-refresh-status">Loading…</span>
+                <button type="button" id="activation-refresh-button" class="icon-button" aria-label="Refresh now">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.5 3.5v3.5H13" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+            </div>
         </div>
 
         <p id="activation-search-error" class="field-error mt-2" role="alert" hidden></p>

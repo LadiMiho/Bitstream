@@ -253,9 +253,93 @@ function renderResults(items) {
   }
 }
 
-async function search() {
+// --- Automatic refresh ---------------------------------------------------------------------
+// The grid reloads itself every minute with the current search, filters and page, so status
+// changes made by CRM show up without reloading the page; open drawers are not touched. It
+// waits while the tab is hidden or a row menu is open, and stops when the user has been away
+// for longer than the sign-in idle timeout would allow, so the background calls do not keep an
+// abandoned session alive (TR-SEC-07).
+const REFRESH_INTERVAL_MS = 60 * 1000;
+const AWAY_AFTER_MS = 15 * 60 * 1000;
+let refreshTimer = null;
+let lastUserActivity = Date.now();
+let searchSequence = 0;
+let searchInFlight = 0;
+let lastUpdatedAt = null;
+let refreshStopped = false;
+
+function setRefreshStatus(text, { busy = false } = {}) {
+  el('#activation-refresh-status').textContent = text;
+  el('#activation-refresh-button svg').classList.toggle('animate-spin', busy);
+}
+
+function updatedText() {
+  return lastUpdatedAt
+    ? `Updated ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+    : '';
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  if (!refreshStopped) {
+    refreshTimer = setTimeout(autoRefresh, REFRESH_INTERVAL_MS);
+  }
+}
+
+function autoRefresh() {
+  if (document.hidden) {
+    // Picked up again by the visibilitychange handler.
+    return;
+  }
+
+  if (Date.now() - lastUserActivity > AWAY_AFTER_MS) {
+    setRefreshStatus(`${updatedText()} · paused while you are away`);
+    return;
+  }
+
+  if (openMenuTrigger || searchInFlight > 0) {
+    // Re-rendering would close the open row menu; try again on the next tick.
+    scheduleRefresh();
+    return;
+  }
+
+  search({ background: true });
+}
+
+function isRefreshDue() {
+  return !refreshStopped && (!lastUpdatedAt || Date.now() - lastUpdatedAt.getTime() >= REFRESH_INTERVAL_MS);
+}
+
+function initAutoRefresh() {
+  el('#activation-refresh-button').addEventListener('click', () => {
+    refreshStopped = false;
+    search();
+  });
+
+  const noteActivity = () => {
+    const wasAway = Date.now() - lastUserActivity > AWAY_AFTER_MS;
+    lastUserActivity = Date.now();
+    if (wasAway && !document.hidden && isRefreshDue()) {
+      autoRefresh();
+    }
+  };
+  for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+    document.addEventListener(type, noteActivity, { capture: true, passive: true });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && isRefreshDue()) {
+      autoRefresh();
+    }
+  });
+}
+
+async function search({ background = false } = {}) {
   const searchError = el('#activation-search-error');
-  showError(searchError, '');
+  const sequence = ++searchSequence;
+  clearTimeout(refreshTimer);
+  searchInFlight++;
+  setRefreshStatus('Refreshing…', { busy: true });
 
   try {
     const params = queryParams();
@@ -263,7 +347,17 @@ async function search() {
     params.set('take', String(currentPageSize));
 
     const result = await api.get(`/ActivationRequests/Search?${params}`);
+    if (sequence !== searchSequence) {
+      // A newer search (another page, filter or search term) has started; its result wins.
+      return;
+    }
+
+    showError(searchError, '');
     currentTotalCount = result.totalCount;
+    if (background && openMenuTrigger) {
+      // A row menu was opened while this was loading; keep it and refresh on the next tick.
+      return;
+    }
 
     renderResults(result.items);
     showEmptyState(result.items.length === 0);
@@ -275,8 +369,34 @@ async function search() {
     el('#activation-search-prev').disabled = currentSkip === 0;
     el('#activation-search-next').disabled = currentSkip + currentPageSize >= result.totalCount;
     el('#activation-page-number').textContent = String(Math.floor(currentSkip / currentPageSize) + 1);
+    lastUpdatedAt = new Date();
+    setRefreshStatus(updatedText());
   } catch (error) {
-    showError(searchError, describeError(error));
+    if (sequence !== searchSequence) {
+      return;
+    }
+
+    if (error instanceof ApiError && error.status === 401) {
+      // Signed out (idle timeout or elsewhere): stop polling until the page is reloaded.
+      refreshStopped = true;
+      showError(searchError, 'Your session has ended. Reload the page to sign in again.');
+      setRefreshStatus('Automatic refresh stopped');
+    } else if (background) {
+      // Keep the rows on screen; the next tick tries again.
+      setRefreshStatus(`${updatedText() || 'Not loaded'} · refresh failed, retrying`);
+    } else {
+      showError(searchError, describeError(error));
+      setRefreshStatus(updatedText() || 'Not loaded');
+    }
+  } finally {
+    searchInFlight--;
+    if (sequence === searchSequence) {
+      if (el('#activation-refresh-button svg').classList.contains('animate-spin')) {
+        // Left early (a row menu opened while loading): show the last good time again.
+        setRefreshStatus(updatedText());
+      }
+      scheduleRefresh();
+    }
   }
 }
 
@@ -590,6 +710,7 @@ function init() {
   });
 
   initFilters();
+  initAutoRefresh();
   search();
 }
 

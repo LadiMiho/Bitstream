@@ -51,6 +51,18 @@ public sealed class EmptyStateAndIisTests
         Assert.Contains("Clear search and filters", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task The_activation_grid_shows_when_it_was_last_refreshed()
+    {
+        await using var factory = new IdentityApiFactory();
+        using var client = await SignedInAdminAsync(factory);
+
+        var html = await client.GetStringAsync(new Uri("/ActivationRequests", UriKind.Relative));
+
+        Assert.Contains("id=\"activation-refresh-status\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"activation-refresh-button\"", html, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Bitstream.Web")]
     [InlineData("Bitstream.Api")]
