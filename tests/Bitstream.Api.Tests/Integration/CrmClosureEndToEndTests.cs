@@ -59,7 +59,7 @@ public sealed class CrmClosureEndToEndTests
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/ActivationRequests", UriKind.Relative),
-            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, "Closure example"));
+            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "http://maps.google.com/?q=41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, "Closure example"));
 
         Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
@@ -92,7 +92,7 @@ public sealed class CrmClosureEndToEndTests
 
         Assert.Single(factory.CrmGateway.CreateCustomerCalls);
         // The form's location reaches the Business Partner call as GEOLOCATION.
-        Assert.Equal("41.3275,19.8187", factory.CrmGateway.CreateCustomerCalls[0].Geolocation);
+        Assert.Equal("http://maps.google.com/?q=41.3275,19.8187", factory.CrmGateway.CreateCustomerCalls[0].Geolocation);
         Assert.Single(factory.CrmGateway.CreateActivationTicketCalls);
         // TR-INT-03/17: the ticket call carries the BP the customer call actually returned, not a placeholder.
         Assert.Equal("BP-000001", factory.CrmGateway.CreateActivationTicketCalls[0].BusinessPartner);
@@ -304,7 +304,7 @@ public sealed class CrmClosureEndToEndTests
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/ActivationRequests", UriKind.Relative),
-            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
+            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "http://maps.google.com/?q=41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
 
         // Still Submitted/PendingCrmSync — SALES_ORDER_OPENED is only valid from LineAvailable.
@@ -339,7 +339,7 @@ public sealed class CrmClosureEndToEndTests
 
         using var submitResponse = await portalClient.PostAsJsonAsync(
             new Uri("/ActivationRequests", UriKind.Relative),
-            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
+            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "http://maps.google.com/?q=41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
         var submitted = await submitResponse.Content.ReadFromJsonAsync<ActivationRequestResponse>();
 
         // TR-INT-19: a business rejection is never retried — it dead-letters on the first attempt.
@@ -383,7 +383,7 @@ public sealed class CrmClosureEndToEndTests
         }
 
         var call = Assert.Single(factory.CrmGateway.CreateCustomerCalls);
-        Assert.Equal("41.3275,19.8187", call.Geolocation);
+        Assert.Equal("http://maps.google.com/?q=41.3275,19.8187", call.Geolocation);
     }
 
     private static async Task AssertStatusAsync(CrmApiFactory factory, long requestId, ActivationRequestStatus expected)

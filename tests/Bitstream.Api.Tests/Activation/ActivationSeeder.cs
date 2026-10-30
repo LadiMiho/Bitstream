@@ -44,7 +44,7 @@ internal static class ActivationSeeder
             PublicId = publicId,
             IspId = ispId,
             PackageCode = "BITSTREAM_STD",
-            LocationRaw = "41.3275,19.8187",
+            LocationRaw = "http://maps.google.com/?q=41.3275,19.8187",
             LocationLat = 41.3275m,
             LocationLng = 19.8187m,
             Classification = "REQUEST_FOR_ACTIVATION",

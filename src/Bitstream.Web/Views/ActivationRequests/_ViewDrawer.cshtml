@@ -54,7 +54,7 @@
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@request.Isp.Name (#@request.IspId)</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@request.PackageCode · @request.ContractDurationMonths months@(request.OfferCode is null ? "" : $" · code {request.OfferCode}")</dd></div>
         <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd class="mt-1 break-all text-sm">@request.LocationRaw</dd></div>
-        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@request.LocationLat, @request.LocationLng</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@(request.LocationLat is null ? "— (short link)" : $"{request.LocationLat}, {request.LocationLng}")</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Classification</dt><dd class="mt-1 text-sm">@request.Classification</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Business Partner</dt><dd class="mt-1 text-sm">@(request.Bp ?? "—")</dd></div>
         <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Activation ticket (CRM)</dt><dd class="mt-1 text-sm">@(request.CrmTicketId ?? "—")</dd></div>

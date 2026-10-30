@@ -47,8 +47,8 @@ public sealed record CreateCrmCustomerResult(string CrmCustomerId, string Busine
 /// <param name="PackageCode">Requested package.</param>
 /// <param name="ContractDurationMonths">Selected contract duration.</param>
 /// <param name="LocationRaw">Location exactly as entered.</param>
-/// <param name="LocationLat">Parsed latitude.</param>
-/// <param name="LocationLng">Parsed longitude.</param>
+/// <param name="LocationLat">Parsed latitude; null for a short link.</param>
+/// <param name="LocationLng">Parsed longitude; null for a short link.</param>
 /// <param name="Comments">Free-text comments; sent as NOTE.</param>
 /// <param name="OfferCode">CRM code of the package + contract duration combination, sent as CLASS_3. Nullable only so outbox payloads enqueued before it existed still deserialise.</param>
 public sealed record CreateActivationTicketCommand(
@@ -60,8 +60,8 @@ public sealed record CreateActivationTicketCommand(
     string PackageCode,
     int ContractDurationMonths,
     string LocationRaw,
-    decimal LocationLat,
-    decimal LocationLng,
+    decimal? LocationLat,
+    decimal? LocationLng,
     string? Comments,
     string? OfferCode);
 

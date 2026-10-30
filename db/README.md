@@ -30,6 +30,7 @@ Production database up to date (TR-ARC-07, TR-ARC-08). Run order is the numeric 
 | `0024_post_activation_requests.sql` | `portal.BiPhoneNumber` (filled by BI; the letters before the number — or before `_` in the older format — are the ISP ticket code) and `portal.PostActivationRequest` (phone number + level-3 classification + note, sent to CRM as `CREATE_TICKET_BYPHONENR`), identifier series `PAR` (schema version 17) |
 | `0025_activation_id_without_underscore.sql` | `ops.usp_NextPrefixedIdentifier` issues activation request IDs without the underscore (`TRING001`); IDs already issued keep theirs (schema version 18) |
 | `0026_activation_public_id_constraint.sql` | Re-creates `CK_ActivationRequest_PublicId` to accept IDs with or without the underscore (`TRING001`, `TRING_001`); the 0003 version required it (schema version 19) |
+| `0027_activation_location_coordinates_optional.sql` | `ActivationRequest.LocationLat` / `LocationLng` become nullable: a Google Maps short link (`https://maps.app.goo.gl/…`) carries no coordinates (schema version 20) |
 | `0006_integrity_guards.sql` | Append-only audit, comment immutability, no-delete triggers |
 | `0007_seed_roles_permissions.sql` | Seeded roles, permission codes and the baseline mapping |
 | `0008_permissions.sql` | Grants for the application service account |

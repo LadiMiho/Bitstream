@@ -76,7 +76,7 @@ public sealed class ActivationRequestServiceTests
     }
 
     private static SubmitActivationRequest ValidRequest(long ispId = 1, string? comments = null) =>
-        new(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, comments);
+        new(ispId, "BITSTREAM_STD", "http://maps.google.com/?q=41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, comments);
 
     [Fact]
     public async Task SubmitAsync_records_the_package_and_duration_code()
@@ -192,8 +192,10 @@ public sealed class ActivationRequestServiceTests
     [Theory]
     [InlineData("not a location")]
     [InlineData("")]
-    [InlineData("91,19")]
-    public async Task SubmitAsync_rejects_an_unparsable_or_out_of_range_location(string locationRaw)
+    [InlineData("41.3275,19.8187")]
+    [InlineData("https://www.google.com/maps/@41.3275,19.8187,15z")]
+    [InlineData("http://maps.google.com/?q=91,19")]
+    public async Task SubmitAsync_rejects_a_location_that_is_not_one_of_the_two_accepted_links(string locationRaw)
     {
         AddActiveIsp();
         var service = CreateService();
@@ -202,6 +204,31 @@ public sealed class ActivationRequestServiceTests
             service.SubmitAsync(ValidRequest() with { LocationRaw = locationRaw }));
 
         Assert.Contains(exception.Violations, v => v.Contains("Location", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SubmitAsync_accepts_a_short_link_and_stores_no_coordinates()
+    {
+        AddActiveIsp();
+        var service = CreateService();
+
+        var request = await service.SubmitAsync(ValidRequest() with { LocationRaw = "https://maps.app.goo.gl/wpd59capnslqrxsh7" });
+
+        Assert.Equal("https://maps.app.goo.gl/wpd59capnslqrxsh7", request.LocationRaw);
+        Assert.Null(request.LocationLat);
+        Assert.Null(request.LocationLng);
+    }
+
+    [Fact]
+    public async Task SubmitAsync_keeps_the_coordinates_of_a_query_link()
+    {
+        AddActiveIsp();
+        var service = CreateService();
+
+        var request = await service.SubmitAsync(ValidRequest() with { LocationRaw = "http://maps.google.com/?q=41.32648034965,19.76565957069" });
+
+        Assert.Equal(41.326480m, request.LocationLat);
+        Assert.Equal(19.765660m, request.LocationLng);
     }
 
     [Fact]
@@ -560,7 +587,7 @@ public sealed class ActivationRequestServiceTests
             PublicId = $"ISP_{_requestRepository.Requests.Count + 1}",
             IspId = ispId,
             PackageCode = "BITSTREAM_STD",
-            LocationRaw = "41.3275,19.8187",
+            LocationRaw = "http://maps.google.com/?q=41.3275,19.8187",
             LocationLat = 41.3275m,
             LocationLng = 19.8187m,
             Classification = "REQUEST_FOR_ACTIVATION",

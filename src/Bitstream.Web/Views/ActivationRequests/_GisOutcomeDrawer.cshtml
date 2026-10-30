@@ -8,7 +8,7 @@
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@Model.Isp.Name (#@Model.IspId)</dd></div>
     <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Package</dt><dd class="mt-1 text-sm">@Model.PackageCode</dd></div>
     <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location</dt><dd class="mt-1 text-sm">@Model.LocationRaw</dd></div>
-    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@Model.LocationLat, @Model.LocationLng</dd></div>
+    <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Coordinates</dt><dd class="mt-1 text-sm">@(Model.LocationLat is null ? "— (short link)" : $"{Model.LocationLat}, {Model.LocationLng}")</dd></div>
 </dl>
 
 @if (!eligible)

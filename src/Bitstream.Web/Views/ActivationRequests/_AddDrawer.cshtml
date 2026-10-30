@@ -33,8 +33,9 @@
     </div>
 
     <div>
-        <label class="field-label" for="activation-add-location">Location</label>
-        <input class="field-input" id="activation-add-location" name="locationRaw" type="text" placeholder="Map link, or 'latitude,longitude'" required />
+        <label class="field-label" for="activation-add-location">Location link</label>
+        <input class="field-input" id="activation-add-location" name="locationRaw" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/…" aria-describedby="activation-add-location-hint" required />
+        <p id="activation-add-location-hint" class="mt-1 text-xs text-ink-muted">A Google Maps link: https://maps.app.goo.gl/… or http://maps.google.com/?q=latitude,longitude. Coordinates on their own are not accepted.</p>
         <p class="field-error" role="alert" data-field-error="locationRaw" hidden></p>
     </div>
 

@@ -38,7 +38,7 @@ public sealed class ActivationEndpointsTests
 
         using var response = await client.PostAsJsonAsync(
             new Uri("/ActivationRequests", UriKind.Relative),
-            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
+            new SubmitActivationHttpRequest(ispId, "BITSTREAM_STD", "http://maps.google.com/?q=41.3275,19.8187", "REQUEST_FOR_ACTIVATION", 12, null));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

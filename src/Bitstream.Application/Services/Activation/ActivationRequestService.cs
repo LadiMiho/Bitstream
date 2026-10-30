@@ -194,16 +194,17 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             AddViolation("packageCode", $"Package '{request.PackageCode}' is no longer offered.");
         }
 
-        // TR-ACT-02/03: location exactly as entered, parsed into normalised coordinates.
-        var hasCoordinates = CoordinateParser.TryParse(request.LocationRaw, out var latitude, out var longitude);
+        // TR-ACT-02/03: location exactly as entered; only the two Google Maps link forms CRM
+        // supports are accepted, and the coordinates are kept when the link carries them.
+        var validLocation = LocationLinkParser.TryParse(request.LocationRaw, out var latitude, out var longitude);
 
         if (string.IsNullOrWhiteSpace(request.LocationRaw))
         {
             AddViolation("locationRaw", "Location is required.");
         }
-        else if (!hasCoordinates)
+        else if (!validLocation)
         {
-            AddViolation("locationRaw", "Location must be a map URL or a 'latitude,longitude' pair; it could not be parsed.");
+            AddViolation("locationRaw", LocationLinkParser.FormatMessage);
         }
 
         // TR-ACT-04: classification from the DB-backed catalogue (portal.ActivationClassification);

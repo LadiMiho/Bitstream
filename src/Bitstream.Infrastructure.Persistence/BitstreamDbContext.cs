@@ -56,9 +56,11 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// was added, and from 17 to 18 when db/mssql/0025_activation_id_without_underscore.sql
     /// (activation request IDs without the underscore, e.g. TRING001) was added, and from 18 to
     /// 19 when db/mssql/0026_activation_public_id_constraint.sql (the PublicId check constraint
-    /// accepting those IDs) was added.
+    /// accepting those IDs) was added, and from 19 to 20 when
+    /// db/mssql/0027_activation_location_coordinates_optional.sql (nullable location coordinates,
+    /// for Google Maps short links) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 19;
+    public const int ExpectedSchemaVersion = 20;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

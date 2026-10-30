@@ -21,14 +21,14 @@ public sealed class ActivationRequest
     /// <summary>Code from the configurable package catalogue (TR-ACT-01).</summary>
     public required string PackageCode { get; set; }
 
-    /// <summary>Location exactly as entered — map URL or coordinate pair (TR-ACT-02).</summary>
+    /// <summary>Location exactly as entered: a Google Maps short link or <c>maps.google.com/?q=</c> link (TR-ACT-02).</summary>
     public required string LocationRaw { get; set; }
 
-    /// <summary>Normalised latitude, -90..90 (TR-ACT-02/03).</summary>
-    public decimal LocationLat { get; set; }
+    /// <summary>Latitude, -90..90, from a <c>?q=</c> link; null for a short link, which carries none (TR-ACT-03).</summary>
+    public decimal? LocationLat { get; set; }
 
-    /// <summary>Normalised longitude, -180..180 (TR-ACT-02/03).</summary>
-    public decimal LocationLng { get; set; }
+    /// <summary>Longitude, -180..180, from a <c>?q=</c> link; null for a short link, which carries none (TR-ACT-03).</summary>
+    public decimal? LocationLng { get; set; }
 
     /// <summary>Ticket classification code, default REQUEST_FOR_ACTIVATION (TR-ACT-04).</summary>
     public required string Classification { get; set; }
