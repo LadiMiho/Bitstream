@@ -10,7 +10,8 @@ namespace Bitstream.Api.Contracts;
 /// <param name="EventType">
 /// Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED, LINE_ACTIVATED (TRD 5.3).
 /// Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
-/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED (TRD 6). A type that does not apply to the
+/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED (TRD 6). Post-activation requests:
+/// TECHNICALLY_COMPLETED (INT-CRM-11). A type that does not apply to the
 /// identifier, or an unknown type, is rejected with 422 (TR-INT-27).
 /// </param>
 /// <param name="Identifier">Optional. When sent it must equal the route's identifier (portal ID such as TRING001, or CRM's ticket number).</param>
@@ -44,7 +45,7 @@ public sealed record TicketEventRequest(
 /// <param name="Agent">CRM agent who raised the event.</param>
 /// <param name="SalesOrderId">For SALES_ORDER_OPENED (INT-CRM-03, TR-ACT-18): the sales order reference to store against the activation request.</param>
 /// <param name="BusinessPartner">For SALES_ORDER_OPENED: the customer BP the sales order was raised for (TR-ACT-15).</param>
-/// <param name="Reason">For NO_LINE: why no line is available; shown on the request as its status reason (TR-ACT-13).</param>
+/// <param name="Reason">For NO_LINE: why no line is available; shown on the request as its status reason (TR-ACT-13). For TECHNICALLY_COMPLETED: why CRM closed the post-activation ticket; shown on the request.</param>
 public sealed record TicketEventPayload(
     [property: JsonPropertyName("status")] string? Status,
     [property: JsonPropertyName("comment")] string? Comment,

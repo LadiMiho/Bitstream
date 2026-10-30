@@ -65,7 +65,8 @@ Steps must arrive in this order. An administrator can still record the line chec
 as a fallback; whichever arrives first applies, and the other is then refused with 409.
 
 `PROVISIONING_STARTED` and `TECHNICALLY_COMPLETED` are no longer accepted for activation
-requests (422): `LINE_ACTIVATED` replaces both.
+requests (422): `LINE_ACTIVATED` replaces both. `TECHNICALLY_COMPLETED` is now used only to close
+a post-activation ticket (see below).
 
 ### Reading the 200 response
 
@@ -134,6 +135,31 @@ POST /api/v1/tickets/8009530001/events          (8009530001 = the sales order ti
   "occurredAt": "2026-10-08T14:00:00Z", "payload": { "salesOrderId": "TRING001" } }
 ```
 
+## Post-activation requests: closing the ticket
+
+When the portal sends a post-activation request (INT-CRM-11), CRM creates a ticket and answers
+with its number (`EvServiceTicketId`). The portal stores that number and shows the request as
+**In process**. When CRM has finished the work, it closes the ticket by calling the same endpoint
+**addressed to that ticket number**:
+
+| Event (`eventType`) | Status before | Status after | Payload |
+|---|---|---|---|
+| `TECHNICALLY_COMPLETED` | InProcess | TechnicallyCompleted ("Technically completed") | `reason` (required): shown to the ISP on the request |
+
+```json
+POST /api/v1/tickets/8009521751/events          (8009521751 = the ticket CRM created for the request)
+{ "eventId": "5f0c8f2e-6a4b-4c1e-9d55-0b7f1d2a9c11", "eventType": "TECHNICALLY_COMPLETED",
+  "occurredAt": "2026-10-30T10:00:00Z", "payload": { "reason": "Line repaired, speed tested OK" } }
+```
+
+- `eventId` is a new unique GUID per call. Sending the same `eventId` again returns 200 with
+  `"outcome": "duplicate"` and changes nothing.
+- The URL may also carry the portal's request ID (e.g. `PAR_12`) instead of the ticket number.
+- Closing a request that is not In process (for example a second time) returns **409**. A missing or
+  empty `reason` returns **422**. A ticket number the portal does not know returns **404**.
+- On success the response is 200 with `"outcome": "applied"` and `"requestId"` = the portal's request
+  ID.
+
 ## Complaint ticket events
 
 The same endpoint, addressed by the complaint ticket's ID or CRM ticket number:
@@ -150,7 +176,7 @@ is not told about), `COMMENT_ADDED` (`payload.comment` required, `agent` optiona
 | 400 | Malformed body, missing `eventId`/`eventType`, or body `identifier` ≠ URL. | Fix the call. |
 | 401 | Missing or wrong `X-Api-Key`. | Check the key. |
 | 404 | No request or ticket with that identifier. | Check the identifier. |
-| 409 | The step isn't allowed from the request's current status (wrong order, or already done). | Don't retry blindly; check the request's status. |
+| 409 | The step isn't allowed from the request's current status (wrong order, or already done — e.g. `TECHNICALLY_COMPLETED` on a request already closed). | Don't retry blindly; check the request's status. |
 | 422 | Event type doesn't apply to this request, or a required payload field is missing. | Fix the call. |
 | 429 | Too many calls (limit: 200 per second). | Retry after a short wait. |
 | 5xx / timeout | Portal-side failure. | Retry with the **same** `eventId`. |
@@ -163,7 +189,7 @@ Every accepted call is stored before it is applied, so the portal can replay it 
 `docs/integration/postman/` contains:
 
 - `Bitstream-CRM-Inbound.postman_collection.json` holds every call above. It is grouped into
-  activation steps (in flow order), complaint ticket events, error examples (401, 400, 404, 409,
+  activation steps (in flow order), complaint ticket events, post-activation closure (`TECHNICALLY_COMPLETED`), error examples (401, 400, 404, 409,
   422 and duplicate) and operations (replay, health, OpenAPI).
 - `Bitstream-Local.postman_environment.json` points `baseUrl` at the local API host and sets
   `apiKey` to the Development key from `src/Bitstream.Api/appsettings.Development.json`.

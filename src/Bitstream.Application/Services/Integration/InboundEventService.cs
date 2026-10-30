@@ -30,6 +30,13 @@ public static class ComplaintTicketEventTypes
     public const string TechnicallyCompletedStatus = "Technically Completed";
 }
 
+/// <summary>Event types this module acts on for a post-activation request (INT-CRM-11).</summary>
+public static class PostActivationEventTypes
+{
+    /// <summary>CRM closed the post-activation ticket; addressed to its ticket number, <c>payload.reason</c> required.</summary>
+    public const string TechnicallyCompleted = "TECHNICALLY_COMPLETED";
+}
+
 /// <summary>
 /// Implements <see cref="IInboundEventService"/>: TRD 7.3.2 Direction B, for both activation
 /// requests (TRD 5) and complaint tickets (TRD 6).
@@ -46,6 +53,11 @@ public static class ComplaintTicketEventTypes
 /// carries the portal's request ID and that is what finds the request. From then on the event is applied under the row's
 /// public identifier.
 /// </para>
+/// <para>
+/// Post-activation requests (INT-CRM-11) are looked up last, by the CRM ticket number CRM returned
+/// when it created the ticket (or by the portal ID, e.g. PAR_12); the only event they take is
+/// TECHNICALLY_COMPLETED.
+/// </para>
 /// </summary>
 public sealed class InboundEventService : IInboundEventService
 {
@@ -54,6 +66,8 @@ public sealed class InboundEventService : IInboundEventService
     private readonly IActivationRequestService _activationRequestService;
     private readonly IComplaintTicketRepository _ticketRepository;
     private readonly ITicketClosureService _ticketClosureService;
+    private readonly IPostActivationRequestRepository _postActivationRepository;
+    private readonly IPostActivationRequestService _postActivationService;
     private readonly INotificationService _notificationService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
@@ -66,6 +80,8 @@ public sealed class InboundEventService : IInboundEventService
         IActivationRequestService activationRequestService,
         IComplaintTicketRepository ticketRepository,
         ITicketClosureService ticketClosureService,
+        IPostActivationRequestRepository postActivationRepository,
+        IPostActivationRequestService postActivationService,
         INotificationService notificationService,
         IUnitOfWork unitOfWork,
         IClock clock,
@@ -77,6 +93,8 @@ public sealed class InboundEventService : IInboundEventService
         _activationRequestService = activationRequestService;
         _ticketRepository = ticketRepository;
         _ticketClosureService = ticketClosureService;
+        _postActivationRepository = postActivationRepository;
+        _postActivationService = postActivationService;
         _notificationService = notificationService;
         _unitOfWork = unitOfWork;
         _clock = clock;
@@ -138,11 +156,26 @@ public sealed class InboundEventService : IInboundEventService
             return;
         }
 
+        var postActivationRequest =
+            await _postActivationRepository.FindByCrmTicketIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false)
+            ?? await _postActivationRepository.FindByPublicIdAsync(evt.Identifier, cancellationToken).ConfigureAwait(false);
+
+        if (postActivationRequest is not null)
+        {
+            // Shown on the request's timeline, which lists messages by the request's own ID.
+            message.RelatedPublicId = postActivationRequest.PublicId;
+
+            await ApplyToPostActivationRequestAsync(
+                integrationMessageId, evt with { Identifier = postActivationRequest.PublicId }, postActivationRequest, cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
         throw new InboundEventNotFoundException(
             IdentifiesRequestInPayload(evt) && !string.IsNullOrWhiteSpace(evt.Payload.SalesOrderId)
                 ? $"No activation request found for payload.salesOrderId '{evt.Payload.SalesOrderId}' (it must be the portal's request ID, e.g. TRING001), " +
                   $"nor for identifier '{evt.Identifier}'."
-                : $"No activation request or complaint ticket found for identifier '{evt.Identifier}' " +
+                : $"No activation request, complaint ticket or post-activation request found for identifier '{evt.Identifier}' " +
                   "(looked up as portal ID, as CRM ticket number and as sales order ticket).");
     }
 
@@ -159,7 +192,7 @@ public sealed class InboundEventService : IInboundEventService
             catch (Exception exception) when (exception is InboundEventNotFoundException or InboundEventNotApplicableException
                 or ActivationRequestValidationException or ActivationRequestConflictException or ActivationRequestNotFoundException
                 or ComplaintTicketValidationException or TicketClosureConflictException or TicketClosureNotFoundException
-                or TicketClosureValidationException)
+                or TicketClosureValidationException or PostActivationRequestValidationException or PostActivationRequestConflictException)
             {
                 // TR-INT-31: one bad message must not abort the rest of the replay window; the
                 // message is left exactly as it was for another look, and the reason is logged.
@@ -320,6 +353,24 @@ public sealed class InboundEventService : IInboundEventService
         // which branch ran.
         ticket.LastAppliedEventAt = evt.OccurredAt;
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await MarkAppliedAsync(integrationMessageId, evt, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// INT-CRM-11 closure. A post-activation request has no event ordering to keep (it takes one
+    /// event, once): a second TECHNICALLY_COMPLETED is refused as a conflict rather than discarded.
+    /// </summary>
+    private async Task ApplyToPostActivationRequestAsync(
+        long integrationMessageId, InboundTicketEvent evt, PostActivationRequest request, CancellationToken cancellationToken)
+    {
+        if (!string.Equals(evt.EventType, PostActivationEventTypes.TechnicallyCompleted, StringComparison.Ordinal))
+        {
+            throw new InboundEventNotApplicableException(
+                $"Event type '{evt.EventType}' does not apply to post-activation request '{evt.Identifier}'; " +
+                $"the only one it takes is {PostActivationEventTypes.TechnicallyCompleted}.");
+        }
+
+        await _postActivationService.CompleteTechnicallyAsync(request, evt.Payload.Reason, cancellationToken).ConfigureAwait(false);
         await MarkAppliedAsync(integrationMessageId, evt, cancellationToken).ConfigureAwait(false);
     }
 

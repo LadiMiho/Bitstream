@@ -316,12 +316,17 @@ internal sealed class PostActivationRequestConfiguration : IEntityTypeConfigurat
         builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
         builder.Property(x => x.CrmTicketId).HasMaxLength(30);
         builder.Property(x => x.CrmMessage).HasMaxLength(1000);
+        builder.Property(x => x.CompletionReason).HasMaxLength(1000);
+        builder.Property(x => x.CompletedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
         builder.Property(x => x.LastUpdatedAt).HasColumnType("datetimeoffset(7)");
 
         builder.HasIndex(x => x.PublicId).IsUnique().HasDatabaseName("UX_PostActivationRequest_PublicId");
         builder.HasIndex(x => new { x.IspId, x.CreatedAt }).HasDatabaseName("IX_PostActivationRequest_Isp_Created");
         builder.HasIndex(x => x.Status).HasDatabaseName("IX_PostActivationRequest_Status");
+        builder.HasIndex(x => x.CrmTicketId)
+            .HasFilter("[CrmTicketId] IS NOT NULL")
+            .HasDatabaseName("IX_PostActivationRequest_CrmTicketId");
 
         builder.HasOne(x => x.Isp).WithMany().HasForeignKey(x => x.IspId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<SupportClassification>().WithMany().HasForeignKey(x => x.ClassificationId).OnDelete(DeleteBehavior.Restrict);

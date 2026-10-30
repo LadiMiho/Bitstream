@@ -79,7 +79,7 @@ public sealed class PostActivationController : Controller
             r.PublicId, r.Isp.Name, r.Phonenumber,
             r.Classification1Name, r.Classification2Name, r.Classification3Code, r.Classification3Name,
             r.Note, PostActivationRequestLabels.For(r.Status), r.CrmTicketId, r.CrmMessage,
-            Local(r.CreatedAt), Local(r.LastUpdatedAt)
+            r.CompletionReason, Local(r.CompletedAt), Local(r.CreatedAt), Local(r.LastUpdatedAt)
         });
 
         if (result.TotalCount > result.Items.Count)
@@ -91,10 +91,10 @@ public sealed class PostActivationController : Controller
             "Post-activation requests",
             [
                 "Request", "ISP", "Phone number", "Request type", "Category", "Detail code", "Detail",
-                "Note", "Status", "CRM ticket", "CRM message", "Submitted", "Last updated"
+                "Note", "Status", "CRM ticket", "CRM message", "Completion reason", "Technically completed", "Submitted", "Last updated"
             ],
             rows,
-            [12, 28, 18, 24, 28, 14, 36, 40, 22, 14, 40, 17, 17]);
+            [12, 28, 18, 24, 28, 14, 36, 40, 22, 14, 40, 40, 17, 17, 17]);
 
         return File(workbook, XlsxWriter.ContentType, $"post-activation-requests-{Local(DateTimeOffset.UtcNow):yyyyMMdd-HHmm}.xlsx");
     }

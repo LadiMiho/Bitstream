@@ -6,6 +6,7 @@ using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Services;
 using Bitstream.Application.Services.Activation;
 using Bitstream.Application.Services.Integration;
+using Bitstream.Application.Services.PostActivation;
 using Bitstream.Domain.Enums;
 using Bitstream.Hosting.Configuration;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,8 @@ namespace Bitstream.Api.Endpoints;
 /// INT-CRM-06 (comment replication) — one endpoint, distinguished by event type, exactly as
 /// TR-INT-22 requires. Activation requests: LINE_AVAILABLE, NO_LINE, SALES_ORDER_OPENED,
 /// LINE_ACTIVATED. Complaint tickets: STATUS_CHANGED, COMMENT_ADDED,
-/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. The identifier in the route may be the
+/// CLOSED_WITH_CLEARING_CODE, AUTO_COMPLETED, REOPENED. Post-activation requests:
+/// TECHNICALLY_COMPLETED. The identifier in the route may be the
 /// portal's ID (e.g. TRING001) or CRM's own ticket number.
 /// </para>
 /// <para>
@@ -68,6 +70,11 @@ public static class CrmInboundEndpoints
                 After LINE_ACTIVATED the ISP's operator confirms in the portal whether the line works
                 (Yes -> Completed; No -> WaitingForServiceDesk, where the service desk decides
                 Completed or ActivationFailed). Those steps are not CRM events.
+
+                Post-activation requests ({identifier} = the CRM ticket number CRM returned when it
+                created the ticket, e.g. 8009521751, or the portal ID, e.g. PAR_12):
+                  TECHNICALLY_COMPLETED InProcess -> TechnicallyCompleted (payload.reason required;
+                                        shown on the request)
 
                 Response codes:
                   200 — received; the body's outcome says what happened: "applied" (the request,
@@ -184,6 +191,16 @@ public static class CrmInboundEndpoints
                     .ConfigureAwait(false);
             }
             catch (ActivationRequestConflictException exception)
+            {
+                return await RejectAsync(outbox, message.MessageId, "Invalid state transition", exception.Message, StatusCodes.Status409Conflict, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (PostActivationRequestValidationException exception)
+            {
+                return await RejectAsync(outbox, message.MessageId, "Invalid event payload", exception.Message, StatusCodes.Status422UnprocessableEntity, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (PostActivationRequestConflictException exception)
             {
                 return await RejectAsync(outbox, message.MessageId, "Invalid state transition", exception.Message, StatusCodes.Status409Conflict, cancellationToken)
                     .ConfigureAwait(false);

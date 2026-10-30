@@ -58,9 +58,11 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// 19 when db/mssql/0026_activation_public_id_constraint.sql (the PublicId check constraint
     /// accepting those IDs) was added, and from 19 to 20 when
     /// db/mssql/0027_activation_location_coordinates_optional.sql (nullable location coordinates,
-    /// for Google Maps short links) was added.
+    /// for Google Maps short links) was added, and from 20 to 21 when
+    /// db/mssql/0028_post_activation_technically_completed.sql (In process / Technically completed
+    /// post-activation requests) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 20;
+    public const int ExpectedSchemaVersion = 21;
 
     public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
         : base(options)

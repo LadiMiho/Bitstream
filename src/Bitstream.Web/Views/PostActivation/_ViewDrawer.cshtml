@@ -37,6 +37,16 @@
         <span class="@PostActivationRequestLabels.PillClass(request.Status)">@PostActivationRequestLabels.For(request.Status)</span>
     </div>
 
+    @if (request.Status == Bitstream.Domain.Entities.PostActivationRequestStatus.TechnicallyCompleted)
+    {
+        <div class="rounded-md border border-state-done/30 bg-state-done/10 px-3 py-2 text-sm text-ink" data-role="completion-reason">
+            <p class="text-xs font-semibold uppercase tracking-wide text-state-done">
+                Technically completed by CRM@(request.CompletedAt is { } completedAt ? $" · {completedAt:g}" : "")
+            </p>
+            <p class="mt-1 whitespace-pre-wrap">@request.CompletionReason</p>
+        </div>
+    }
+
     @if (request.CrmMessage is not null)
     {
         var tone = request.Status == Bitstream.Domain.Entities.PostActivationRequestStatus.Failed
@@ -78,15 +88,24 @@
         @foreach (var message in Model.Messages)
         {
             var outcome = Outcome(message);
+            var inbound = message.Direction == IntegrationDirection.Inbound;
             <li class="relative mb-6 last:mb-0" data-message-status="@message.Status">
                 <span class="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full ring-4 ring-surface @outcome.Dot" aria-hidden="true"></span>
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded bg-state-progress/15 px-1.5 py-0.5 text-xs font-medium text-state-progress">Portal → CRM</span>
-                    <span class="text-sm font-medium text-ink">Create ticket by phone number</span>
+                    @if (inbound)
+                    {
+                        <span class="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">CRM → Portal</span>
+                        <span class="text-sm font-medium text-ink">@(message.MessageType == "TECHNICALLY_COMPLETED" ? "Ticket technically completed" : message.MessageType)</span>
+                    }
+                    else
+                    {
+                        <span class="rounded bg-state-progress/15 px-1.5 py-0.5 text-xs font-medium text-state-progress">Portal → CRM</span>
+                        <span class="text-sm font-medium text-ink">Create ticket by phone number</span>
+                    }
                 </div>
                 <div class="mt-1 text-xs text-ink-muted">
                     <time datetime="@message.CreatedAt.ToString("O")">@message.CreatedAt.ToString("g")</time>
-                    · <span class="@outcome.Text">@outcome.Label</span>
+                    · <span class="@outcome.Text">@(inbound && message.Status == IntegrationMessageStatus.Succeeded ? "Applied" : inbound && message.Status == IntegrationMessageStatus.DeadLettered ? "Refused" : outcome.Label)</span>
                     @if (message.ProcessedAt is { } processedAt)
                     {
                         <span>· @processedAt.ToString("g")</span>
@@ -100,11 +119,11 @@
                 {
                     <details class="mt-2">
                         <summary class="cursor-pointer text-xs text-brand-600">Show data</summary>
-                        <p class="mt-2 text-xs font-semibold text-ink-muted">Sent</p>
+                        <p class="mt-2 text-xs font-semibold text-ink-muted">@(inbound ? "Received from CRM" : "Sent")</p>
                         <pre class="mt-1 max-h-64 overflow-auto rounded bg-surface-muted p-2 text-xs">@Pretty(message.Payload)</pre>
                         @if (message.ResponsePayload is not null)
                         {
-                            <p class="mt-2 text-xs font-semibold text-ink-muted">CRM response</p>
+                            <p class="mt-2 text-xs font-semibold text-ink-muted">@(inbound ? "Result" : "CRM response")</p>
                             <pre class="mt-1 max-h-64 overflow-auto rounded bg-surface-muted p-2 text-xs">@Pretty(message.ResponsePayload)</pre>
                         }
                     </details>

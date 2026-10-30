@@ -62,7 +62,7 @@ public sealed class PostActivationSearchAndExportTests
         };
 
         db.PostActivationRequests.AddRange(
-            Request("PAR_1", tring.IspId, "TRING_101", complaint, network, speed, PostActivationRequestStatus.Submitted, now.AddDays(-10)),
+            Request("PAR_1", tring.IspId, "TRING_101", complaint, network, speed, PostActivationRequestStatus.InProcess, now.AddDays(-10)),
             Request("PAR_2", tring.IspId, "TRING_102", request, cancellation, tariffs, PostActivationRequestStatus.PendingCrmSync, now),
             Request("PAR_3", abc.IspId, "ABC_201", complaint, network, speed, PostActivationRequestStatus.Failed, now));
         await db.SaveChangesAsync();

@@ -45,6 +45,12 @@ public sealed class PostActivationRequest
     /// <summary>CRM's <c>Message</c>, or the failure reason.</summary>
     public string? CrmMessage { get; set; }
 
+    /// <summary>CRM's <c>payload.reason</c> when it closed the ticket (TECHNICALLY_COMPLETED); shown on the request.</summary>
+    public string? CompletionReason { get; set; }
+
+    /// <summary>When CRM's TECHNICALLY_COMPLETED event was applied.</summary>
+    public DateTimeOffset? CompletedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public long? CreatedBy { get; set; }
@@ -58,7 +64,13 @@ public static class PostActivationRequestStatus
     /// <summary>Saved and queued; the outbox dispatcher has not had CRM's answer yet.</summary>
     public const string PendingCrmSync = "PendingCrmSync";
 
-    /// <summary>CRM created the ticket.</summary>
+    /// <summary>CRM created the ticket and is working on it ("In process").</summary>
+    public const string InProcess = "InProcess";
+
+    /// <summary>CRM closed the ticket with a TECHNICALLY_COMPLETED event ("Technically completed").</summary>
+    public const string TechnicallyCompleted = "TechnicallyCompleted";
+
+    /// <summary>CRM created the ticket. Replaced by <see cref="InProcess"/>; db/mssql/0028 converts existing rows.</summary>
     public const string Submitted = "Submitted";
 
     /// <summary>CRM already had an open ticket for this phone number. Only requests sent before EvAlreadyExists became a failure (shown as Failed with CRM's EvMessage) carry this status.</summary>

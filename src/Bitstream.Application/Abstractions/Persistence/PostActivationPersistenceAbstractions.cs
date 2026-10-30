@@ -99,6 +99,9 @@ public interface IPostActivationRequestRepository
 
     Task<PostActivationRequest?> FindByPublicIdAsync(string publicId, CancellationToken cancellationToken = default);
 
+    /// <summary>The request whose CRM ticket (the ticket number CRM returned) is <paramref name="crmTicketId"/>.</summary>
+    Task<PostActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The grid's search and filters, newest first, with the ISP loaded. The ISP filter is also
     /// the ownership scope: the service forces it to the caller's own ISP for anyone without

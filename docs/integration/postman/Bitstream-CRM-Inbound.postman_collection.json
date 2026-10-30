@@ -63,6 +63,10 @@
     {
       "key": "salesOrderTicket",
       "value": "8009530001"
+    },
+    {
+      "key": "postActivationTicket",
+      "value": "8009521751"
     }
   ],
   "item": [
@@ -595,6 +599,116 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Post-activation requests",
+      "item": [
+        {
+          "name": "TECHNICALLY_COMPLETED (CRM closes the ticket)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{postActivationTicket}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{postActivationTicket}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{$guid}}\",\n  \"eventType\": \"TECHNICALLY_COMPLETED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {\n    \"reason\": \"Line repaired, speed tested OK\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**InProcess → TechnicallyCompleted.** Addressed to the ticket number CRM returned when it created the post-activation ticket (`EvServiceTicketId`; the portal ID, e.g. PAR_12, works too). `payload.reason` is required (422 without it) and is shown on the request. A second call for the same request returns 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('outcome = applied (the request changed)', () => {",
+                  "    const body = pm.response.json();",
+                  "    if (body.outcome !== 'applied') { console.log('Not applied:', body.outcome, body.detail || ''); }",
+                  "    pm.expect(body.outcome).to.eql('applied');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 – TECHNICALLY_COMPLETED without reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tickets/{{postActivationTicket}}/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tickets",
+                "{{postActivationTicket}}",
+                "events"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{$guid}}\",\n  \"eventType\": \"TECHNICALLY_COMPLETED\",\n  \"occurredAt\": \"{{occurredAt}}\",\n  \"payload\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`payload.reason` is required: the request is not changed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', () => pm.response.to.have.status(422));"
                 ]
               }
             }

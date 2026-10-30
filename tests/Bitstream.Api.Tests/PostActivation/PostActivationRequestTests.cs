@@ -201,14 +201,14 @@ public sealed class PostActivationRequestTests
         Assert.Equal("Line down since morning", call.Note);
 
         var sent = await ReadAsync(factory, "Tring_768");
-        Assert.Equal(PostActivationRequestStatus.Submitted, sent.Status);
+        Assert.Equal(PostActivationRequestStatus.InProcess, sent.Status);
         Assert.NotNull(sent.CrmTicketId);
 
         var ownList = await ispClient.GetFromJsonAsync<PostActivationRequestListResponse>(new Uri("/PostActivation/Search", UriKind.Relative));
         var ownRow = Assert.Single(ownList!.Items);
         Assert.Equal(sent.PublicId, ownRow.PublicId);
         Assert.Equal(sent.CrmTicketId, ownRow.CrmTicketId);
-        Assert.Equal("Submitted to CRM", ownRow.StatusLabel);
+        Assert.Equal("In process", ownRow.StatusLabel);
 
         using var otherClient = await SignInAsync(portal, OtherIspUserEmail);
         var otherList = await otherClient.GetFromJsonAsync<PostActivationRequestListResponse>(new Uri("/PostActivation/Search", UriKind.Relative));
@@ -266,5 +266,95 @@ public sealed class PostActivationRequestTests
         var refused = await ReadAsync(factory, "ABC_1");
         Assert.Equal(PostActivationRequestStatus.Failed, refused.Status);
         Assert.Contains("Phone number not found", refused.CrmMessage, StringComparison.Ordinal);
+    }
+
+    private static async Task<HttpResponseMessage> CloseAsync(CrmApiFactory factory, string ticketNo, string? reason, string? eventId = null)
+    {
+        using var crm = factory.CreateClient();
+        return await crm.PostAsJsonAsync(
+            new Uri($"/api/v1/tickets/{ticketNo}/events", UriKind.Relative),
+            new
+            {
+                eventId = eventId ?? Guid.NewGuid().ToString(),
+                eventType = "TECHNICALLY_COMPLETED",
+                occurredAt = DateTimeOffset.UtcNow,
+                payload = new { reason }
+            });
+    }
+
+    [Fact]
+    public async Task CRM_closing_the_ticket_by_its_number_makes_the_request_technically_completed_with_the_reason()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        var seeded = await SeedAsync(factory);
+        using var ispClient = await SignInAsync(portal, IspUserEmail);
+
+        using (var response = await SubmitAsync(ispClient, "Tring_768", seeded.Level3Id))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        await DispatchAsync(factory);
+        var inProcess = await ReadAsync(factory, "Tring_768");
+        Assert.Equal(PostActivationRequestStatus.InProcess, inProcess.Status);
+        var ticketNo = inProcess.CrmTicketId!;
+
+        using (var response = await CloseAsync(factory, ticketNo, "Line repaired, speed tested OK"))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var accepted = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+            Assert.Equal("applied", accepted.GetProperty("outcome").GetString());
+            Assert.Equal(inProcess.PublicId, accepted.GetProperty("requestId").GetString());
+        }
+
+        var completed = await ReadAsync(factory, "Tring_768");
+        Assert.Equal(PostActivationRequestStatus.TechnicallyCompleted, completed.Status);
+        Assert.Equal("Line repaired, speed tested OK", completed.CompletionReason);
+        Assert.NotNull(completed.CompletedAt);
+        Assert.Equal(ticketNo, completed.CrmTicketId);
+
+        var drawer = await ispClient.GetStringAsync(new Uri($"/PostActivation/Requests/{completed.PublicId}/ViewDrawer", UriKind.Relative));
+        Assert.Contains("Technically completed", drawer, StringComparison.Ordinal);
+        Assert.Contains("Line repaired, speed tested OK", drawer, StringComparison.Ordinal);
+        Assert.Contains("Ticket technically completed", drawer, StringComparison.Ordinal);
+
+        var list = await ispClient.GetFromJsonAsync<PostActivationRequestListResponse>(new Uri("/PostActivation/Search", UriKind.Relative));
+        Assert.Equal("Technically completed", Assert.Single(list!.Items).StatusLabel);
+
+        // Closing it again is out of order; an unknown ticket is not found.
+        using (var again = await CloseAsync(factory, ticketNo, "Again"))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        }
+
+        using (var unknown = await CloseAsync(factory, "9999999999", "Nobody"))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task A_TECHNICALLY_COMPLETED_event_without_a_reason_is_refused_and_changes_nothing()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        var seeded = await SeedAsync(factory);
+        using var adminClient = await SignInAsync(portal, AdminEmail);
+
+        using (var response = await SubmitAsync(adminClient, "TRING_1", seeded.Level3Id))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        await DispatchAsync(factory);
+        var inProcess = await ReadAsync(factory, "TRING_1");
+
+        using (var response = await CloseAsync(factory, inProcess.CrmTicketId!, reason: "  "))
+        {
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        }
+
+        Assert.Equal(PostActivationRequestStatus.InProcess, (await ReadAsync(factory, "TRING_1")).Status);
     }
 }

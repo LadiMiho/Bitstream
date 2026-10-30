@@ -40,6 +40,11 @@ public sealed class PostActivationRequestRepository : IPostActivationRequestRepo
             .Include(r => r.Isp)
             .FirstOrDefaultAsync(r => r.PublicId == publicId, cancellationToken);
 
+    public Task<PostActivationRequest?> FindByCrmTicketIdAsync(string crmTicketId, CancellationToken cancellationToken = default) =>
+        _dbContext.PostActivationRequests
+            .Include(r => r.Isp)
+            .FirstOrDefaultAsync(r => r.CrmTicketId == crmTicketId, cancellationToken);
+
     public async Task<(IReadOnlyList<PostActivationRequest> Items, int TotalCount)> SearchAsync(
         PostActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
     {

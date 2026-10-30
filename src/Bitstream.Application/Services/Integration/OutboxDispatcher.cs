@@ -289,7 +289,7 @@ public sealed class OutboxDispatcher : BackgroundService
 
     /// <summary>
     /// INT-CRM-11: a post-activation request. CRM's answer is stored on the message whatever it
-    /// says (shown as JSON in the request's drawer). The request is Submitted, with the ticket ID,
+    /// says (shown as JSON in the request's drawer). The request is In process, with the ticket ID,
     /// only when CRM returned EvServiceTicketId and no EvAlreadyExists; otherwise it is Failed
     /// with CRM's EvMessage. Neither outcome is retried: a second call could open a duplicate.
     /// </summary>
@@ -318,7 +318,7 @@ public sealed class OutboxDispatcher : BackgroundService
         if (answer.IsCreated)
         {
             await postActivation.MarkCrmResultAsync(
-                command.RequestPublicId, PostActivationRequestStatus.Submitted, answer.TicketId, answer.Message, cancellationToken).ConfigureAwait(false);
+                command.RequestPublicId, PostActivationRequestStatus.InProcess, answer.TicketId, answer.Message, cancellationToken).ConfigureAwait(false);
         }
         else
         {

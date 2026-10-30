@@ -18,6 +18,15 @@ public sealed class PostActivationRequestValidationException : Exception
     public IReadOnlyDictionary<string, IReadOnlyList<string>> FieldErrors { get; }
 }
 
+/// <summary>A CRM event that the request's current status does not allow (e.g. closing it twice).</summary>
+public sealed class PostActivationRequestConflictException : Exception
+{
+    public PostActivationRequestConflictException(string message)
+        : base(message)
+    {
+    }
+}
+
 /// <summary>What the New request form offers the current user.</summary>
 /// <param name="PhoneNumbers">BI's numbers: all of them for an internal user, the own ISP's for an ISP user.</param>
 /// <param name="Classifications">Active classifications only, pruned to branches that end in an active level-3 item.</param>
@@ -62,8 +71,16 @@ public interface IPostActivationRequestService
     /// <summary>Null when it does not exist or belongs to another ISP (not-found, never forbidden).</summary>
     Task<PostActivationRequestDetails?> GetAsync(string publicId, CancellationToken cancellationToken = default);
 
-    /// <summary>Records CRM's answer (the outbox dispatcher calls this): Submitted, AlreadyExists or Failed.</summary>
+    /// <summary>Records CRM's answer (the outbox dispatcher calls this): InProcess or Failed.</summary>
     Task MarkCrmResultAsync(string publicId, string status, string? crmTicketId, string? message, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// CRM closed the ticket (inbound TECHNICALLY_COMPLETED): an In process request becomes
+    /// Technically completed with CRM's <paramref name="reason"/>. Any other status is a
+    /// <see cref="PostActivationRequestConflictException"/>; an empty reason a
+    /// <see cref="PostActivationRequestValidationException"/>.
+    /// </summary>
+    Task CompleteTechnicallyAsync(PostActivationRequest request, string? reason, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -315,6 +332,41 @@ public sealed class PostActivationRequestService : IPostActivationRequestService
             "PostActivationRequest.CrmResult", EntityType, publicId,
             $"{{\"status\":{JsonSerializer.Serialize(previous)}}}",
             $"{{\"status\":{JsonSerializer.Serialize(status)},\"crmTicketId\":{JsonSerializer.Serialize(request.CrmTicketId)}}}",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CompleteTechnicallyAsync(PostActivationRequest request, string? reason, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new PostActivationRequestValidationException(new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["reason"] = ["payload.reason is required for a TECHNICALLY_COMPLETED event."]
+            });
+        }
+
+        // Submitted is the status In process had before db/mssql/0028; a request not yet
+        // converted is closed the same way.
+        if (request.Status is not (PostActivationRequestStatus.InProcess or PostActivationRequestStatus.Submitted))
+        {
+            throw new PostActivationRequestConflictException(
+                $"Post-activation request {request.PublicId} is {request.Status}; only a request In process can be technically completed.");
+        }
+
+        var previous = request.Status;
+        var cleanReason = reason.Trim();
+        request.Status = PostActivationRequestStatus.TechnicallyCompleted;
+        request.CompletionReason = cleanReason.Length > 1000 ? cleanReason[..1000] : cleanReason;
+        request.CompletedAt = _clock.UtcNow;
+        request.LastUpdatedAt = request.CompletedAt;
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _auditWriter.WriteAsync(
+            "PostActivationRequest.TechnicallyCompleted", EntityType, request.PublicId,
+            $"{{\"status\":{JsonSerializer.Serialize(previous)}}}",
+            $"{{\"status\":{JsonSerializer.Serialize(request.Status)},\"crmTicketId\":{JsonSerializer.Serialize(request.CrmTicketId)},\"reason\":{JsonSerializer.Serialize(request.CompletionReason)}}}",
             cancellationToken).ConfigureAwait(false);
     }
 
