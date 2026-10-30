@@ -60,13 +60,31 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// db/mssql/0027_activation_location_coordinates_optional.sql (nullable location coordinates,
     /// for Google Maps short links) was added, and from 20 to 21 when
     /// db/mssql/0028_post_activation_technically_completed.sql (In process / Technically completed
-    /// post-activation requests) was added.
+    /// post-activation requests) was added, and from 21 to 22 when
+    /// db/mssql/0029_user_notifications.sql (in-app notifications and their settings) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 21;
+    public const int ExpectedSchemaVersion = 22;
 
-    public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options)
-        : base(options)
+    private readonly StatusChangeNotifications? _statusChangeNotifications;
+
+    /// <param name="options">The configured provider.</param>
+    /// <param name="statusChangeNotifications">
+    /// Adds the in-app notifications for request status changes to each save; absent where no
+    /// notifications should be created (design-time, tooling).
+    /// </param>
+    public BitstreamDbContext(DbContextOptions<BitstreamDbContext> options, StatusChangeNotifications? statusChangeNotifications = null)
+        : base(options) =>
+        _statusChangeNotifications = statusChangeNotifications;
+
+    /// <summary>Saves, adding the in-app notifications for any request status change being saved (<see cref="StatusChangeNotifications"/>).</summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        if (_statusChangeNotifications is not null)
+        {
+            await _statusChangeNotifications.AddAsync(this, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
     }
 
     public DbSet<Isp> Isps => Set<Isp>();
@@ -107,6 +125,10 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<PostActivationRequest> PostActivationRequests => Set<PostActivationRequest>();
 
     public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+
+    public DbSet<NotificationRule> NotificationRules => Set<NotificationRule>();
 
     /// <summary>Append-only (TR-SEC-24). Written through <c>IAuditWriter</c>; never updated or removed.</summary>
     public DbSet<AuditLog> AuditLog => Set<AuditLog>();

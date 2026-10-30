@@ -79,6 +79,8 @@ public static class DependencyInjection
         // same per-request BitstreamDbContext instance (also scoped), so a repository's tracked
         // entity and IUnitOfWork.SaveChangesAsync agree on what is being persisted.
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<StatusChangeNotifications>();
+        services.AddScoped<IUserNotificationRepository, Repositories.UserNotificationRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAuthenticatorKeyRepair, AuthenticatorKeyRepair>();

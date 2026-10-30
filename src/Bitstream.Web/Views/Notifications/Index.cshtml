@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="grid gap-6" data-role="notifications-page">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-xl font-semibold">Notifications</h1>
+            <p class="mt-1 text-sm text-ink-muted">Status changes of your activation and post-activation requests, newest first. Open one to see the request; it is then marked as read.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="notifications-read-all" class="btn-secondary" disabled>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4" aria-hidden="true"><path d="m3 10.5 3.5 3.5L14 6.5M9.5 14l7.5-7.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                Mark all as read
+            </button>
+        </div>
+    </div>
+
+    <section class="card min-w-0 px-5 py-4" aria-label="Show">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="segmented" role="group" aria-label="Show">
+                <button type="button" class="segmented-item" aria-pressed="true" data-filter="all">All</button>
+                <button type="button" class="segmented-item" aria-pressed="false" data-filter="unread">
+                    Unread <span id="notifications-unread-count" class="ml-1 rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-semibold text-brand-700" hidden></span>
+                </button>
+            </div>
+        </div>
+        <p id="notifications-error" class="field-error mt-2" role="alert" hidden></p>
+    </section>
+
+    <section class="card min-w-0 p-0" aria-labelledby="notifications-grid-heading">
+        <h2 id="notifications-grid-heading" class="sr-only">Notifications</h2>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr>
+                        <th class="table-head w-8"><span class="sr-only">Unread</span></th>
+                        <th class="table-head">Notification</th>
+                        <th class="table-head">Status</th>
+                        <th class="table-head">Received</th>
+                        <th class="table-head w-12"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody id="notifications-results"></tbody>
+            </table>
+        </div>
+
+        <div class="px-6 py-10" id="notifications-empty-wrapper" hidden>
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "No notifications yet",
+                "When the status of one of your requests changes, you will be notified here.", Id: "notifications-empty-none", Hidden: true))" />
+            <partial name="_EmptyState" model="@(new EmptyStateModel(EmptyStateIcons.Inbox, "You're all caught up",
+                "There are no unread notifications.", ActionLabel: "Show all notifications", ActionAttributes: "data-empty-show-all", Id: "notifications-empty-unread", Hidden: true))" />
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-3 text-sm text-ink-muted">
+            <span id="notifications-summary"></span>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2">
+                    <span>Per page</span>
+                    <select id="notifications-page-size" class="field-input mt-0 w-auto py-1.5">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+                <div class="flex items-center gap-1">
+                    <button type="button" id="notifications-prev" class="icon-button" disabled aria-label="Previous page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m12 4-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <span id="notifications-page-number" class="min-w-[2rem] rounded-md bg-brand-600 px-2.5 py-1 text-center text-xs font-semibold text-white">1</span>
+                    <button type="button" id="notifications-next" class="icon-button" disabled aria-label="Next page">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4 w-4"><path d="m8 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/notifications.js"></script>
+}

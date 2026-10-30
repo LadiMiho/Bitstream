@@ -32,4 +32,7 @@ public static class PermissionCodes
     public const string RoleManage = "role.manage";
 
     public const string AuditRead = "audit.read";
+
+    /// <summary>Choose which request status changes notify ISP users and service desk users (Notification settings).</summary>
+    public const string NotificationManage = "notification.manage";
 }

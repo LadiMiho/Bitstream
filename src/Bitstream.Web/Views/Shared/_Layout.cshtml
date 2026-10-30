@@ -88,6 +88,10 @@
                             {
                                 <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
                             }
+                            @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.NotificationManage))
+                            {
+                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/NotificationSettings") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/NotificationSettings") ? "page" : null)" href="/AccessManagement/NotificationSettings">Notification settings</a>
+                            }
                         </div>
                     </div>
 
@@ -98,6 +102,25 @@
             <div class="flex shrink-0 items-center gap-3">
                 @if (isAuthenticated)
                 {
+                    @* Notification bell: unread count, the newest unread notifications, and the way to
+                       the full list (wwwroot/js/notifications-bell.js fills it). *@
+                    <div class="nav-menu" data-nav-menu data-role="notification-bell">
+                        <button type="button" class="bell-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Notifications" data-nav-trigger data-bell-trigger>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                            <span class="bell-badge" data-bell-badge hidden></span>
+                        </button>
+                        <div class="notification-panel" hidden data-nav-panel>
+                            <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                                <span class="text-sm font-semibold text-ink">Notifications</span>
+                                <button type="button" class="text-xs font-medium text-brand-600 hover:text-brand-700 hover:underline disabled:pointer-events-none disabled:text-ink-muted" data-bell-read-all disabled>Mark all as read</button>
+                            </div>
+                            <div class="max-h-[26rem] divide-y divide-line overflow-y-auto" role="list" data-bell-list>
+                                <p class="px-4 py-8 text-center text-sm text-ink-muted">Loading…</p>
+                            </div>
+                            <a href="/Notifications" class="block border-t border-line px-4 py-2.5 text-center text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50">View all notifications</a>
+                        </div>
+                    </div>
+
                     @* User menu: name, role and sign out, as the usual account dropdown. *@
                     <div class="nav-menu" data-nav-menu>
                         <button type="button" class="user-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Account menu for @displayName" data-nav-trigger>
@@ -156,6 +179,10 @@
     </div>
 
     <script type="module" src="~/js/nav.js"></script>
+    @if (isAuthenticated && !hideHeader)
+    {
+        <script type="module" src="~/js/notifications-bell.js"></script>
+    }
     <script type="module" src="~/js/drawer.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

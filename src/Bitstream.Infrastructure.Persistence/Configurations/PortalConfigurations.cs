@@ -332,3 +332,37 @@ internal sealed class PostActivationRequestConfiguration : IEntityTypeConfigurat
         builder.HasOne<SupportClassification>().WithMany().HasForeignKey(x => x.ClassificationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+internal sealed class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotification>
+{
+    public void Configure(EntityTypeBuilder<UserNotification> builder)
+    {
+        builder.ToTable("UserNotification", Schemas.Portal);
+        builder.HasKey(x => x.NotificationId);
+
+        builder.Property(x => x.NotificationId).UseIdentityColumn();
+        builder.Property(x => x.EntityType).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.EntityPublicId).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Status).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.PreviousStatus).HasMaxLength(40);
+        builder.Property(x => x.Detail).HasMaxLength(1000);
+        builder.Property(x => x.CreatedAt).HasColumnType("datetimeoffset(7)");
+        builder.Property(x => x.ReadAt).HasColumnType("datetimeoffset(7)");
+
+        builder.HasIndex(x => new { x.UserId, x.CreatedAt }).HasDatabaseName("IX_UserNotification_User_Created");
+        builder.HasIndex(x => new { x.UserId, x.ReadAt }).HasDatabaseName("IX_UserNotification_User_Read");
+    }
+}
+
+internal sealed class NotificationRuleConfiguration : IEntityTypeConfiguration<NotificationRule>
+{
+    public void Configure(EntityTypeBuilder<NotificationRule> builder)
+    {
+        builder.ToTable("NotificationRule", Schemas.Portal);
+        builder.HasKey(x => new { x.EventCode, x.Audience });
+
+        builder.Property(x => x.EventCode).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.Audience).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.UpdatedAt).HasColumnType("datetimeoffset(7)");
+    }
+}

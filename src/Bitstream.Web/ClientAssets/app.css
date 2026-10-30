@@ -311,4 +311,52 @@
   .filter-chip button {
     @apply text-ink-muted transition-colors hover:text-ink;
   }
+
+  /* Header notification bell (Views/Shared/_Layout.cshtml, wwwroot/js/notifications-bell.js). */
+  .bell-trigger {
+    @apply relative inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-muted transition-colors
+           hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2
+           focus-visible:outline-brand-600;
+  }
+
+  .bell-trigger[aria-expanded="true"] {
+    @apply bg-surface-muted text-ink;
+  }
+
+  .bell-trigger svg {
+    @apply h-5 w-5;
+  }
+
+  /* White on state-blocked is 5.4:1. */
+  .bell-badge {
+    @apply absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full
+           bg-state-blocked px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-surface;
+  }
+
+  .notification-panel {
+    @apply absolute right-0 top-full z-30 mt-2 w-[min(92vw,24rem)] overflow-hidden rounded-lg border border-line
+           bg-surface shadow-lg;
+  }
+
+  .notification-item {
+    @apply flex gap-3 px-4 py-3 transition-colors hover:bg-brand-50 focus-visible:bg-brand-50
+           focus-visible:outline-none;
+  }
+
+  .notification-unread-dot {
+    @apply mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-600;
+  }
+
+  /* Two or three mutually exclusive choices shown as one control (e.g. All / Unread). */
+  .segmented {
+    @apply inline-flex rounded-lg border border-line bg-surface-muted p-0.5;
+  }
+
+  .segmented-item {
+    @apply rounded-md px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink;
+  }
+
+  .segmented-item[aria-pressed="true"] {
+    @apply bg-surface text-ink shadow-sm;
+  }
 }

@@ -543,6 +543,13 @@ function init() {
 
   initFilters();
   search();
+
+  // Arrived from a notification (/Notifications/{id}/Open): show that request's details.
+  const requestToOpen = new URLSearchParams(window.location.search).get('open');
+  if (requestToOpen) {
+    window.history.replaceState(null, '', window.location.pathname);
+    openView(requestToOpen);
+  }
 }
 
 init();
