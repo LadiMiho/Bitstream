@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Bitstream.Api.Tests.Identity;
 using Bitstream.Api.Tests.Integration;
+using Bitstream.Application.Abstractions.Integration;
 using Bitstream.Application.Services.Integration;
 using Bitstream.Domain.Entities;
 using Bitstream.Infrastructure.Persistence;
@@ -214,7 +215,7 @@ public sealed class NotificationTests
 
         using var admin = await SignInAsync(portal, AdminEmail);
         var settings = await admin.GetStringAsync(new Uri("/AccessManagement/NotificationSettings", UriKind.Relative));
-        Assert.Contains("data-event-code=\"ActivationRequest:LineAvailable\" data-audience=\"IspUsers\" checked=\"checked\"", settings, StringComparison.Ordinal);
+        Assert.Contains("data-event-code=\"ActivationRequest:LineAvailable\" data-audience=\"IspUsers\" data-channel=\"InApp\" checked=\"checked\"", settings, StringComparison.Ordinal);
         Assert.Contains("Technically completed", settings, StringComparison.Ordinal);
 
         using (var saved = await admin.PostAsJsonAsync(
@@ -264,5 +265,121 @@ public sealed class NotificationTests
         }
 
         Assert.Empty(await NotificationsOfAsync(factory, OtherIspUserEmail));
+    }
+
+    private static async Task AddEmailRuleAsync(CrmApiFactory factory, string eventCode, string audience, bool inApp = false)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        db.NotificationRules.Add(new NotificationRule { EventCode = eventCode, Audience = audience, IsEnabled = inApp, EmailEnabled = true });
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task<List<Notification>> EmailsAsync(CrmApiFactory factory)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        return await db.Notifications.AsNoTracking().OrderBy(n => n.NotificationId).ToListAsync();
+    }
+
+    private static async Task<int> SendEmailsAsync(CrmApiFactory factory)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<Bitstream.Application.Services.Notifications.EmailNotificationDispatcher>().DispatchBatchAsync();
+    }
+
+    [Fact]
+    public async Task A_status_change_with_email_switched_on_queues_a_rendered_mail_per_ISP_user_and_the_dispatcher_sends_them()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        var seeded = await SeedAsync(factory);
+        await AddEmailRuleAsync(factory, "PostActivationRequest:InProcess", NotificationAudiences.IspUsers);
+
+        var publicId = await SubmitAndDispatchAsync(factory, portal, seeded);
+
+        // Email only: no in-app notification for this switch.
+        Assert.Empty(await NotificationsOfAsync(factory, IspColleagueEmail));
+
+        var queued = await EmailsAsync(factory);
+        Assert.Equal([IspUserEmail, IspColleagueEmail], queued.Select(n => n.Recipients).ToArray());
+        var mail = queued[0];
+        Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Pending, mail.Status);
+        Assert.Equal("PostActivationRequest.InProcess", mail.TemplateCode);
+        Assert.Equal($"{publicId}: your request is being handled", mail.Subject);
+        Assert.Contains($"<strong>{publicId}</strong>", mail.BodyRendered, StringComparison.Ordinal);
+        Assert.Contains($"href=\"https://portal.example.com/PostActivation?open={publicId}\"", mail.BodyRendered, StringComparison.Ordinal);
+        Assert.Equal(publicId, mail.RelatedEntityPublicId);
+
+        Assert.Equal(2, await SendEmailsAsync(factory));
+        Assert.Equal(2, factory.EmailGateway.Sent.Count);
+        Assert.All(await EmailsAsync(factory), sent =>
+        {
+            Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Sent, sent.Status);
+            Assert.NotNull(sent.SentAt);
+            Assert.Equal(1, sent.Attempts);
+        });
+        Assert.Contains(factory.EmailGateway.Sent, message => message.To.Single() == IspColleagueEmail && message.HtmlBody.StartsWith("<!DOCTYPE html>", StringComparison.Ordinal));
+
+        // Nothing is sent twice.
+        Assert.Equal(0, await SendEmailsAsync(factory));
+    }
+
+    [Fact]
+    public async Task A_failed_mail_is_retried_and_a_refused_one_is_given_up()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        var seeded = await SeedAsync(factory);
+        await AddEmailRuleAsync(factory, "PostActivationRequest:InProcess", NotificationAudiences.IspUsers);
+        await SubmitAndDispatchAsync(factory, portal, seeded);
+
+        factory.EmailGateway.NextResults.Enqueue(IntegrationResult<bool>.TechnicalFailure("gateway down"));
+        factory.EmailGateway.NextResults.Enqueue(IntegrationResult<bool>.BusinessRejection("provider_http_error", "HTTP 400: bad address"));
+        Assert.Equal(0, await SendEmailsAsync(factory));
+
+        var afterFirst = await EmailsAsync(factory);
+        Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Pending, afterFirst[0].Status);
+        Assert.Equal("gateway down", afterFirst[0].LastError);
+        Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Failed, afterFirst[1].Status);
+        Assert.Equal("HTTP 400: bad address", afterFirst[1].LastError);
+
+        Assert.Equal(1, await SendEmailsAsync(factory));
+        var afterRetry = await EmailsAsync(factory);
+        Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Sent, afterRetry[0].Status);
+        Assert.Equal(2, afterRetry[0].Attempts);
+        Assert.Equal(Bitstream.Domain.Enums.NotificationStatus.Failed, afterRetry[1].Status);
+    }
+
+    [Fact]
+    public async Task The_settings_screen_switches_email_separately_from_the_portal()
+    {
+        await using var factory = new CrmApiFactory();
+        await using var portal = new PortalApiFactory(factory.DatabaseName, factory.CrmGateway);
+        await SeedAsync(factory);
+        await AddEmailRuleAsync(factory, "ActivationRequest:Completed", NotificationAudiences.IspUsers);
+
+        using var admin = await SignInAsync(portal, AdminEmail);
+        var settings = await admin.GetStringAsync(new Uri("/AccessManagement/NotificationSettings", UriKind.Relative));
+        Assert.Contains("data-event-code=\"ActivationRequest:Completed\" data-audience=\"IspUsers\" data-channel=\"Email\" checked=\"checked\"", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-event-code=\"ActivationRequest:Completed\" data-audience=\"IspUsers\" data-channel=\"InApp\" checked", settings, StringComparison.Ordinal);
+
+        using (var saved = await admin.PostAsJsonAsync(
+            new Uri("/AccessManagement/NotificationSettings", UriKind.Relative),
+            new SaveNotificationSettingsRequest([
+                new NotificationRuleRequest("ActivationRequest:Completed", NotificationAudiences.IspUsers, NotificationChannels.InApp),
+                new NotificationRuleRequest("ActivationRequest:WaitingForServiceDesk", NotificationAudiences.ServiceDesk, NotificationChannels.Email)
+            ])))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        }
+
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+        var rules = await db.NotificationRules.AsNoTracking().Where(r => r.IsEnabled || r.EmailEnabled).OrderBy(r => r.EventCode).ToListAsync();
+        Assert.Collection(
+            rules,
+            completed => Assert.True(completed is { EventCode: "ActivationRequest:Completed", IsEnabled: true, EmailEnabled: false }),
+            desk => Assert.True(desk is { EventCode: "ActivationRequest:WaitingForServiceDesk", Audience: NotificationAudiences.ServiceDesk, IsEnabled: false, EmailEnabled: true }));
     }
 }

@@ -92,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<Services.PostActivation.IPostActivationRequestService, Services.PostActivation.PostActivationRequestService>();
         services.AddScoped<Services.Audit.IAuditLogService, Services.Audit.AuditLogService>();
         services.AddScoped<Services.Notifications.IUserNotificationService, Services.Notifications.UserNotificationService>();
+        services.AddSingleton<Services.Notifications.EmailNotificationDispatcher>();
 
         // TRD 7.3 — CRM integration. Direction A: the dispatcher claims the outbox and calls
         // ICrmGateway (Integration layer). Direction B: InboundEventService interprets a
@@ -99,6 +100,11 @@ public static class DependencyInjection
         services.AddOptions<OutboxDispatcherOptions>()
             .Bind(configuration.GetSection(OutboxDispatcherOptions.SectionName));
         services.AddSingleton<IValidateOptions<OutboxDispatcherOptions>, OutboxDispatcherOptionsValidator>();
+
+        // Notification emails: how they read (templates) and how often they are sent.
+        services.AddOptions<Services.Notifications.EmailNotificationOptions>()
+            .Bind(configuration.GetSection(Services.Notifications.EmailNotificationOptions.SectionName));
+        services.AddSingleton<IValidateOptions<Services.Notifications.EmailNotificationOptions>, Services.Notifications.EmailNotificationOptionsValidator>();
 
         // Registered as its own singleton, not only as IHostedService, so a test can resolve it
         // directly and call DispatchBatchAsync deterministically instead of racing the poll timer.
@@ -147,6 +153,7 @@ public static class DependencyInjection
         services.AddHostedService(provider => provider.GetRequiredService<OutboxDispatcher>());
         services.AddHostedService<ActiveLineSyncScheduler>();
         services.AddHostedService<AutoConfirmationSweepScheduler>();
+        services.AddHostedService(provider => provider.GetRequiredService<Services.Notifications.EmailNotificationDispatcher>());
 
         return services;
     }
@@ -166,6 +173,7 @@ public static class DependencyInjection
         typeof(TwoFactorOptions),
         typeof(SessionOptions),
         typeof(LockoutOptions),
-        typeof(OutboxDispatcherOptions)
+        typeof(OutboxDispatcherOptions),
+        typeof(Services.Notifications.EmailNotificationOptions)
     ];
 }

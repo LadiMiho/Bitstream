@@ -1,5 +1,7 @@
 using Bitstream.Application.Abstractions.Persistence;
 using Bitstream.Domain.Entities;
+using Bitstream.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bitstream.Infrastructure.Persistence.Repositories;
 
@@ -16,4 +18,13 @@ public sealed class NotificationRepository : INotificationRepository
 
         await _dbContext.Notifications.AddAsync(notification, cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<Notification>> GetDueEmailsAsync(int maxAttempts, int take, CancellationToken cancellationToken = default) =>
+        await _dbContext.Notifications
+            .Where(n => n.Status == NotificationStatus.Pending && n.Attempts < maxAttempts && n.Recipients.Contains("@"))
+            .OrderBy(n => n.CreatedAt)
+            .ThenBy(n => n.NotificationId)
+            .Take(take)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 }

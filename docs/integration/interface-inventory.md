@@ -21,7 +21,7 @@ contract belongs to the other system.
 | INT-BI-01 Active Lines Sync | BI → Portal (pull) | `IBiGateway.GetActiveLinesAsync` — port and `ActiveLineSyncService` **implemented** and tested against `FakeBiGateway`; scheduled (`ActiveLineSyncScheduler`) and manually triggered at `POST /api/v1/ops/bi/active-lines/sync`. `BiGateway`'s real HTTP call still throws | **yes** (the trigger) | Real HTTP call: BI table structure (§11.2) |
 | INT-BI-02 Reporting Extract | Portal → BI | `IBiGateway.PublishReportingExtractAsync`, scheduled | no — outbound | BI table structure (§11.2) |
 | INT-SAP-01 Financial Code | SAP ↔ Portal | `ISapGateway.GetFinancialCodeAsync`, disabled by configuration | no | **Open item 5 — direction itself undecided** |
-| INT-MAIL-01 Email Dispatch | Portal → SMTP | `IEmailGateway.SendAsync` | no — outbound | Open items 6, 7 (recipients, template) |
+| INT-MAIL-01 Email Dispatch | Portal → email gateway (HTTP) | `IEmailGateway.SendAsync` — **implemented** by `HttpEmailGateway`: `POST {Integration:Email:BaseUrl}{SendEndpoint}` with `{fromEmail, toEmail, subject, body, ccEmails, attachments}`, one call per recipient, optional Bearer `ApiKey`. Used for the email verification code at sign-in (sent at once) and the notification emails of request status changes (queued in `ops.Notification` and sent by `EmailNotificationDispatcher` in the API host, retried up to `Notifications:Email:MaxAttempts` times). Which changes are emailed is set on Notification settings; the wording is `Notifications:Email` | no — outbound | Complaint-ticket distribution groups (open item 6) still unresolved |
 
 ## Why one inbound endpoint and not three
 

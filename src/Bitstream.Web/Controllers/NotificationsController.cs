@@ -108,7 +108,8 @@ public sealed class NotificationsController : Controller
         ArgumentNullException.ThrowIfNull(request);
 
         await _service.SaveSettingsAsync(
-            [.. (request.Enabled ?? []).Select(rule => (rule.EventCode, rule.Audience))], cancellationToken).ConfigureAwait(false);
+            [.. (request.Enabled ?? []).Select(rule => new NotificationSwitch(rule.EventCode, rule.Audience, rule.Channel ?? NotificationChannels.InApp))],
+            cancellationToken).ConfigureAwait(false);
 
         return NoContent();
     }

@@ -1,3 +1,4 @@
+using Bitstream.Application.Services.Notifications;
 using Bitstream.Domain.Entities;
 
 namespace Bitstream.Web.Presentation;
@@ -5,16 +6,7 @@ namespace Bitstream.Web.Presentation;
 /// <summary>Display labels and pill colours for <see cref="PostActivationRequestStatus"/>.</summary>
 public static class PostActivationRequestLabels
 {
-    public static string For(string status) => status switch
-    {
-        PostActivationRequestStatus.PendingCrmSync => "Pending CRM sync",
-        PostActivationRequestStatus.InProcess => "In process",
-        PostActivationRequestStatus.TechnicallyCompleted => "Technically completed",
-        PostActivationRequestStatus.Submitted => "Submitted to CRM",
-        PostActivationRequestStatus.AlreadyExists => "Already exists in CRM",
-        PostActivationRequestStatus.Failed => "Failed",
-        _ => status
-    };
+    public static string For(string status) => RequestStatusText.PostActivation(status);
 
     public static string PillClass(string status) => "status-pill " + status switch
     {

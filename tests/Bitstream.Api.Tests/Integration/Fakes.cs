@@ -118,3 +118,22 @@ public sealed class FakeCrmGateway : ICrmGateway
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not exercised by these tests.");
 }
+
+/// <summary>Records every mail instead of sending it; <see cref="NextResults"/> forces the outcome of the next sends.</summary>
+public sealed class FakeEmailGateway : IEmailGateway
+{
+    public ConcurrentQueue<EmailMessage> Sent { get; } = new();
+
+    public ConcurrentQueue<IntegrationResult<bool>> NextResults { get; } = new();
+
+    public Task<IntegrationResult<bool>> SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
+    {
+        if (NextResults.TryDequeue(out var forced))
+        {
+            return Task.FromResult(forced);
+        }
+
+        Sent.Enqueue(message);
+        return Task.FromResult(IntegrationResult<bool>.Success(true));
+    }
+}

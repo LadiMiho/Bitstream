@@ -1,6 +1,7 @@
 /**
  * Notification settings (Access Management, notification.manage): saves every switch that is on
- * (each one an event code and an audience); the server turns every other one off.
+ * (each one an event code, an audience and a channel: in app or email); the server turns every
+ * other one off.
  */
 import { api } from '../api-client.js';
 
@@ -24,7 +25,7 @@ function init() {
 
   save.addEventListener('click', async () => {
     const enabled = [...document.querySelectorAll('[data-event-code]:checked')]
-      .map((box) => ({ eventCode: box.dataset.eventCode, audience: box.dataset.audience }));
+      .map((box) => ({ eventCode: box.dataset.eventCode, audience: box.dataset.audience, channel: box.dataset.channel }));
 
     save.disabled = true;
     error.hidden = true;

@@ -37,6 +37,8 @@ public static class DependencyInjection
 
         services.AddOptions<SmtpOptions>().Bind(configuration.GetSection(SmtpOptions.SectionName));
         services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+        services.AddOptions<EmailGatewayOptions>().Bind(configuration.GetSection(EmailGatewayOptions.SectionName));
+        services.AddSingleton<IValidateOptions<EmailGatewayOptions>, EmailGatewayOptionsValidator>();
 
         // Named clients so that timeouts and certificates are configured per target system
         // rather than globally (TR-INT-08).
@@ -53,7 +55,20 @@ public static class DependencyInjection
         services.AddHttpClient<ISapGateway, SapGateway>(ConfigureSapClient)
             .AddHttpMessageHandler<CorrelationPropagationHandler>();
 
-        services.AddSingleton<IEmailGateway, SmtpEmailGateway>();
+        // INT-MAIL-01: the HTTP email gateway (Integration:Email), for the email verification
+        // code and the email notifications of request status changes.
+        services.AddHttpClient(EmailGatewayOptions.HttpClientName, (provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<EmailGatewayOptions>>().Value;
+
+            if (options.BaseUrl is not null)
+            {
+                client.BaseAddress = options.BaseUrl;
+            }
+
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+        }).AddHttpMessageHandler<CorrelationPropagationHandler>();
+        services.AddSingleton<IEmailGateway, HttpEmailGateway>();
 
         // Probe clients, separate from the adapters' own clients so that a short health-check
         // timeout never shortens a real integration call (TR-ARC-05, TR-INT-08).
@@ -93,7 +108,8 @@ public static class DependencyInjection
         typeof(CrmOptions),
         typeof(BiOptions),
         typeof(SapOptions),
-        typeof(SmtpOptions)
+        typeof(SmtpOptions),
+        typeof(EmailGatewayOptions)
     ];
 
     private static void ConfigureCrmClient(IServiceProvider provider, HttpClient client)

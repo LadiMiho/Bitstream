@@ -54,7 +54,8 @@ public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
                 // Belt and braces: the portal host does not register the background jobs at all
                 // (only the API host calls AddBitstreamBackgroundJobs), so this documents the
                 // expectation rather than establishing it.
-                ["Integration:OutboxDispatcher:Enabled"] = "false"
+                ["Integration:OutboxDispatcher:Enabled"] = "false",
+                ["Notifications:Email:PortalBaseUrl"] = "https://portal.example.com"
             });
         });
 
@@ -67,6 +68,8 @@ public sealed class PortalApiFactory : WebApplicationFactory<WebHostEntryPoint>
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(_crmGateway);
+            services.RemoveAll<IEmailGateway>();
+            services.AddSingleton<IEmailGateway>(new FakeEmailGateway());
 
             // As in CrmApiFactory: SqlPublicIdentifierGenerator needs a real DbConnection, which
             // the InMemory provider has none of.

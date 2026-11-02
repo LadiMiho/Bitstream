@@ -38,6 +38,8 @@ public static class NotificationEventCatalogue
 
     public static readonly IReadOnlyList<string> Audiences = [NotificationAudiences.IspUsers, NotificationAudiences.ServiceDesk];
 
+    public static readonly IReadOnlyList<string> Channels = [NotificationChannels.InApp, NotificationChannels.Email];
+
     /// <summary>Every (entity type, status) pair the settings screen offers.</summary>
     public static IEnumerable<(string EntityType, string Status)> All() =>
         ActivationStatuses.Select(status => (NotificationEntityTypes.ActivationRequest, status))
@@ -47,8 +49,12 @@ public static class NotificationEventCatalogue
 /// <summary>What the header bell shows: how many are unread and the newest of them.</summary>
 public sealed record NotificationSummary(int UnreadCount, IReadOnlyList<UserNotification> Latest);
 
-/// <summary>One row of the Notification settings screen: a status change and whom it notifies.</summary>
-public sealed record NotificationSetting(string EntityType, string Status, bool IspUsers, bool ServiceDesk);
+/// <summary>One row of the Notification settings screen: a status change and whom it notifies, in the portal and by email.</summary>
+public sealed record NotificationSetting(
+    string EntityType, string Status, bool IspUsers, bool ServiceDesk, bool IspUsersEmail = false, bool ServiceDeskEmail = false);
+
+/// <summary>One switch of the settings screen that is on.</summary>
+public sealed record NotificationSwitch(string EventCode, string Audience, string Channel);
 
 public interface IUserNotificationService
 {
@@ -67,8 +73,8 @@ public interface IUserNotificationService
     /// <summary>Every status change in <see cref="NotificationEventCatalogue"/> with its current switches.</summary>
     Task<IReadOnlyList<NotificationSetting>> GetSettingsAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Saves the switches: <paramref name="enabled"/> holds the (event code, audience) pairs that are on; every other one is off. Audited.</summary>
-    Task SaveSettingsAsync(IReadOnlyCollection<(string EventCode, string Audience)> enabled, CancellationToken cancellationToken = default);
+    /// <summary>Saves the switches: <paramref name="enabled"/> holds those that are on (event code, audience, channel); every other one is off. Audited.</summary>
+    Task SaveSettingsAsync(IReadOnlyCollection<NotificationSwitch> enabled, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Implements <see cref="IUserNotificationService"/>. Notifications are created by the persistence layer when a request's status changes.</summary>
@@ -163,7 +169,10 @@ public sealed class UserNotificationService : IUserNotificationService
     public async Task<IReadOnlyList<NotificationSetting>> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
         var rules = await _repository.GetRulesAsync(cancellationToken).ConfigureAwait(false);
-        var enabled = rules.Where(rule => rule.IsEnabled).Select(rule => (rule.EventCode, rule.Audience)).ToHashSet();
+        var byKey = rules.ToDictionary(rule => (rule.EventCode, rule.Audience));
+
+        bool On(string code, string audience, Func<NotificationRule, bool> channel) =>
+            byKey.TryGetValue((code, audience), out var rule) && channel(rule);
 
         return
         [
@@ -172,62 +181,80 @@ public sealed class UserNotificationService : IUserNotificationService
                 var code = NotificationAudiences.EventCode(item.EntityType, item.Status);
                 return new NotificationSetting(
                     item.EntityType, item.Status,
-                    enabled.Contains((code, NotificationAudiences.IspUsers)),
-                    enabled.Contains((code, NotificationAudiences.ServiceDesk)));
+                    On(code, NotificationAudiences.IspUsers, rule => rule.IsEnabled),
+                    On(code, NotificationAudiences.ServiceDesk, rule => rule.IsEnabled),
+                    On(code, NotificationAudiences.IspUsers, rule => rule.EmailEnabled),
+                    On(code, NotificationAudiences.ServiceDesk, rule => rule.EmailEnabled));
             })
         ];
     }
 
-    public async Task SaveSettingsAsync(IReadOnlyCollection<(string EventCode, string Audience)> enabled, CancellationToken cancellationToken = default)
+    public async Task SaveSettingsAsync(IReadOnlyCollection<NotificationSwitch> enabled, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(enabled);
 
         var known = NotificationEventCatalogue.All().Select(item => NotificationAudiences.EventCode(item.EntityType, item.Status)).ToHashSet(StringComparer.Ordinal);
         var wanted = enabled
-            .Where(pair => known.Contains(pair.EventCode) && NotificationEventCatalogue.Audiences.Contains(pair.Audience))
+            .Where(on => known.Contains(on.EventCode) && NotificationEventCatalogue.Audiences.Contains(on.Audience) && NotificationEventCatalogue.Channels.Contains(on.Channel))
             .ToHashSet();
 
         var rules = await _repository.GetRulesAsync(cancellationToken).ConfigureAwait(false);
         var byKey = rules.ToDictionary(rule => (rule.EventCode, rule.Audience));
-        var before = rules.Where(rule => rule.IsEnabled).Select(rule => $"{rule.EventCode}/{rule.Audience}").Order(StringComparer.Ordinal).ToList();
+        var before = Describe(rules);
         var now = _clock.UtcNow;
 
         foreach (var code in known)
         {
             foreach (var audience in NotificationEventCatalogue.Audiences)
             {
-                var on = wanted.Contains((code, audience));
+                var inApp = wanted.Contains(new NotificationSwitch(code, audience, NotificationChannels.InApp));
+                var email = wanted.Contains(new NotificationSwitch(code, audience, NotificationChannels.Email));
 
                 if (byKey.TryGetValue((code, audience), out var rule))
                 {
-                    if (rule.IsEnabled != on)
+                    if (rule.IsEnabled != inApp || rule.EmailEnabled != email)
                     {
-                        rule.IsEnabled = on;
+                        rule.IsEnabled = inApp;
+                        rule.EmailEnabled = email;
                         rule.UpdatedAt = now;
                         rule.UpdatedBy = _currentUser.UserId;
                     }
                 }
-                else if (on)
+                else if (inApp || email)
                 {
-                    _repository.AddRule(new NotificationRule
+                    var added = new NotificationRule
                     {
                         EventCode = code,
                         Audience = audience,
-                        IsEnabled = true,
+                        IsEnabled = inApp,
+                        EmailEnabled = email,
                         UpdatedAt = now,
                         UpdatedBy = _currentUser.UserId
-                    });
+                    };
+                    _repository.AddRule(added);
+                    rules = [.. rules, added];
                 }
             }
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        var after = wanted.Select(pair => $"{pair.EventCode}/{pair.Audience}").Order(StringComparer.Ordinal).ToList();
         await _auditWriter.WriteAsync(
             "NotificationSettings.Updated", "NotificationRule", null,
             JsonSerializer.Serialize(new { enabled = before }),
-            JsonSerializer.Serialize(new { enabled = after }),
+            JsonSerializer.Serialize(new { enabled = Describe(rules) }),
             cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Every switch that is on, e.g. "ActivationRequest:LineAvailable/IspUsers/Email", sorted.</summary>
+    private static List<string> Describe(IEnumerable<NotificationRule> rules) =>
+    [
+        .. rules.SelectMany(rule => new[]
+            {
+                rule.IsEnabled ? $"{rule.EventCode}/{rule.Audience}/{NotificationChannels.InApp}" : null,
+                rule.EmailEnabled ? $"{rule.EventCode}/{rule.Audience}/{NotificationChannels.Email}" : null
+            })
+            .OfType<string>()
+            .Order(StringComparer.Ordinal)
+    ];
 }

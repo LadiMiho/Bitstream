@@ -61,9 +61,10 @@ public sealed class BitstreamDbContext : DbContext, IDataProtectionKeyContext
     /// for Google Maps short links) was added, and from 20 to 21 when
     /// db/mssql/0028_post_activation_technically_completed.sql (In process / Technically completed
     /// post-activation requests) was added, and from 21 to 22 when
-    /// db/mssql/0029_user_notifications.sql (in-app notifications and their settings) was added.
+    /// db/mssql/0029_user_notifications.sql (in-app notifications and their settings) was added,
+    /// and from 22 to 23 when db/mssql/0030_notification_emails.sql (email notifications) was added.
     /// </summary>
-    public const int ExpectedSchemaVersion = 22;
+    public const int ExpectedSchemaVersion = 23;
 
     private readonly StatusChangeNotifications? _statusChangeNotifications;
 

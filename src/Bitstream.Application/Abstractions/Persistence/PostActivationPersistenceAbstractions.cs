@@ -62,6 +62,13 @@ public interface IServiceChangeRequestRepository
 public interface INotificationRepository
 {
     Task AddAsync(Notification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Emails waiting to be sent, oldest first, tracked: Pending, addressed to a mailbox (rows
+    /// whose recipient is a distribution-group name are not), and tried fewer than
+    /// <paramref name="maxAttempts"/> times.
+    /// </summary>
+    Task<IReadOnlyList<Notification>> GetDueEmailsAsync(int maxAttempts, int take, CancellationToken cancellationToken = default);
 }
 
 /// <summary>One row per named scheduled sync job (TR-PAS-03, TR-PAS-07).</summary>

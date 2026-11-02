@@ -1,5 +1,3 @@
-using Bitstream.Application.Abstractions.Integration;
-
 namespace Bitstream.Infrastructure.Integration.Mail;
 
 /// <summary>Configuration of the SMTP adapter (TRD 8, TR-NTF-03 to TR-NTF-07).</summary>
@@ -41,20 +39,4 @@ public sealed class SmtpOptions
 
     /// <summary>Timeout for the health probe's TCP connect (TR-ARC-05).</summary>
     public TimeSpan HealthCheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
-}
-
-/// <summary>
-/// SMTP adapter (TRD 7.1 INT-MAIL-01). The only place in the solution that speaks SMTP.
-/// <para>
-/// Unimplemented at scaffold stage. The relay host is an operations input rather than an
-/// open TRD item; the blocked parts are the recipient lists (open item 6) and the sales
-/// order template sample (open item 7), both of which are configuration and content, not code.
-/// </para>
-/// </summary>
-public sealed class SmtpEmailGateway : IEmailGateway
-{
-    public Task<IntegrationResult<bool>> SendAsync(
-        EmailMessage message,
-        CancellationToken cancellationToken = default) =>
-        throw new NotImplementedException("Scaffold stage: SMTP dispatch not implemented.");
 }

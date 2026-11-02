@@ -14,7 +14,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h1 class="text-xl font-semibold">Notification settings</h1>
-            <p class="mt-1 text-sm text-ink-muted">Choose which status changes notify whom. Notifications appear under the bell in the header and on the Notifications page.</p>
+            <p class="mt-1 text-sm text-ink-muted">Choose which status changes notify whom, in the portal (the bell in the header and the Notifications page) and by email.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
@@ -34,7 +34,7 @@
                 <dd class="mt-0.5">Every active user with the ServiceDesk role.</dd>
             </div>
         </dl>
-        <p class="mt-3">The person who made a change is never notified of their own change.</p>
+        <p class="mt-3">The person who made a change is never notified of their own change. Emails go to the address of each user's account; their wording is set in the configuration (<code class="text-xs">Notifications:Email</code>).</p>
         <p id="notification-settings-error" class="field-error mt-2" role="alert" hidden></p>
     </section>
 
@@ -49,9 +49,15 @@
                 <table class="w-full text-left text-sm">
                     <thead>
                         <tr>
-                            <th class="table-head">@group.Description</th>
-                            <th class="table-head w-40 text-center">ISP users</th>
-                            <th class="table-head w-40 text-center">Service desk</th>
+                            <th class="table-head align-bottom" rowspan="2">@group.Description</th>
+                            <th class="table-head border-l border-line text-center" colspan="2">ISP users</th>
+                            <th class="table-head border-l border-line text-center" colspan="2">Service desk</th>
+                        </tr>
+                        <tr>
+                            <th class="table-head w-24 border-l border-line text-center font-normal normal-case">In app</th>
+                            <th class="table-head w-24 text-center font-normal normal-case">Email</th>
+                            <th class="table-head w-24 border-l border-line text-center font-normal normal-case">In app</th>
+                            <th class="table-head w-24 text-center font-normal normal-case">Email</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -61,14 +67,21 @@
                             var label = NotificationPresenter.StatusLabel(setting.EntityType, setting.Status);
                             <tr class="border-t border-line">
                                 <td class="table-cell"><span class="@NotificationPresenter.StatusPillClass(setting.EntityType, setting.Status)">@label</span></td>
-                                <td class="table-cell text-center">
-                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-line accent-brand-600" aria-label="Notify ISP users when an item reaches @label"
-                                           data-event-code="@code" data-audience="@NotificationAudiences.IspUsers" checked="@setting.IspUsers" />
-                                </td>
-                                <td class="table-cell text-center">
-                                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-line accent-brand-600" aria-label="Notify the service desk when an item reaches @label"
-                                           data-event-code="@code" data-audience="@NotificationAudiences.ServiceDesk" checked="@setting.ServiceDesk" />
-                                </td>
+                                @foreach (var (audience, audienceName, inApp, email) in new[]
+                                {
+                                    (NotificationAudiences.IspUsers, "ISP users", setting.IspUsers, setting.IspUsersEmail),
+                                    (NotificationAudiences.ServiceDesk, "the service desk", setting.ServiceDesk, setting.ServiceDeskEmail)
+                                })
+                                {
+                                    <td class="table-cell border-l border-line text-center">
+                                        <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-line accent-brand-600" aria-label="Notify @audienceName in the portal when an item reaches @label"
+                                               data-event-code="@code" data-audience="@audience" data-channel="@NotificationChannels.InApp" checked="@inApp" />
+                                    </td>
+                                    <td class="table-cell text-center">
+                                        <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-line accent-brand-600" aria-label="Email @audienceName when an item reaches @label"
+                                               data-event-code="@code" data-audience="@audience" data-channel="@NotificationChannels.Email" checked="@email" />
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>

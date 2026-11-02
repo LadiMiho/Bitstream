@@ -35,6 +35,9 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
 
     public FakeCrmGateway CrmGateway { get; } = new();
 
+    /// <summary>Takes the notification emails the API host sends; tests drive sending with <c>EmailNotificationDispatcher.DispatchBatchAsync</c>.</summary>
+    public FakeEmailGateway EmailGateway { get; } = new();
+
     /// <summary>The API key CRM must send (X-Api-Key); <see cref="CreateClient()"/> sends it on every call.</summary>
     public const string ApiKey = "test-crm-inbound-key";
 
@@ -53,6 +56,9 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
                 ["Logging:File:Enabled"] = "false",
                 ["WorkingCalendar:TimeZoneId"] = "UTC",
                 ["Integration:OutboxDispatcher:Enabled"] = "false",
+                // Long enough that the background loop never races a test's own DispatchBatchAsync.
+                ["Notifications:Email:PollInterval"] = "01:00:00",
+                ["Notifications:Email:PortalBaseUrl"] = "https://portal.example.com",
                 ["Secrets:CrmInboundApiKey"] = ApiKey
             });
         });
@@ -66,6 +72,8 @@ public sealed class CrmApiFactory : WebApplicationFactory<ApiHostEntryPoint>
 
             services.RemoveAll<ICrmGateway>();
             services.AddSingleton<ICrmGateway>(CrmGateway);
+            services.RemoveAll<IEmailGateway>();
+            services.AddSingleton<IEmailGateway>(EmailGateway);
 
             // SqlPublicIdentifierGenerator calls ops.usp_NextPublicIdentifier over the context's
             // DbConnection, and the InMemory provider has no connection to give — GetDbConnection()

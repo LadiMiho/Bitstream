@@ -34,9 +34,9 @@ public sealed class UserNotification
 }
 
 /// <summary>
-/// One switch of the notification settings (portal.NotificationRule): whether a status change
+/// One row of the notification settings (portal.NotificationRule): whether a status change
 /// (<see cref="EventCode"/>, e.g. <c>ActivationRequest:LineAvailable</c>) notifies an
-/// <see cref="Audience"/>.
+/// <see cref="Audience"/> in the portal (<see cref="IsEnabled"/>) and by email (<see cref="EmailEnabled"/>).
 /// </summary>
 public sealed class NotificationRule
 {
@@ -46,7 +46,11 @@ public sealed class NotificationRule
     /// <summary><see cref="NotificationAudiences.IspUsers"/> or <see cref="NotificationAudiences.ServiceDesk"/>.</summary>
     public required string Audience { get; set; }
 
+    /// <summary>In-app notification (the bell and the Notifications page).</summary>
     public bool IsEnabled { get; set; }
+
+    /// <summary>Email notification (db/mssql/0030).</summary>
+    public bool EmailEnabled { get; set; }
 
     public DateTimeOffset? UpdatedAt { get; set; }
 
@@ -59,6 +63,16 @@ public static class NotificationEntityTypes
     public const string ActivationRequest = "ActivationRequest";
 
     public const string PostActivationRequest = "PostActivationRequest";
+}
+
+/// <summary>How a <see cref="NotificationRule"/> notifies.</summary>
+public static class NotificationChannels
+{
+    /// <summary><see cref="NotificationRule.IsEnabled"/>: the bell and the Notifications page.</summary>
+    public const string InApp = "InApp";
+
+    /// <summary><see cref="NotificationRule.EmailEnabled"/>: an email to each recipient.</summary>
+    public const string Email = "Email";
 }
 
 /// <summary>Who a <see cref="NotificationRule"/> notifies.</summary>

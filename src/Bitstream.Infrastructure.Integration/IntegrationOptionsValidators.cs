@@ -216,3 +216,31 @@ public sealed class SmtpOptionsValidator : IValidateOptions<SmtpOptions>
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }
+
+/// <summary>Checks <see cref="EmailGatewayOptions"/> (<c>Integration:Email</c>); an empty section is allowed (email then stays off).</summary>
+public sealed class EmailGatewayOptionsValidator : IValidateOptions<EmailGatewayOptions>
+{
+    public ValidateOptionsResult Validate(string? name, EmailGatewayOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var failures = new List<string>();
+
+        if (options.TimeoutSeconds is < 1 or > 300)
+        {
+            failures.Add($"Integration:Email:TimeoutSeconds must be between 1 and 300. Configured: {options.TimeoutSeconds}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Sender) && !options.Sender.Contains('@', StringComparison.Ordinal))
+        {
+            failures.Add($"Integration:Email:Sender is not an email address: '{options.Sender}'.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.RedirectAllMailTo) && !options.RedirectAllMailTo.Contains('@', StringComparison.Ordinal))
+        {
+            failures.Add($"Integration:Email:RedirectAllMailTo is not an email address: '{options.RedirectAllMailTo}'.");
+        }
+
+        return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+}

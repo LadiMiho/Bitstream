@@ -26,9 +26,13 @@ public sealed record NotificationListResponse(
     [property: JsonPropertyName("unreadCount")] int UnreadCount);
 
 /// <summary>One switch that is on, as the Notification settings screen saves it.</summary>
+/// <param name="EventCode"><c>{EntityType}:{Status}</c>, e.g. <c>ActivationRequest:LineAvailable</c>.</param>
+/// <param name="Audience"><c>IspUsers</c> or <c>ServiceDesk</c>.</param>
+/// <param name="Channel"><c>InApp</c> (the default) or <c>Email</c>.</param>
 public sealed record NotificationRuleRequest(
     [property: JsonPropertyName("eventCode")] string EventCode,
-    [property: JsonPropertyName("audience")] string Audience);
+    [property: JsonPropertyName("audience")] string Audience,
+    [property: JsonPropertyName("channel")] string? Channel = null);
 
 /// <summary>The Notification settings screen's save: every switch that is on; all others are off.</summary>
 public sealed record SaveNotificationSettingsRequest(
