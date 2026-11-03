@@ -115,6 +115,59 @@ public sealed class CrossIspAccessTests
     }
 
     [Fact]
+    public async Task A_service_desk_user_is_refused_Access_Management_too_but_keeps_the_account_menu()
+    {
+        await using var factory = new IdentityApiFactory();
+        const string email = "desk@example.com";
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var role = await IdentitySeeder.AddRoleAsync(db, "ServiceDesk", "activation.read.all", "isp.read.all", "audit.read");
+            await IdentitySeeder.AddUserAsync(db, role, ispId: null, email);
+        }
+
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        foreach (var path in new[] { "/AccessManagement/Isps", "/AccessManagement/Users", "/AccessManagement/Users/Search", "/AccessManagement/AuditLog", "/AccessManagement/NotificationSettings" })
+        {
+            using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
+            Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{path} answered {(int)response.StatusCode}");
+        }
+
+        var page = await client.GetStringAsync(new Uri("/ActivationRequests", UriKind.Relative));
+        Assert.DoesNotContain("Access Management", page, StringComparison.Ordinal);
+        Assert.Contains("data-account-drawer=\"account\"", page, StringComparison.Ordinal);
+
+        using var account = await client.GetAsync(new Uri("/Account/ViewDrawer", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.OK, account.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_Administrator_still_has_the_Access_Management_menu()
+    {
+        await using var factory = new IdentityApiFactory();
+        const string email = "menu-admin@example.com";
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.read.all", "isp.read.all");
+            await IdentitySeeder.AddUserAsync(db, role, ispId: null, email);
+        }
+
+        using var client = factory.CreateClient();
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        var page = await client.GetStringAsync(new Uri("/ActivationRequests", UriKind.Relative));
+        Assert.Contains("Access Management", page, StringComparison.Ordinal);
+
+        using var isps = await client.GetAsync(new Uri("/AccessManagement/Isps", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.OK, isps.StatusCode);
+    }
+
+    [Fact]
     public async Task An_Administrator_can_read_any_ISP()
     {
         // isp.read.all is what makes the difference — proving the not-found rule is about

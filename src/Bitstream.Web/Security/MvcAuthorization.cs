@@ -104,27 +104,24 @@ public sealed class RequireJsonPermissionAttribute : Attribute, IAsyncAuthorizat
 }
 
 /// <summary>
-/// Access Management is for the portal's own staff only: a signed-in user who belongs to an ISP
-/// (any role carrying an ISP, e.g. IspUser) gets 403 on every page and call it guards, whatever
-/// permissions their role holds. An unauthenticated caller is sent to sign in (a page) or gets 401
-/// (a JSON call), like the other attributes here.
+/// Access Management is for the portal's administrators and auditors only: ISP users (any user who
+/// belongs to an ISP) and service desk users (the ServiceDesk role) get 403 on every page and call
+/// it guards, whatever permissions their role holds. An unauthenticated caller is left to the
+/// action's own attribute (sign-in redirect for a page, 401 for a JSON call).
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public sealed class InternalUsersOnlyAttribute : Attribute, IAsyncAuthorizationFilter
+public sealed class AccessManagementUsersOnlyAttribute : Attribute, IAsyncAuthorizationFilter
 {
+    /// <summary>The role whose users, like ISP users, may not use Access Management.</summary>
+    public const string ServiceDeskRoleName = "ServiceDesk";
+
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         var user = context.HttpContext.User;
 
-        if (user.Identity?.IsAuthenticated != true)
-        {
-            // Left to the action's own attribute (page redirect or JSON 401).
-            return Task.CompletedTask;
-        }
-
-        if (IsIspUser(user))
+        if (user.Identity?.IsAuthenticated == true && !CanUse(user))
         {
             context.Result = new ForbidResult();
         }
@@ -132,8 +129,8 @@ public sealed class InternalUsersOnlyAttribute : Attribute, IAsyncAuthorizationF
         return Task.CompletedTask;
     }
 
-    /// <summary>True for a user who belongs to an ISP (has the ISP claim).</summary>
-    public static bool IsIspUser(System.Security.Claims.ClaimsPrincipal user) =>
-        !string.IsNullOrEmpty(user.FindFirst(BitstreamClaimTypes.IspId)?.Value);
+    /// <summary>False for an ISP user (has the ISP claim) or a service desk user; true otherwise.</summary>
+    public static bool CanUse(System.Security.Claims.ClaimsPrincipal user) =>
+        string.IsNullOrEmpty(user.FindFirst(BitstreamClaimTypes.IspId)?.Value)
+        && !user.HasClaim(System.Security.Claims.ClaimTypes.Role, ServiceDeskRoleName);
 }
-

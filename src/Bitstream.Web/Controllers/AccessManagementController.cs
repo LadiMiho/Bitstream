@@ -18,7 +18,7 @@ namespace Bitstream.Web.Controllers;
 /// <c>wwwroot/js/pages/audit-log.js</c>.
 /// </summary>
 [Route("AccessManagement")]
-[InternalUsersOnly]
+[AccessManagementUsersOnly]
 public sealed class AccessManagementController : Controller
 {
     /// <summary>Value of the actor filter for actions without a user.</summary>

@@ -91,7 +91,7 @@ public sealed class NotificationsController : Controller
     }
 
     [HttpGet("/AccessManagement/NotificationSettings")]
-    [InternalUsersOnly]
+    [AccessManagementUsersOnly]
     [RequirePermission(PermissionCodes.NotificationManage)]
     public async Task<IActionResult> Settings(CancellationToken cancellationToken)
     {
@@ -102,7 +102,7 @@ public sealed class NotificationsController : Controller
     }
 
     [HttpPost("/AccessManagement/NotificationSettings")]
-    [InternalUsersOnly]
+    [AccessManagementUsersOnly]
     [RequireJsonPermission(PermissionCodes.NotificationManage)]
     [EnableRateLimiting(RateLimitPolicies.Administration)]
     public async Task<IActionResult> SaveSettings([FromBody] SaveNotificationSettingsRequest request, CancellationToken cancellationToken)

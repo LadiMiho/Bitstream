@@ -10,7 +10,7 @@
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var displayName = User.Identity?.Name;
     var roleName = User.FindFirst(ClaimTypes.Role)?.Value;
-    var isIspUser = Bitstream.Web.Security.InternalUsersOnlyAttribute.IsIspUser(User);
+    var canUseAccessManagement = Bitstream.Web.Security.AccessManagementUsersOnlyAttribute.CanUse(User);
 
     // The login page shows only the logo above its box (Views/Auth/Login.cshtml), no header.
     var hideHeader = ViewData["HideHeader"] is true;
@@ -78,9 +78,10 @@
                         </div>
                     </div>
 
-                    @* Access Management is for the portal's own staff: hidden from ISP users, whose
-                       access to its pages is also refused server-side (InternalUsersOnlyAttribute). *@
-                    @if (!isIspUser)
+                    @* Access Management is for administrators and auditors: hidden from ISP users and
+                       service desk users, whose access to its pages is also refused server-side
+                       (AccessManagementUsersOnlyAttribute). *@
+                    @if (canUseAccessManagement)
                     {
                         <div class="nav-menu" data-nav-menu>
                             <button type="button" class="nav-link nav-trigger @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-haspopup="true" aria-expanded="false" data-nav-trigger>
