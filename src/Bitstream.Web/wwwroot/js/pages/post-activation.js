@@ -7,6 +7,7 @@
 import { api, ApiError, reportClientError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
 import { createGridRefresher } from '../grid-auto-refresh.js';
+import { showGridSkeleton, clearGridSkeleton } from '../grid-skeleton.js';
 
 const BASE = '/PostActivation';
 
@@ -358,6 +359,7 @@ async function fetchPage() {
 }
 
 function renderPage(result) {
+  clearGridSkeleton(el('#pa-search-results'));
   currentTotalCount = result.totalCount;
   renderResults(result.items);
   showEmptyState(result.items.length === 0);
@@ -542,6 +544,14 @@ function init() {
   });
 
   initFilters();
+
+  // Placeholder rows until the first page arrives
+  // (Request, [ISP,] Phone number, Classification, Status, CRM ticket, Submitted, actions).
+  showGridSkeleton(el('#pa-search-results'),
+    root.dataset.showIsp === 'true'
+      ? ['id', 'text', 'text', 'stack', 'pill', 'id', 'date', 'menu']
+      : ['id', 'text', 'stack', 'pill', 'id', 'date', 'menu']);
+  el('#pa-search-summary').textContent = 'Loading…';
   search();
 
   // Arrived from a notification (/Notifications/{id}/Open): show that request's details.

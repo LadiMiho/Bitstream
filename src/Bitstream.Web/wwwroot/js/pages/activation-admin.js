@@ -11,6 +11,7 @@ import { api, ApiError, reportClientError } from '../api-client.js';
 import { openDrawer, closeDrawer, drawerBody } from '../drawer.js';
 import { presentStatus } from '../status-presentation.js';
 import { createGridRefresher } from '../grid-auto-refresh.js';
+import { showGridSkeleton, clearGridSkeleton } from '../grid-skeleton.js';
 
 function el(selector) {
   return document.querySelector(selector);
@@ -264,6 +265,7 @@ async function fetchPage() {
 }
 
 function renderPage(result) {
+  clearGridSkeleton(el('#activation-search-results'));
   currentTotalCount = result.totalCount;
   renderResults(result.items);
   showEmptyState(result.items.length === 0);
@@ -602,6 +604,11 @@ function init() {
   });
 
   initFilters();
+
+  // Placeholder rows until the first page arrives (Request, [ISP,] Package, Status, Submitted, actions).
+  showGridSkeleton(el('#activation-search-results'),
+    root.dataset.showIsp === 'true' ? ['id', 'text', 'stack', 'pill', 'date', 'menu'] : ['id', 'stack', 'pill', 'date', 'menu']);
+  el('#activation-search-summary').textContent = 'Loading…';
   search();
 
   // Arrived from a notification (/Notifications/{id}/Open): show that request's details.
