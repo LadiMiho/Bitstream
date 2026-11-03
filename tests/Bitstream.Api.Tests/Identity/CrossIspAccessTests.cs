@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using Bitstream.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -14,33 +13,37 @@ namespace Bitstream.Api.Tests.Identity;
 /// </summary>
 public sealed class CrossIspAccessTests
 {
+    /// <summary>An ISP user of "Own ISP" and one activation request in each of two ISPs.</summary>
+    private static async Task<(string OwnRequest, string OtherRequest, long OtherRequestId, long OwnIspId)> SeedIspUserAsync(IdentityApiFactory factory, string email)
+    {
+        await using var scope = factory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+
+        var role = await IdentitySeeder.AddRoleAsync(db, "IspUser", "activation.read.own", "user.update", "isp.update");
+        var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000001");
+        var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000002");
+        await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
+
+        var own = await Activation.ActivationSeeder.AddRequestAsync(db, ownIsp.IspId, "OWNISP001");
+        var other = await Activation.ActivationSeeder.AddRequestAsync(db, otherIsp.IspId, "OTHER001");
+        return (own.PublicId, other.PublicId, other.RequestId, ownIsp.IspId);
+    }
+
     [Fact]
     public async Task An_ISP_user_reading_another_ISPs_record_gets_404_not_403()
     {
         await using var factory = new IdentityApiFactory();
         const string email = "own-isp-user@example.com";
-        long otherIspId;
-
-        await using (var scope = factory.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
-
-            var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
-            var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000001");
-            var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000002");
-            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
-            otherIspId = otherIsp.IspId;
-        }
+        var seeded = await SeedIspUserAsync(factory, email);
 
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{otherIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{seeded.OtherRequest}/ViewDrawer", UriKind.Relative));
 
         // The requirement's exact wording: not-found, not forbidden. A 403 here would confirm
-        // to the caller that ispId refers to a real record they simply may not see — 404 does not.
+        // to the caller that the ID refers to a real record they simply may not see — 404 does not.
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -48,23 +51,12 @@ public sealed class CrossIspAccessTests
     {
         await using var factory = new IdentityApiFactory();
         const string email = "own-isp-user-2@example.com";
-        long otherIspId;
-
-        await using (var scope = factory.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
-
-            var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
-            var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000003");
-            var otherIsp = await IdentitySeeder.AddIspAsync(db, "Someone Else's ISP", "L00000004");
-            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
-            otherIspId = otherIsp.IspId;
-        }
+        var seeded = await SeedIspUserAsync(factory, email);
 
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{otherIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{seeded.OtherRequest}/ViewDrawer", UriKind.Relative));
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
         await using var assertScope = factory.CreateAsyncScope();
@@ -73,37 +65,53 @@ public sealed class CrossIspAccessTests
         Assert.Contains(
             assertDb.AuditLog,
             entry => entry.ActionCode == "Security.AccessDenied.CrossIsp" &&
-                     entry.EntityType == "Isp" &&
-                     entry.EntityId == otherIspId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                     entry.EntityType == "ActivationRequest" &&
+                     entry.EntityId == seeded.OtherRequestId.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public async Task An_ISP_user_reading_their_own_ISP_succeeds()
+    public async Task An_ISP_user_reading_their_own_ISPs_record_succeeds()
     {
         // The negative case (above) only means something next to this positive one: the
         // endpoint is not simply broken for everyone.
         await using var factory = new IdentityApiFactory();
         const string email = "own-isp-user-3@example.com";
-        long ownIspId;
-
-        await using (var scope = factory.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
-
-            var role = await IdentitySeeder.AddRoleAsync(db, "IspUser");
-            var ownIsp = await IdentitySeeder.AddIspAsync(db, "Own ISP", "L00000005");
-            await IdentitySeeder.AddUserAsync(db, role, ownIsp.IspId, email);
-            ownIspId = ownIsp.IspId;
-        }
+        var seeded = await SeedIspUserAsync(factory, email);
 
         using var client = factory.CreateClient();
         await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
 
-        using var response = await client.GetAsync(new Uri($"/AccessManagement/Isps/{ownIspId}", UriKind.Relative));
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{seeded.OwnRequest}/ViewDrawer", UriKind.Relative));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
-        Assert.Equal("Own ISP", body.GetProperty("name").GetString());
+        Assert.Contains(seeded.OwnRequest, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_ISP_user_is_refused_every_Access_Management_page_and_call_and_does_not_see_the_menu()
+    {
+        await using var factory = new IdentityApiFactory();
+        const string email = "own-isp-user-4@example.com";
+        var seeded = await SeedIspUserAsync(factory, email);
+
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        // Even the ISP user's own ISP, and even with user.update / isp.update on the role.
+        foreach (var path in new[]
+                 {
+                     "/AccessManagement", "/AccessManagement/Isps", $"/AccessManagement/Isps/{seeded.OwnIspId}", "/AccessManagement/Isps/Search",
+                     "/AccessManagement/Users", "/AccessManagement/Users/Search", "/AccessManagement/AuditLog", "/AccessManagement/NotificationSettings"
+                 })
+        {
+            using var response = await client.GetAsync(new Uri(path, UriKind.Relative));
+            Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{path} answered {(int)response.StatusCode}");
+        }
+
+        var page = await client.GetStringAsync(new Uri($"/ActivationRequests", UriKind.Relative));
+        Assert.DoesNotContain("Access Management", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/Reporting\"", page, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Account\"", page, StringComparison.Ordinal);
     }
 
     [Fact]

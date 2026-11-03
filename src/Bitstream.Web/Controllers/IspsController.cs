@@ -20,6 +20,7 @@ namespace Bitstream.Web.Controllers;
 /// from identity alone, before the repository is ever touched.
 /// </summary>
 [Route("AccessManagement/Isps")]
+[InternalUsersOnly]
 public sealed class IspsController : Controller
 {
     private readonly IAdministrationService _administrationService;

@@ -102,3 +102,38 @@ public sealed class RequireJsonPermissionAttribute : Attribute, IAsyncAuthorizat
         return Task.CompletedTask;
     }
 }
+
+/// <summary>
+/// Access Management is for the portal's own staff only: a signed-in user who belongs to an ISP
+/// (any role carrying an ISP, e.g. IspUser) gets 403 on every page and call it guards, whatever
+/// permissions their role holds. An unauthenticated caller is sent to sign in (a page) or gets 401
+/// (a JSON call), like the other attributes here.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class InternalUsersOnlyAttribute : Attribute, IAsyncAuthorizationFilter
+{
+    public Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var user = context.HttpContext.User;
+
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            // Left to the action's own attribute (page redirect or JSON 401).
+            return Task.CompletedTask;
+        }
+
+        if (IsIspUser(user))
+        {
+            context.Result = new ForbidResult();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>True for a user who belongs to an ISP (has the ISP claim).</summary>
+    public static bool IsIspUser(System.Security.Claims.ClaimsPrincipal user) =>
+        !string.IsNullOrEmpty(user.FindFirst(BitstreamClaimTypes.IspId)?.Value);
+}
+

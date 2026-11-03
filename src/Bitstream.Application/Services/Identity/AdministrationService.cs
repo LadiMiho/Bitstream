@@ -633,6 +633,75 @@ public sealed partial class AdministrationService : IAdministrationService
             null, null, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task ChangeOwnPasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.UserId is not { } userId)
+        {
+            throw new AdministrationValidationException("You are not signed in.");
+        }
+
+        static AdministrationValidationException FieldError(string field, string message) =>
+            new([message], new Dictionary<string, IReadOnlyList<string>> { [field] = [message] });
+
+        if (string.IsNullOrEmpty(currentPassword))
+        {
+            throw FieldError("currentPassword", "Enter your current password.");
+        }
+
+        if (string.IsNullOrEmpty(newPassword))
+        {
+            throw FieldError("newPassword", "Enter a new password.");
+        }
+
+        var user = await _userManager.FindByIdAsync(userId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false) ??
+            throw new AdministrationValidationException($"User {userId} does not exist.");
+
+        if (!await _userManager.CheckPasswordAsync(user, currentPassword).ConfigureAwait(false))
+        {
+            await _auditWriter.WriteAsync(
+                "User.PasswordChangeRefused", "User", userId.ToString(CultureInfo.InvariantCulture),
+                null, "{\"reason\":\"wrong current password\"}", cancellationToken).ConfigureAwait(false);
+            throw FieldError("currentPassword", "The current password is not correct.");
+        }
+
+        if (string.Equals(currentPassword, newPassword, StringComparison.Ordinal))
+        {
+            throw FieldError("newPassword", "The new password must be different from the current one.");
+        }
+
+        var recentHashes = await _userRepository.GetRecentPasswordHashesAsync(
+            userId, _passwordPolicyOptions.CurrentValue.PasswordHistoryCount, cancellationToken).ConfigureAwait(false);
+        var passwordCheck = _passwordPolicyValidator.Validate(newPassword, recentHashes);
+
+        if (!passwordCheck.IsValid)
+        {
+            throw new AdministrationValidationException(
+                passwordCheck.Violations,
+                new Dictionary<string, IReadOnlyList<string>> { ["newPassword"] = passwordCheck.Violations });
+        }
+
+        // ChangePasswordAsync (the user knows the current password) rather than the reset the
+        // administrator path uses; both rotate the security stamp, ending other sessions.
+        var updateResult = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword).ConfigureAwait(false);
+
+        if (!updateResult.Succeeded)
+        {
+            throw new AdministrationValidationException([.. updateResult.Errors.Select(error => error.Description)]);
+        }
+
+        user.PasswordHashAlgorithm = _passwordHasher.AlgorithmTag;
+        user.PasswordUpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _userRepository.AddPasswordHistoryAsync(userId, user.PasswordHash!, _passwordHasher.AlgorithmTag, cancellationToken)
+            .ConfigureAwait(false);
+        await _unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await _auditWriter.WriteAsync(
+            "User.OwnPasswordChanged", "User", userId.ToString(CultureInfo.InvariantCulture),
+            null, null, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// True when the caller may read the ISP: holds <c>isp.read.all</c>, or it is their own.
     /// Deliberately claims-only — no database round trip — so the not-found decision for an

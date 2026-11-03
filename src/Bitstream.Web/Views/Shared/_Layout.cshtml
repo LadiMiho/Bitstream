@@ -10,6 +10,7 @@
     var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var displayName = User.Identity?.Name;
     var roleName = User.FindFirst(ClaimTypes.Role)?.Value;
+    var isIspUser = Bitstream.Web.Security.InternalUsersOnlyAttribute.IsIspUser(User);
 
     // The login page shows only the logo above its box (Views/Auth/Login.cshtml), no header.
     var hideHeader = ViewData["HideHeader"] is true;
@@ -77,25 +78,28 @@
                         </div>
                     </div>
 
-                    <div class="nav-menu" data-nav-menu>
-                        <button type="button" class="nav-link nav-trigger @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-haspopup="true" aria-expanded="false" data-nav-trigger>
-                            Access Management @Chevron()
-                        </button>
-                        <div class="nav-dropdown" hidden data-nav-panel>
-                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/Isps") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Isps") ? "page" : null)" href="/AccessManagement/Isps">ISP Administration</a>
-                            <a class="nav-dropdown-item @(IsActive("/AccessManagement/Users") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Users") ? "page" : null)" href="/AccessManagement/Users">User Administration</a>
-                            @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.AuditRead))
-                            {
-                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
-                            }
-                            @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.NotificationManage))
-                            {
-                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/NotificationSettings") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/NotificationSettings") ? "page" : null)" href="/AccessManagement/NotificationSettings">Notification settings</a>
-                            }
+                    @* Access Management is for the portal's own staff: hidden from ISP users, whose
+                       access to its pages is also refused server-side (InternalUsersOnlyAttribute). *@
+                    @if (!isIspUser)
+                    {
+                        <div class="nav-menu" data-nav-menu>
+                            <button type="button" class="nav-link nav-trigger @(IsActive("/AccessManagement") ? "nav-link-active" : "")" aria-haspopup="true" aria-expanded="false" data-nav-trigger>
+                                Access Management @Chevron()
+                            </button>
+                            <div class="nav-dropdown" hidden data-nav-panel>
+                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/Isps") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Isps") ? "page" : null)" href="/AccessManagement/Isps">ISP Administration</a>
+                                <a class="nav-dropdown-item @(IsActive("/AccessManagement/Users") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/Users") ? "page" : null)" href="/AccessManagement/Users">User Administration</a>
+                                @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.AuditRead))
+                                {
+                                    <a class="nav-dropdown-item @(IsActive("/AccessManagement/AuditLog") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/AuditLog") ? "page" : null)" href="/AccessManagement/AuditLog">Audit Logs</a>
+                                }
+                                @if (User.HasClaim(Bitstream.Hosting.Security.BitstreamClaimTypes.Permission, Bitstream.Application.Services.Identity.PermissionCodes.NotificationManage))
+                                {
+                                    <a class="nav-dropdown-item @(IsActive("/AccessManagement/NotificationSettings") ? "nav-dropdown-item-active" : "")" aria-current="@(IsActive("/AccessManagement/NotificationSettings") ? "page" : null)" href="/AccessManagement/NotificationSettings">Notification settings</a>
+                                }
+                            </div>
                         </div>
-                    </div>
-
-                    <a class="nav-link @(IsActive("/Reporting") ? "nav-link-active" : "")" aria-current="@(IsActive("/Reporting") ? "page" : null)" href="/Reporting">Reporting</a>
+                    }
                 </nav>
             }
 
@@ -136,7 +140,9 @@
                                     <div class="mt-1"><span class="status-pill bg-brand-50 text-brand-700">@roleName</span></div>
                                 }
                             </div>
-                            <form method="post" asp-controller="Auth" asp-action="LogoutPage">
+                            <a class="nav-dropdown-item @(IsActive("/Account") ? "nav-dropdown-item-active" : "")" href="/Account">My account</a>
+                            <a class="nav-dropdown-item" href="/Account#password">Change password</a>
+                            <form method="post" asp-controller="Auth" asp-action="LogoutPage" class="border-t border-line">
                                 <button type="submit" class="nav-dropdown-item w-full text-left">Sign out</button>
                             </form>
                         </div>

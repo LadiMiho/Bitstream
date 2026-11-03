@@ -406,6 +406,14 @@ public interface IAdministrationService
     Task ChangeUserPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The signed-in user changes their own password (My account): the current password must be
+    /// right, and the new one must pass the same policy and history rules as any password
+    /// (TR-SEC-03). Rotates the security stamp, so the user's other sessions end; the caller
+    /// re-issues the current session's cookie. Field errors are keyed currentPassword / newPassword.
+    /// </summary>
+    Task ChangeOwnPasswordAsync(string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Locks or unlocks a user (TR-SEC-12) via <c>UserManager.SetLockoutEndDateAsync</c> —
     /// "locked" is not <see cref="UserStatus"/> state, it is a derived condition
     /// (<c>UserManager.IsLockedOutAsync</c>). Locking invalidates the user's sessions immediately

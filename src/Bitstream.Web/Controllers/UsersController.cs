@@ -21,6 +21,7 @@ namespace Bitstream.Web.Controllers;
 /// <c>wwwroot/js/pages/user-admin.js</c> calls straight back into this same controller.
 /// </summary>
 [Route("AccessManagement/Users")]
+[InternalUsersOnly]
 public sealed class UsersController : Controller
 {
     /// <summary>The seeded role catalogue (db/mssql/0007_seed_roles_permissions.sql) — fixed by the TRD, not something an API lists.</summary>

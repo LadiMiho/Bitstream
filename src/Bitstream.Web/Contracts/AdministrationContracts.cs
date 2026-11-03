@@ -88,3 +88,9 @@ public sealed record IspListResponse(
 public sealed record UserListResponse(
     [property: JsonPropertyName("items")] IReadOnlyList<UserResponse> Items,
     [property: JsonPropertyName("totalCount")] int TotalCount);
+
+/// <summary>My account's change-password form.</summary>
+public sealed record ChangeOwnPasswordHttpRequest(
+    [property: JsonPropertyName("currentPassword")] string? CurrentPassword,
+    [property: JsonPropertyName("newPassword")] string? NewPassword,
+    [property: JsonPropertyName("confirmPassword")] string? ConfirmPassword);
