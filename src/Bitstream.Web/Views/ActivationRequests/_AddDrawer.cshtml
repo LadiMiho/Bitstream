@@ -21,6 +21,17 @@
     </div>
 
     <div>
+        <label class="field-label" for="activation-add-classification">Ticket classification</label>
+        <select class="field-input" id="activation-add-classification" name="classification">
+            @foreach (var classification in catalogue.Classifications)
+            {
+                <option value="@classification.Code" selected="@classification.IsDefault">@classification.Name</option>
+            }
+        </select>
+        <p class="field-error" role="alert" data-field-error="classification" hidden></p>
+    </div>
+
+    <div>
         <label class="field-label" for="activation-add-package">Package</label>
         <select class="field-input" id="activation-add-package" name="packageCode" data-role="package-select" required>
             <option value="">— Select a package —</option>
@@ -30,24 +41,6 @@
             }
         </select>
         <p class="field-error" role="alert" data-field-error="packageCode" hidden></p>
-    </div>
-
-    <div>
-        <label class="field-label" for="activation-add-location">Location link</label>
-        <input class="field-input" id="activation-add-location" name="locationRaw" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/…" aria-describedby="activation-add-location-hint" required />
-        <p id="activation-add-location-hint" class="mt-1 text-xs text-ink-muted">A Google Maps link: https://maps.app.goo.gl/… or http://maps.google.com/?q=latitude,longitude. Coordinates on their own are not accepted.</p>
-        <p class="field-error" role="alert" data-field-error="locationRaw" hidden></p>
-    </div>
-
-    <div>
-        <label class="field-label" for="activation-add-classification">Ticket classification</label>
-        <select class="field-input" id="activation-add-classification" name="classification">
-            @foreach (var classification in catalogue.Classifications)
-            {
-                <option value="@classification.Code" selected="@classification.IsDefault">@classification.Name</option>
-            }
-        </select>
-        <p class="field-error" role="alert" data-field-error="classification" hidden></p>
     </div>
 
     <div>
@@ -63,6 +56,13 @@
         </select>
         <span class="mt-1 block text-xs text-ink-muted" data-role="duration-hint" hidden>No contract duration is offered for this package yet.</span>
         <p class="field-error" role="alert" data-field-error="contractDurationMonths" hidden></p>
+    </div>
+
+    <div>
+        <label class="field-label" for="activation-add-location">Location link</label>
+        <input class="field-input" id="activation-add-location" name="locationRaw" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/…" aria-describedby="activation-add-location-hint" required />
+        <p id="activation-add-location-hint" class="mt-1 text-xs text-ink-muted">A Google Maps link: https://maps.app.goo.gl/… or http://maps.google.com/?q=latitude,longitude. Coordinates on their own are not accepted.</p>
+        <p class="field-error" role="alert" data-field-error="locationRaw" hidden></p>
     </div>
 
     <div>
