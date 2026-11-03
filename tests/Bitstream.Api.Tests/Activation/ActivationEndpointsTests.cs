@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Bitstream.Api.Tests.Identity;
+using Bitstream.Domain.Entities;
 using Bitstream.Domain.Enums;
 using Bitstream.Infrastructure.Persistence;
 using Bitstream.Web.Contracts;
@@ -127,6 +128,69 @@ public sealed class ActivationEndpointsTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Drawer Test ISP", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("ViewDrawer")]
+    [InlineData("GisOutcomeDrawer")]
+    [InlineData("OperatorConfirmationDrawer")]
+    [InlineData("ServiceDeskDecisionDrawer")]
+    public async Task The_request_drawers_show_the_package_name_not_its_code(string drawer)
+    {
+        await using var factory = new IdentityApiFactory();
+        var email = $"package-{drawer.ToLowerInvariant()}@example.com";
+        string publicId;
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var role = await IdentitySeeder.AddRoleAsync(db, "Administrator",
+                "activation.read.all", "activation.gis.record", "activation.confirm", "activation.servicedesk.decide");
+            var isp = await IdentitySeeder.AddIspAsync(db, "Package Name ISP", "L00000111");
+            await IdentitySeeder.AddUserAsync(db, role, ispId: null, email);
+            db.Packages.Add(new Package { Code = "51000803", Name = "Fibra 300 Mbps", Tier = 20, IsActive = true });
+            await db.SaveChangesAsync();
+
+            var request = await ActivationSeeder.AddRequestAsync(db, isp.IspId, "PKG001", ActivationRequestStatus.AwaitingOperatorConfirmation);
+            request.PackageCode = "51000803";
+            await db.SaveChangesAsync();
+            publicId = request.PublicId;
+        }
+
+        using var client = factory.CreateClient();
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{publicId}/{drawer}", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Fibra 300 Mbps", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("51000803", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_package_missing_from_the_catalogue_is_shown_by_its_code()
+    {
+        await using var factory = new IdentityApiFactory();
+        const string email = "package-missing@example.com";
+        string publicId;
+
+        await using (var scope = factory.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BitstreamDbContext>();
+            var role = await IdentitySeeder.AddRoleAsync(db, "Administrator", "activation.read.all");
+            var isp = await IdentitySeeder.AddIspAsync(db, "Missing Package ISP", "L00000112");
+            await IdentitySeeder.AddUserAsync(db, role, ispId: null, email);
+            publicId = (await ActivationSeeder.AddRequestAsync(db, isp.IspId, "PKG002")).PublicId;
+        }
+
+        using var client = factory.CreateClient();
+        await IdentitySeeder.AuthenticateAsync(client, factory.Services, email);
+
+        using var response = await client.GetAsync(new Uri($"/ActivationRequests/{publicId}/ViewDrawer", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("BITSTREAM_STD · 12 months", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

@@ -18,6 +18,22 @@ public sealed class ActivationTimelineTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
+    [Theory]
+    [InlineData("Fibra 300 Mbps", "Fibra 300 Mbps · 12 months")]
+    [InlineData(null, "BITSTREAM_STD · 12 months")]
+    public void The_submission_entry_names_the_package(string? packageName, string expectedSummary)
+    {
+        var history = new ActivationHistory(
+            [],
+            [new AuditLog { ActionCode = "ActivationRequest.Submitted", EntityType = "ActivationRequest", EntityId = "7", ActorUserId = 5, Timestamp = T0, CorrelationId = "c" }],
+            new Dictionary<long, string> { [5] = "Ana Operator" });
+
+        var entry = Assert.Single(ActivationTimeline.Build(Request(), history, packageName: packageName));
+
+        Assert.Equal("Request submitted", entry.Title);
+        Assert.Equal(expectedSummary, entry.Summary);
+    }
+
     private static ActivationRequest Request() => new()
     {
         RequestId = 7,

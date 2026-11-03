@@ -41,7 +41,10 @@ public interface IActivationRequestService
     /// action — oldest first. Same ownership rule as <see cref="GetByPublicIdAsync"/>: null when
     /// the request does not exist or belongs to another ISP.
     /// </summary>
-    Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline)?> GetWithTimelineAsync(string publicId, CancellationToken cancellationToken = default);
+    Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline, string PackageName)?> GetWithTimelineAsync(string publicId, CancellationToken cancellationToken = default);
+
+    /// <summary>The display name of a package (retired ones included); the code itself when the package is not in the catalogue.</summary>
+    Task<string> GetPackageNameAsync(string packageCode, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Administrator/Auditor (<c>activation.read.all</c>) searches every request; anyone else's

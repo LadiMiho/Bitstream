@@ -339,7 +339,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         return request;
     }
 
-    public async Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline)?> GetWithTimelineAsync(
+    public async Task<(ActivationRequest Request, IReadOnlyList<ActivationTimelineEntry> Timeline, string PackageName)?> GetWithTimelineAsync(
         string publicId, CancellationToken cancellationToken = default)
     {
         var request = await GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
@@ -350,8 +350,18 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         }
 
         var history = await _historyReader.GetAsync(request, cancellationToken).ConfigureAwait(false);
+        var packageName = await GetPackageNameAsync(request.PackageCode, cancellationToken).ConfigureAwait(false);
 
-        return (request, ActivationTimeline.Build(request, history, _clock.UtcNow));
+        return (request, ActivationTimeline.Build(request, history, _clock.UtcNow, packageName), packageName);
+    }
+
+    public async Task<string> GetPackageNameAsync(string packageCode, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(packageCode);
+
+        var packages = await _catalogueRepository.GetPackagesAsync(cancellationToken).ConfigureAwait(false);
+
+        return packages.FirstOrDefault(p => string.Equals(p.Code, packageCode, StringComparison.Ordinal))?.Name ?? packageCode;
     }
 
     public async Task<PagedResult<ActivationRequest>> SearchAsync(ActivationRequestSearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)

@@ -6,9 +6,9 @@
     tables, so they can be maintained without a release. LineTechnologies, IspNotifiableStatuses
     and ComplaintCategories are unaffected and stay configuration.
 
-    Seed values below are exactly the values these three lists held in appsettings.json before
-    this script; re-running is safe (MERGE), and later administrator edits are preserved the
-    same way 0015_seed_role_baseline.sql preserves an administrator's later permission grants.
+    Ticket classifications and contract durations are seeded with the values these lists held
+    in appsettings.json before this script; re-running is safe (MERGE). Packages are not seeded:
+    they differ per environment and are entered on Activation Requests > Packages & durations.
 */
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -66,20 +66,9 @@ BEGIN
 END
 GO
 
-MERGE portal.Package AS target
-USING
-(
-    VALUES
-        (N'BITSTREAM_BASIC', N'Bitstream Basic',        10, CAST(1 AS bit)),
-        (N'BITSTREAM_STD',   N'Bitstream Standard',     20, CAST(1 AS bit)),
-        (N'BITSTREAM_PRO',   N'Bitstream Professional', 30, CAST(1 AS bit))
-) AS source (Code, Name, Tier, IsActive)
-    ON target.Code = source.Code
-WHEN MATCHED THEN
-    UPDATE SET Name = source.Name, Tier = source.Tier, IsActive = source.IsActive
-WHEN NOT MATCHED BY TARGET THEN
-    INSERT (Code, Name, Tier, IsActive) VALUES (source.Code, source.Name, source.Tier, source.IsActive);
-GO
+-- Packages are not seeded: each environment's packages are entered on Activation Requests >
+-- Packages & durations (0031 removes the placeholder packages earlier versions of this script
+-- inserted).
 
 MERGE portal.ActivationClassification AS target
 USING

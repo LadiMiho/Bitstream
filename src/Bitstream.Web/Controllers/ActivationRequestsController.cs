@@ -112,7 +112,7 @@ public sealed class ActivationRequestsController : Controller
 
         var showRaw = User.HasClaim(BitstreamClaimTypes.Permission, ActivationPermissionCodes.ActivationReadAll);
 
-        return PartialView("_ViewDrawer", new ActivationRequestDetailsViewModel(found.Request, found.Timeline, showRaw));
+        return PartialView("_ViewDrawer", new ActivationRequestDetailsViewModel(found.Request, found.Timeline, showRaw, found.PackageName));
     }
 
     /// <summary>
@@ -123,12 +123,8 @@ public sealed class ActivationRequestsController : Controller
     /// </summary>
     [HttpGet("{publicId}/GisOutcomeDrawer")]
     [RequirePermission(ActivationPermissionCodes.ActivationGisRecord)]
-    public async Task<IActionResult> GisOutcomeDrawer(string publicId, CancellationToken cancellationToken)
-    {
-        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
-
-        return request is null ? NotFound() : PartialView("_GisOutcomeDrawer", request);
-    }
+    public Task<IActionResult> GisOutcomeDrawer(string publicId, CancellationToken cancellationToken) =>
+        RequestDrawerAsync(publicId, "_GisOutcomeDrawer", cancellationToken);
 
     /// <summary>
     /// The operator's confirmation drawer: after CRM reports the line activated, the request's
@@ -137,21 +133,31 @@ public sealed class ActivationRequestsController : Controller
     /// </summary>
     [HttpGet("{publicId}/OperatorConfirmationDrawer")]
     [RequirePermission(ActivationPermissionCodes.ActivationConfirm)]
-    public async Task<IActionResult> OperatorConfirmationDrawer(string publicId, CancellationToken cancellationToken)
-    {
-        var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
-
-        return request is null ? NotFound() : PartialView("_OperatorConfirmationDrawer", request);
-    }
+    public Task<IActionResult> OperatorConfirmationDrawer(string publicId, CancellationToken cancellationToken) =>
+        RequestDrawerAsync(publicId, "_OperatorConfirmationDrawer", cancellationToken);
 
     /// <summary>The service desk's final decision drawer, for a request the operator reported not working.</summary>
     [HttpGet("{publicId}/ServiceDeskDecisionDrawer")]
     [RequirePermission(ActivationPermissionCodes.ActivationServiceDeskDecide)]
-    public async Task<IActionResult> ServiceDeskDecisionDrawer(string publicId, CancellationToken cancellationToken)
+    public Task<IActionResult> ServiceDeskDecisionDrawer(string publicId, CancellationToken cancellationToken) =>
+        RequestDrawerAsync(publicId, "_ServiceDeskDecisionDrawer", cancellationToken);
+
+    /// <summary>
+    /// A drawer showing one request (ownership-checked by <see cref="IActivationRequestService.GetByPublicIdAsync"/>),
+    /// with its package's display name in <c>ViewData["PackageName"]</c>.
+    /// </summary>
+    private async Task<IActionResult> RequestDrawerAsync(string publicId, string viewName, CancellationToken cancellationToken)
     {
         var request = await _activationRequestService.GetByPublicIdAsync(publicId, cancellationToken).ConfigureAwait(false);
 
-        return request is null ? NotFound() : PartialView("_ServiceDeskDecisionDrawer", request);
+        if (request is null)
+        {
+            return NotFound();
+        }
+
+        ViewData["PackageName"] = await _activationRequestService.GetPackageNameAsync(request.PackageCode, cancellationToken).ConfigureAwait(false);
+
+        return PartialView(viewName, request);
     }
 
     // --- JSON support endpoints for the grid + drawer forms above (activation-admin.js) -----

@@ -76,7 +76,8 @@ public static class ActivationTimeline
     /// <param name="request">The activation request.</param>
     /// <param name="history">Its stored messages and audit entries.</param>
     /// <param name="now">Current time; when given, a message to CRM still waiting long after it was queued is explained.</param>
-    public static IReadOnlyList<ActivationTimelineEntry> Build(ActivationRequest request, ActivationHistory history, DateTimeOffset? now = null)
+    /// <param name="packageName">The package's display name; the package code is shown when not given.</param>
+    public static IReadOnlyList<ActivationTimelineEntry> Build(ActivationRequest request, ActivationHistory history, DateTimeOffset? now = null, string? packageName = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(history);
@@ -90,7 +91,7 @@ public static class ActivationTimeline
 
         foreach (var audit in history.AuditEntries)
         {
-            if (FromAudit(request, audit, history.ActorNames) is { } entry)
+            if (FromAudit(request, audit, history.ActorNames, packageName ?? request.PackageCode) is { } entry)
             {
                 entries.Add(entry);
             }
@@ -184,7 +185,7 @@ public static class ActivationTimeline
             error, message.Attempts, message.ProcessedAt, Pretty(message.Payload), Pretty(message.ResponsePayload));
     }
 
-    private static ActivationTimelineEntry? FromAudit(ActivationRequest request, AuditLog audit, IReadOnlyDictionary<long, string> actorNames)
+    private static ActivationTimelineEntry? FromAudit(ActivationRequest request, AuditLog audit, IReadOnlyDictionary<long, string> actorNames, string packageName)
     {
         using var newValue = TryParse(audit.NewValue);
 
@@ -196,7 +197,7 @@ public static class ActivationTimeline
 
         (string Title, string? Summary)? mapped = audit.ActionCode switch
         {
-            "ActivationRequest.Submitted" => ("Request submitted", Join(request.PackageCode, $"{request.ContractDurationMonths} months")),
+            "ActivationRequest.Submitted" => ("Request submitted", Join(packageName, $"{request.ContractDurationMonths} months")),
             "ActivationRequest.GisOutcomeRecorded" => ("GIS outcome recorded in the portal",
                 Flag("lineAvailable") switch { true => "Line exists", false => Join("No line", request.StatusReason), _ => null }),
             "ActivationRequest.OperatorConfirmationRecorded" => ("Operator confirmation",
