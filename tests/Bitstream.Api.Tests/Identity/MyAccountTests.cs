@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Bitstream.Api.Tests.Identity;
 
-/// <summary>My account (user menu): the signed-in user's own details and changing their own password.</summary>
+/// <summary>The user menu's My account and Change password drawers: the signed-in user's own details and changing their own password.</summary>
 public sealed class MyAccountTests
 {
     private const string Email = "me@tring.al";
@@ -43,19 +43,31 @@ public sealed class MyAccountTests
     }
 
     [Fact]
-    public async Task My_account_shows_the_users_own_details_and_the_password_form()
+    public async Task The_user_menu_opens_My_account_and_Change_password_in_separate_drawers()
     {
         await using var factory = new IdentityApiFactory();
         using var client = await SignedInIspUserAsync(factory);
 
-        var page = await client.GetStringAsync(new Uri("/Account", UriKind.Relative));
+        var page = await client.GetStringAsync(new Uri("/ActivationRequests", UriKind.Relative));
+        Assert.Contains("data-account-drawer=\"account\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-account-drawer=\"password\"", page, StringComparison.Ordinal);
+        Assert.Contains("/js/account-menu.js", page, StringComparison.Ordinal);
 
-        Assert.Contains("My account", page, StringComparison.Ordinal);
-        Assert.Contains(Email, page, StringComparison.Ordinal);
-        Assert.Contains("355691234567", page, StringComparison.Ordinal);
-        Assert.Contains("IspUser", page, StringComparison.Ordinal);
-        Assert.Contains("Tring", page, StringComparison.Ordinal);
-        Assert.Contains("id=\"account-password-form\"", page, StringComparison.Ordinal);
+        var account = await client.GetStringAsync(new Uri("/Account/ViewDrawer", UriKind.Relative));
+        Assert.Contains(Email, account, StringComparison.Ordinal);
+        Assert.Contains("355691234567", account, StringComparison.Ordinal);
+        Assert.Contains("IspUser", account, StringComparison.Ordinal);
+        Assert.Contains("Tring", account, StringComparison.Ordinal);
+        Assert.DoesNotContain("account-password-form", account, StringComparison.Ordinal);
+
+        var password = await client.GetStringAsync(new Uri("/Account/PasswordDrawer", UriKind.Relative));
+        Assert.Contains("id=\"account-password-form\"", password, StringComparison.Ordinal);
+        Assert.Contains("name=\"currentPassword\"", password, StringComparison.Ordinal);
+        Assert.DoesNotContain("Account created", password, StringComparison.Ordinal);
+
+        // There is no separate account page any more.
+        using var oldPage = await client.GetAsync(new Uri("/Account", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.NotFound, oldPage.StatusCode);
     }
 
     [Fact]

@@ -1,0 +1,39 @@
+@model Bitstream.Web.Controllers.AccountViewModel
+@{
+    static string When(DateTimeOffset? value) => value is { } instant ? instant.ToLocalTime().ToString("d MMM yyyy, HH:mm") : "—";
+
+    var nameParts = Model.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var initials = nameParts.Length == 0 ? "?" : (nameParts[0][..1] + (nameParts.Length > 1 ? nameParts[^1][..1] : string.Empty)).ToUpperInvariant();
+}
+<section class="grid gap-5" aria-label="Your account" data-role="account-drawer">
+    <div class="flex items-center gap-4">
+        <span class="avatar-circle h-12 w-12 text-base" aria-hidden="true">@initials</span>
+        <div class="min-w-0">
+            <div class="truncate text-base font-semibold text-ink">@Model.FullName</div>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+                <span class="status-pill bg-brand-50 text-brand-700">@Model.RoleName</span>
+                @if (Model.IspName is not null)
+                {
+                    <span class="text-sm text-ink-muted">@Model.IspName</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Email</dt><dd class="mt-1 break-all text-sm">@Model.Email</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Mobile</dt><dd class="mt-1 text-sm">@Model.Mobile</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Role</dt><dd class="mt-1 text-sm">@Model.RoleName</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">ISP</dt><dd class="mt-1 text-sm">@(Model.IspName ?? "— (internal user)")</dd></div>
+        <div class="sm:col-span-2"><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Two-step verification</dt><dd class="mt-1 text-sm">@(Model.TwoFactorEnabled ? "On: a verification code is asked at every sign-in" : "Off")</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Last sign-in</dt><dd class="mt-1 text-sm">@When(Model.LastLoginAt)</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Password last changed</dt><dd class="mt-1 text-sm">@When(Model.PasswordUpdatedAt)</dd></div>
+        <div><dt class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Account created</dt><dd class="mt-1 text-sm">@When(Model.CreatedAt)</dd></div>
+    </dl>
+
+    <p class="rounded-md border border-line bg-surface-muted px-3 py-2 text-xs text-ink-muted">To change your name, email or mobile, ask an administrator.</p>
+</section>
+<template data-drawer-footer>
+    <button type="button" class="btn-secondary" data-drawer-cancel>Close</button>
+    <button type="button" class="btn-primary" data-account-drawer="password">Change password</button>
+</template>

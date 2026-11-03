@@ -111,7 +111,7 @@ public sealed class CrossIspAccessTests
         var page = await client.GetStringAsync(new Uri($"/ActivationRequests", UriKind.Relative));
         Assert.DoesNotContain("Access Management", page, StringComparison.Ordinal);
         Assert.DoesNotContain("href=\"/Reporting\"", page, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Account\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-account-drawer=\"account\"", page, StringComparison.Ordinal);
     }
 
     [Fact]

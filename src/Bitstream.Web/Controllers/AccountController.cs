@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 
 namespace Bitstream.Web.Controllers;
 
-/// <summary>What My account (the user menu) shows: the signed-in user's own details.</summary>
+/// <summary>What the My account and Change password drawers show: the signed-in user's own details and the password rules.</summary>
 public sealed record AccountViewModel(
     string FullName,
     string Email,
@@ -28,9 +28,10 @@ public sealed record AccountViewModel(
     int PasswordMinCharacterClasses);
 
 /// <summary>
-/// My account, for every signed-in user, ISP users included: their own details and a form to
-/// change their own password (current password required). The current session stays signed in
-/// after the change; any other session of the user ends. Script: <c>wwwroot/js/pages/account.js</c>.
+/// The user menu's two drawers, for every signed-in user, ISP users included: My account (their
+/// own details) and Change password (current password required). The current session stays
+/// signed in after the change; any other session of the user ends. Script:
+/// <c>wwwroot/js/account-menu.js</c>.
 /// </summary>
 [Route("Account")]
 public sealed class AccountController : Controller
@@ -52,25 +53,17 @@ public sealed class AccountController : Controller
         _passwordPolicy = passwordPolicy;
     }
 
-    [HttpGet("")]
+    /// <summary>My account drawer: the signed-in user's own details.</summary>
+    [HttpGet("ViewDrawer")]
     [RequireSession]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
-    {
-        if (!long.TryParse(_userManager.GetUserId(User), out var userId)
-            || await _administrationService.GetUserAsync(userId, cancellationToken).ConfigureAwait(false) is not { } user)
-        {
-            return Redirect("/Login");
-        }
+    public async Task<IActionResult> ViewDrawer(CancellationToken cancellationToken) =>
+        await ModelAsync(cancellationToken).ConfigureAwait(false) is { } model ? PartialView("_AccountDrawer", model) : NotFound();
 
-        var isp = user.IspId is { } ispId ? await _administrationService.GetIspAsync(ispId, cancellationToken).ConfigureAwait(false) : null;
-        var policy = _passwordPolicy.CurrentValue;
-
-        ViewData["Title"] = "My account";
-        return View(new AccountViewModel(
-            user.FullName, user.Email ?? string.Empty, user.Mobile, user.Role.Name ?? string.Empty, isp?.Name,
-            user.TwoFactorEnabled, user.CreatedAt, user.LastLoginAt, user.PasswordUpdatedAt,
-            policy.MinLength, policy.MinCharacterClasses));
-    }
+    /// <summary>Change password drawer.</summary>
+    [HttpGet("PasswordDrawer")]
+    [RequireSession]
+    public async Task<IActionResult> PasswordDrawer(CancellationToken cancellationToken) =>
+        await ModelAsync(cancellationToken).ConfigureAwait(false) is { } model ? PartialView("_PasswordDrawer", model) : NotFound();
 
     [HttpPost("Password")]
     [Authorize]
@@ -109,5 +102,22 @@ public sealed class AccountController : Controller
         }
 
         return NoContent();
+    }
+
+    private async Task<AccountViewModel?> ModelAsync(CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(_userManager.GetUserId(User), out var userId)
+            || await _administrationService.GetUserAsync(userId, cancellationToken).ConfigureAwait(false) is not { } user)
+        {
+            return null;
+        }
+
+        var isp = user.IspId is { } ispId ? await _administrationService.GetIspAsync(ispId, cancellationToken).ConfigureAwait(false) : null;
+        var policy = _passwordPolicy.CurrentValue;
+
+        return new AccountViewModel(
+            user.FullName, user.Email ?? string.Empty, user.Mobile, user.Role.Name ?? string.Empty, isp?.Name,
+            user.TwoFactorEnabled, user.CreatedAt, user.LastLoginAt, user.PasswordUpdatedAt,
+            policy.MinLength, policy.MinCharacterClasses);
     }
 }

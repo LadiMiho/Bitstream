@@ -140,8 +140,9 @@
                                     <div class="mt-1"><span class="status-pill bg-brand-50 text-brand-700">@roleName</span></div>
                                 }
                             </div>
-                            <a class="nav-dropdown-item @(IsActive("/Account") ? "nav-dropdown-item-active" : "")" href="/Account">My account</a>
-                            <a class="nav-dropdown-item" href="/Account#password">Change password</a>
+                            @* Each opens its own drawer (wwwroot/js/account-menu.js). *@
+                            <button type="button" class="nav-dropdown-item w-full text-left" data-account-drawer="account">My account</button>
+                            <button type="button" class="nav-dropdown-item w-full text-left" data-account-drawer="password">Change password</button>
                             <form method="post" asp-controller="Auth" asp-action="LogoutPage" class="border-t border-line">
                                 <button type="submit" class="nav-dropdown-item w-full text-left">Sign out</button>
                             </form>
@@ -188,6 +189,7 @@
     @if (isAuthenticated && !hideHeader)
     {
         <script type="module" src="~/js/notifications-bell.js"></script>
+        <script type="module" src="~/js/account-menu.js"></script>
     }
     <script type="module" src="~/js/drawer.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
