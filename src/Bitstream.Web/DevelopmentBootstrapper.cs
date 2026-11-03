@@ -113,6 +113,27 @@ public static class DevelopmentBootstrapper
             .OrderBy(Path.GetFileName, StringComparer.Ordinal)
             .ToList();
 
+        logger.LogInformation("Development bootstrap: using the scripts in {Directory}.", scriptDirectory);
+
+        // An out-of-date copy of db/mssql (an old checkout, or a folder left beside a published
+        // site) would replay old versions of the scripts over newer data: an older
+        // 0017_activation_catalogues.sql, for example, put back the packages 0031 had removed.
+        // A database that has already applied a script this folder does not have is newer than
+        // the folder, so nothing is run.
+        var missing = ScriptsMissingLocally(
+            await ReadAppliedScriptNamesAsync(connection).ConfigureAwait(false),
+            scripts.Select(path => Path.GetFileName(path)));
+
+        if (missing.Count > 0)
+        {
+            logger.LogError(
+                "Development bootstrap: {Directory} is older than the database: it does not have {Missing}, which the database has already applied. "
+                + "No scripts were run. Update this copy of db/mssql (pull the latest code, or publish the latest build) and restart.",
+                scriptDirectory,
+                string.Join(", ", missing));
+            return;
+        }
+
         foreach (var path in scripts)
         {
             var sql = await File.ReadAllTextAsync(path).ConfigureAwait(false);
@@ -153,8 +174,50 @@ public static class DevelopmentBootstrapper
         logger.LogInformation("Development bootstrap: schema at version {Version}.", BitstreamDbContext.ExpectedSchemaVersion);
     }
 
-    /// <summary>Walks up from the content root looking for db/mssql, so it resolves from bin/ or the project directory alike.</summary>
-    private static string? FindScriptDirectory(string contentRootPath)
+    /// <summary>
+    /// The scripts the database has already applied (<c>ops.SchemaVersion</c>) that are not in
+    /// the local folder, in name order; empty when the folder is as new as the database or newer.
+    /// </summary>
+    public static IReadOnlyList<string> ScriptsMissingLocally(IEnumerable<string> appliedScriptNames, IEnumerable<string> localScriptNames)
+    {
+        ArgumentNullException.ThrowIfNull(appliedScriptNames);
+        ArgumentNullException.ThrowIfNull(localScriptNames);
+
+        var local = localScriptNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return [.. appliedScriptNames
+            .Where(name => !local.Contains(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal)];
+    }
+
+    /// <summary>Script names recorded in <c>ops.SchemaVersion</c>; none on a database the scripts have never run on.</summary>
+    private static async Task<IReadOnlyList<string>> ReadAppliedScriptNamesAsync(DbConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            IF OBJECT_ID(N'ops.SchemaVersion', N'U') IS NOT NULL
+                SELECT ScriptName FROM ops.SchemaVersion;
+            """;
+
+        var names = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Walks up from the content root looking for db/mssql, so it resolves from the project
+    /// directory (a local run) and from a published site alike. A published Web site carries its
+    /// own copy under its content root (Bitstream.Web.csproj), which is found first, so an older
+    /// db/mssql folder further up the server's directory tree is never used.
+    /// </summary>
+    public static string? FindScriptDirectory(string contentRootPath)
     {
         var directory = new DirectoryInfo(contentRootPath);
 

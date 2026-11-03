@@ -37,6 +37,15 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The schema scripts travel with the published site (db/mssql under its content root), so
+         DevelopmentBootstrapper applies the scripts of the build that was published, never an
+         older db/mssql folder it might find further up the server's directory tree. Only used
+         when the site runs in Development with Database:DevelopmentAutoMigrate; IIS serves
+         wwwroot only, so these files are not reachable over HTTP. -->
+    <None Include="..\..\db\mssql\*.sql" Link="db\mssql\%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
   <!--
     Tailwind. The stylesheet source is ClientAssets/app.css; the compiled output is
     wwwroot/css/app.css, referenced by Views/Shared/_Layout.cshtml. No Node.js, npm or
