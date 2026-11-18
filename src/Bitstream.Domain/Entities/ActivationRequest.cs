@@ -21,13 +21,17 @@ public sealed class ActivationRequest
     /// <summary>Code from the configurable package catalogue (TR-ACT-01).</summary>
     public required string PackageCode { get; set; }
 
-    /// <summary>Location exactly as entered: a Google Maps short link or <c>maps.google.com/?q=</c> link (TR-ACT-02).</summary>
+    /// <summary>
+    /// Location as coordinates, <c>latitude,longitude</c> (TR-ACT-02). CRM receives it as
+    /// <c>https://maps.google.com/?q=latitude,longitude</c>. Requests submitted before coordinates became the
+    /// only accepted form hold the Google Maps link that was entered then.
+    /// </summary>
     public required string LocationRaw { get; set; }
 
-    /// <summary>Latitude, -90..90, from a <c>?q=</c> link; null for a short link, which carries none (TR-ACT-03).</summary>
+    /// <summary>Latitude, -90..90 (TR-ACT-03); null only for an older request entered as a short link, which carries none.</summary>
     public decimal? LocationLat { get; set; }
 
-    /// <summary>Longitude, -180..180, from a <c>?q=</c> link; null for a short link, which carries none (TR-ACT-03).</summary>
+    /// <summary>Longitude, -180..180 (TR-ACT-03); null only for an older request entered as a short link.</summary>
     public decimal? LocationLng { get; set; }
 
     /// <summary>Ticket classification code, default REQUEST_FOR_ACTIVATION (TR-ACT-04).</summary>

@@ -16,6 +16,9 @@
       - the request numbering: TRING001, PAR_1, ... start again from 1, and the internal row
         IDs of the emptied tables restart at 1                              [@ResetNumbering].
 
+      - the placeholder packages BITSTREAM_BASIC, BITSTREAM_STD and BITSTREAM_PRO and their package
+        offers, which older versions of db/mssql/0017 seeded.
+
     Keeps:
       - the administrator account (@AdminEmail), its password, role and authenticator key, so it
         signs in exactly as before; it is detached from any ISP;
@@ -96,6 +99,12 @@ BEGIN TRY
     PRINT CONCAT('Activation requests deleted:           ', @@ROWCOUNT);
     DELETE FROM portal.ActiveLine;
     PRINT CONCAT('Active lines deleted:                  ', @@ROWCOUNT);
+
+    -- The placeholder packages earlier versions of db/mssql/0017 seeded, and their offers: no
+    -- request or line uses them any more, so they go too (as 0031 would on the next deployment).
+    DELETE FROM portal.PackageOffer WHERE PackageCode IN (N'BITSTREAM_BASIC', N'BITSTREAM_STD', N'BITSTREAM_PRO');
+    DELETE FROM portal.Package      WHERE Code        IN (N'BITSTREAM_BASIC', N'BITSTREAM_STD', N'BITSTREAM_PRO');
+    PRINT CONCAT('Placeholder packages deleted:          ', @@ROWCOUNT);
 
     IF @DeleteBiData = 1
     BEGIN

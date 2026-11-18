@@ -22,7 +22,7 @@ public sealed record IntegrationEnvelope(
 /// <param name="ContactPerson">ISP's primary contact.</param>
 /// <param name="ContactEmail">ISP's primary contact email.</param>
 /// <param name="ContactMobile">ISP's primary contact mobile.</param>
-/// <param name="Geolocation">Location exactly as entered on the activation form; sent as the Business Partner's GEOLOCATION. Nullable only so outbox payloads enqueued before it existed still deserialise.</param>
+/// <param name="Geolocation">The location as a Google Maps link (https://maps.google.com/?q=latitude,longitude, built from the coordinates entered on the activation form); sent as the Business Partner's GEOLOCATION. Nullable only so outbox payloads enqueued before it existed still deserialise.</param>
 public sealed record CreateCrmCustomerCommand(
     IntegrationEnvelope Envelope,
     string RequestPublicId,
@@ -46,9 +46,9 @@ public sealed record CreateCrmCustomerResult(string CrmCustomerId, string Busine
 /// <param name="Classification">Ticket classification.</param>
 /// <param name="PackageCode">Requested package.</param>
 /// <param name="ContractDurationMonths">Selected contract duration.</param>
-/// <param name="LocationRaw">Location exactly as entered.</param>
-/// <param name="LocationLat">Parsed latitude; null for a short link.</param>
-/// <param name="LocationLng">Parsed longitude; null for a short link.</param>
+/// <param name="LocationRaw">The location as a Google Maps link (https://maps.google.com/?q=latitude,longitude).</param>
+/// <param name="LocationLat">Latitude; null only for a request submitted with a short link before coordinates became the only accepted form.</param>
+/// <param name="LocationLng">Longitude; null in the same case as LocationLat.</param>
 /// <param name="Comments">Free-text comments; sent as NOTE.</param>
 /// <param name="OfferCode">CRM code of the package + contract duration combination, sent as CLASS_3. Nullable only so outbox payloads enqueued before it existed still deserialise.</param>
 public sealed record CreateActivationTicketCommand(

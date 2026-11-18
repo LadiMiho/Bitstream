@@ -59,9 +59,9 @@
     </div>
 
     <div>
-        <label class="field-label" for="activation-add-location">Location link</label>
-        <input class="field-input" id="activation-add-location" name="locationRaw" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/…" aria-describedby="activation-add-location-hint" required />
-        <p id="activation-add-location-hint" class="mt-1 text-xs text-ink-muted">A Google Maps link: https://maps.app.goo.gl/… or http://maps.google.com/?q=latitude,longitude. Coordinates on their own are not accepted.</p>
+        <label class="field-label" for="activation-add-location">Location (coordinates)</label>
+        <input class="field-input font-mono" id="activation-add-location" name="locationRaw" type="text" autocomplete="off" spellcheck="false" placeholder="39.87781886431,19.98230910308" aria-describedby="activation-add-location-hint" required />
+        <p id="activation-add-location-hint" class="mt-1 text-xs text-ink-muted">Latitude and longitude separated by a comma, for example 39.87781886431,19.98230910308. Links are not accepted. In Google Maps, right-click the place and click the coordinates to copy them.</p>
         <p class="field-error" role="alert" data-field-error="locationRaw" hidden></p>
     </div>
 

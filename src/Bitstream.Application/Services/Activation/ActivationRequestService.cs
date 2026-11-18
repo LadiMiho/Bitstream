@@ -194,9 +194,10 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             AddViolation("packageCode", $"Package '{request.PackageCode}' is no longer offered.");
         }
 
-        // TR-ACT-02/03: location exactly as entered; only the two Google Maps link forms CRM
-        // supports are accepted, and the coordinates are kept when the link carries them.
-        var validLocation = LocationLinkParser.TryParse(request.LocationRaw, out var latitude, out var longitude);
+        // TR-ACT-02/03: the location is coordinates only (latitude,longitude); links are refused.
+        // The pair is stored as typed (without spaces) and becomes a Google Maps link only when
+        // it is sent to CRM (LocationParser.ToCrmLink).
+        var validLocation = LocationParser.TryParse(request.LocationRaw, out var location, out var latitude, out var longitude);
 
         if (string.IsNullOrWhiteSpace(request.LocationRaw))
         {
@@ -204,7 +205,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         }
         else if (!validLocation)
         {
-            AddViolation("locationRaw", LocationLinkParser.FormatMessage);
+            AddViolation("locationRaw", LocationParser.FormatMessage);
         }
 
         // TR-ACT-04: classification from the DB-backed catalogue (portal.ActivationClassification);
@@ -279,7 +280,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
             PublicId = publicId,
             IspId = request.IspId,
             PackageCode = request.PackageCode,
-            LocationRaw = request.LocationRaw,
+            LocationRaw = location!,
             LocationLat = latitude,
             LocationLng = longitude,
             Classification = classification,
@@ -708,7 +709,7 @@ public sealed partial class ActivationRequestService : IActivationRequestService
         var envelope = new IntegrationEnvelope(Guid.NewGuid(), _currentUser.CorrelationId, request.PublicId, _clock.UtcNow);
 
         var customerCommand = new CreateCrmCustomerCommand(
-            envelope, request.PublicId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile, request.LocationRaw);
+            envelope, request.PublicId, isp.Name, isp.Nipt, isp.ContactPerson, isp.ContactEmail, isp.ContactMobile, LocationParser.ToCrmLink(request.LocationRaw));
 
         // TR-INT-03/17: the idempotency key is the request's own public identifier — stable
         // across every retry of this message, including a whole re-submission via

@@ -188,7 +188,7 @@ public sealed class OutboxDispatcher : BackgroundService
         // the location is on the request itself, so take it from there rather than send it empty.
         if (string.IsNullOrWhiteSpace(command.Geolocation) && request is not null)
         {
-            command = command with { Geolocation = request.LocationRaw };
+            command = command with { Geolocation = LocationParser.ToCrmLink(request.LocationRaw) };
         }
 
         var result = await gateway.CreateCustomerAsync(command, cancellationToken).ConfigureAwait(false);
@@ -222,7 +222,7 @@ public sealed class OutboxDispatcher : BackgroundService
         var ticketCommand = new CreateActivationTicketCommand(
             command.Envelope, request.PublicId, result.Value.CrmCustomerId, result.Value.BusinessPartner,
             request.Classification, request.PackageCode, request.ContractDurationMonths,
-            request.LocationRaw, request.LocationLat, request.LocationLng, request.Comments, request.OfferCode);
+            LocationParser.ToCrmLink(request.LocationRaw)!, request.LocationLat, request.LocationLng, request.Comments, request.OfferCode);
 
         await outbox.EnqueueOutboundAsync(
             TargetSystem.Crm, "INT-CRM-02", "CREATE_ACTIVATION_TICKET", request.PublicId,

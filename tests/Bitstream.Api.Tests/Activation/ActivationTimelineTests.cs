@@ -39,7 +39,7 @@ public sealed class ActivationTimelineTests
         RequestId = 7,
         PublicId = "TRING_001",
         PackageCode = "BITSTREAM_STD",
-        LocationRaw = "http://maps.google.com/?q=41.3275,19.8187",
+        LocationRaw = "41.3275,19.8187",
         Classification = "REQUEST_FOR_ACTIVATION",
         ContractDurationMonths = 12,
         CrmTicketId = "8009521719",
