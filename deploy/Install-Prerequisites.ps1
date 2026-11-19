@@ -55,6 +55,7 @@ $features = @(
     'Web-Stat-Compression'
     'Web-Dyn-Compression'
     'Web-Filtering'                # request filtering, used by web.config limits
+    'Web-AppInit'                  # Application Initialization: keeps Bitstream.Api's outbox dispatcher running
     'Web-Windows-Auth'             # not used by the portal; required for IIS Manager remote admin
     'Web-Mgmt-Console'
     'Web-Mgmt-Service'

@@ -9,7 +9,8 @@
     operator's secret store and the running application pool.
 
     Secrets are read interactively or from the pipeline as SecureString, set on the pool as
-    environment variables named BITSTREAM_Secrets__<Name>, and never written to disk. The
+    environment variables named BITSTREAM_Secrets__<Name> (or BITSTREAM_<Path> for a name that is
+    a configuration path, e.g. Integration__Email__ApiKey), and never written to disk. The
     application reads them through ISecretResolver, which refuses any secret that turns out to
     have come from a JSON file.
 
@@ -87,9 +88,15 @@ foreach ($secretName in $config.Application.RequiredSecrets) {
         continue
     }
 
-    # Double underscore is the configuration provider's section separator, so this lands at
-    # Secrets:<Name> in the application's configuration.
-    $environmentVariables["BITSTREAM_Secrets__$secretName"] = $value
+    # Double underscore is the configuration provider's section separator. A plain name lands at
+    # Secrets:<Name> (read through ISecretResolver); a name that is already a configuration path,
+    # such as Integration__Email__ApiKey, lands at that path (Integration:Email:ApiKey).
+    if ($secretName -like '*__*') {
+        $environmentVariables["BITSTREAM_$secretName"] = $value
+    }
+    else {
+        $environmentVariables["BITSTREAM_Secrets__$secretName"] = $value
+    }
 }
 
 $environmentVariables['ASPNETCORE_ENVIRONMENT'] = $config.Application.Environment

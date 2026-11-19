@@ -100,8 +100,10 @@ try {
 
     # --- 4. Replace the application -----------------------------------------------------
     if ($PSCmdlet.ShouldProcess($site.PhysicalPath, 'Replace application files')) {
+        # Kept: the offline page, the logs, and appsettings.Production.json — the server's own
+        # settings (connection string, endpoints, portal address), which no build contains.
         Get-ChildItem -Path $site.PhysicalPath -Force |
-            Where-Object { $_.Name -ne 'app_offline.htm' -and $_.Name -ne 'logs' } |
+            Where-Object { $_.Name -notin @('app_offline.htm', 'logs', 'appsettings.Production.json') } |
             Remove-Item -Recurse -Force
 
         Copy-Item -Path (Join-Path $PackagePath '*') -Destination $site.PhysicalPath -Recurse -Force

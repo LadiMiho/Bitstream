@@ -1,5 +1,10 @@
 # Deployment — Windows Server and IIS
 
+> **For an actual deployment, follow
+> [`deployment/production-deployment-guide.md`](deployment/production-deployment-guide.md).**
+> This page is the background: why the platform is deployed this way. Where the two differ
+> (settings names, the email gateway, the first administrator), the guide is current.
+
 The platform runs directly on Windows Server under IIS. There are no container files anywhere
 in this repository: no Dockerfile, no compose file, no orchestrator manifest, and no container
 references in any project.

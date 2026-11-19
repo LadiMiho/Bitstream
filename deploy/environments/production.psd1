@@ -42,13 +42,17 @@
 
     Application = @{
         Environment     = 'Production'
-        RequiredSecrets = @('CrmClientSecret', 'SmtpPassword', 'TotpEncryptionKey')
+        # CrmInboundApiKey: the X-Api-Key CRM sends to Bitstream.Api (Api pool).
+        # Integration__Email__ApiKey: the email gateway's key (Api pool, which sends notification
+        #   mail; Web pool too when the sign-in code is sent by email, Security:TwoFactor:Channel = EmailOtp).
+        # CrmClientSecret: only for the provisional REST CRM interface; leave blank while CRM is SOAP.
+        RequiredSecrets = @('CrmInboundApiKey', 'Integration__Email__ApiKey', 'CrmClientSecret')
     }
 
     Database = @{
         ServerInstance = 'SQLPROD01'
         Name           = 'BitstreamPortal'
         AppUser        = 'CORP\svc_bitstream_prod'
-        SchemaVersion  = 4
+        SchemaVersion  = 23   # BitstreamDbContext.ExpectedSchemaVersion
     }
 }

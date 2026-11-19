@@ -1,5 +1,9 @@
 # Environment provisioning and deployment
 
+> **Step-by-step instructions for production are in
+> [`docs/deployment/production-deployment-guide.md`](../docs/deployment/production-deployment-guide.md).**
+> This page explains the scripts.
+
 Windows Server and IIS, scripted end to end. TR-ARC-08 does not permit manual configuration of
 production, so anything that has to be true of an environment lives in a file here and is
 applied by a script — not typed into IIS Manager once and remembered.
@@ -39,14 +43,17 @@ issued — but it will not bind TLS until a real thumbprint is set.
 ```powershell
 # On the web server, elevated
 .\Install-Prerequisites.ps1
-.\New-BitstreamSite.ps1        -Environment uat
-.\Set-AppPoolSecrets.ps1       -Environment uat
+.\New-BitstreamSite.ps1        -Environment uat -Component Web
+.\New-BitstreamSite.ps1        -Environment uat -Component Api
+.\Set-AppPoolSecrets.ps1       -Environment uat -Component Api
+.\Set-AppPoolSecrets.ps1       -Environment uat -Component Web
 
-# Database
-..\db\Deploy-Database.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -AppUser 'CORP\svc_bitstream_uat'
+# Database (identity schema first: see the production guide, section 4.4)
+..\db\Deploy-Database.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -AppUser 'CORP\svc_bitstream_uat' -SchemaVersion 23
 
 # Application
-.\Deploy-Application.ps1 -Environment uat -PackagePath C:\artifacts\publish
+.\Deploy-Application.ps1 -Environment uat -Component Api -PackagePath C:\artifacts\api
+.\Deploy-Application.ps1 -Environment uat -Component Web -PackagePath C:\artifacts\web
 ```
 
 ## Routine deployment
@@ -57,8 +64,9 @@ for one version, so this order works without downtime. `Deploy-Application.ps1` 
 schema before it touches a file and stops if it does not match.
 
 ```powershell
-..\db\Deploy-Database.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -AppUser 'CORP\svc_bitstream_uat' -SchemaVersion 2
-.\Deploy-Application.ps1 -Environment uat -PackagePath .\artifacts\publish
+..\db\Deploy-Database.ps1 -ServerInstance SQLUAT01 -Database BitstreamPortal -AppUser 'CORP\svc_bitstream_uat' -SchemaVersion 23
+.\Deploy-Application.ps1 -Environment uat -Component Api -PackagePath .\artifacts\api
+.\Deploy-Application.ps1 -Environment uat -Component Web -PackagePath .\artifacts\web
 ```
 
 The deployment drops `app_offline.htm` so IIS drains in-flight requests and shuts the process
@@ -75,7 +83,7 @@ hard failure to diagnose and a trivial one to prevent.
 `Deploy-Application.ps1` prints the backup path. Rolling back is deploying it:
 
 ```powershell
-.\Deploy-Application.ps1 -Environment uat -PackagePath D:\Sites\BitstreamPortal-UAT_backup_20260817-101500 -SkipSchemaCheck
+.\Deploy-Application.ps1 -Environment uat -Component Web -PackagePath D:\Sites\BitstreamPortal-UAT_backup_20260817-101500 -SkipSchemaCheck
 ```
 
 `-SkipSchemaCheck` is needed because the schema is deliberately ahead of the application at that

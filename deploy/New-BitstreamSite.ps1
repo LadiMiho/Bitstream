@@ -126,6 +126,15 @@ else {
     }
 }
 
+# Preload: with the pool's AlwaysRunning start mode and the Application Initialization feature,
+# IIS starts the application at boot and after every recycle without waiting for a request.
+# Bitstream.Api needs this: its outbox dispatcher is the only thing that sends to CRM, and CRM
+# rarely calls in (docs/deployment/iis-bitstream-api.md).
+if ($PSCmdlet.ShouldProcess($site.Name, 'Enable preload')) {
+    Set-ItemProperty $sitePath -Name applicationDefaults.preloadEnabled -Value $true
+    Write-Host "  Preload enabled for $($site.Name)"
+}
+
 # --- Bindings --------------------------------------------------------------------------
 foreach ($binding in $site.Bindings) {
     $existing = Get-WebBinding -Name $site.Name -Protocol $binding.Protocol -ErrorAction SilentlyContinue |
