@@ -1,6 +1,6 @@
 # Bitstream Portal — Security Overview
 
-Version 1.1 · November 2026 · Schema version 23 · Internal — confidential
+Version 1.2 · November 2026 · Schema version 23 · Internal — confidential
 
 ## Purpose and scope
 
@@ -101,7 +101,7 @@ The portal is a same-origin, server-rendered application: every change goes thro
 | Cross-site scripting | Razor views HTML-encode all data. Page scripts insert data with `textContent`; drawers load HTML rendered and encoded by the server. |
 | Injection | Data access through Entity Framework Core with parameterised queries; no SQL is built from user input. |
 | Input validation | Done on the server for every field: location coordinates (latitude,longitude only; URLs are refused), phone and mobile digits (12 digits, international form), codes (letters, digits, underscores), lengths, allowed catalogue combinations. The browser checks are only a convenience. |
-| Transport | HTTPS only: HTTP is redirected, HSTS is sent outside Development, and the cookie is `Secure`. TLS 1.2 or higher is configured on IIS (TR-SEC-26). |
+| Transport | HTTPS only: HTTP is redirected, HSTS is sent outside Development, and the cookie is `Secure`. TLS 1.2 or higher is required (TR-SEC-26), but the protocol versions and cipher suites are Windows (SCHANNEL) settings that the deployment scripts do not change: TLS 1.0/1.1 and weak ciphers must be disabled on each server; see Open items. |
 | Open redirect | Return URLs after sign-in are accepted only when local. |
 | Error disclosure | Errors return a generic RFC 7807 problem response; stack traces are never shown outside Development. Every request carries a correlation ID for support. |
 | Request flooding | Fixed-window rate limits: sign-in 20 requests / 60 s, administration and grids 60 / 60 s, CRM inbound 200 / s. Excess calls get 429. |
@@ -191,7 +191,7 @@ Every change — by a person or by the system — is written to `sec.AuditLog` w
 These settings decide whether the controls above are in force on a given server; each should be checked on UAT and production.
 
 - [ ] `ASPNETCORE_ENVIRONMENT` is `Production` on both hosts (Development enables the automatic script runner and detailed errors).
-- [ ] `Security:AllowInsecureHttp` is `false`; IIS has a valid certificate with TLS 1.2+ only and HTTP redirects to HTTPS.
+- [ ] `Security:AllowInsecureHttp` is `false`; IIS has a valid certificate and HTTP redirects to HTTPS; SSL 3.0, TLS 1.0, TLS 1.1 and weak cipher suites are disabled in Windows (SCHANNEL) on both servers, verified with an external TLS scan.
 - [ ] `Integration:CrmInbound:ApiKey` is set on the API server only (environment variable or server appsettings), long and random, and shared with CRM through a secure channel.
 - [ ] `Integration:Email:ApiKey` and the CRM credential secret (`CrmClientSecret`) are set on the server, not in the repository.
 - [ ] `DataProtection:CertificateThumbprint` points to a certificate installed on both servers, so the key ring is encrypted at rest.
@@ -203,7 +203,7 @@ These settings decide whether the controls above are in force on a given server;
 
 ## Open items and recommendations
 
-Six points need a decision or a change before or soon after go-live; the first is a functional risk as well as a security one. The earlier finding on missing database grants is resolved by `0032_identity_permissions.sql`.
+Seven points need a decision or a change before or soon after go-live; the first is a functional risk as well as a security one. The earlier finding on missing database grants is resolved by `0032_identity_permissions.sql`.
 
 | # | Finding | Risk | Recommendation | Priority |
 | --- | --- | --- | --- | --- |
@@ -213,5 +213,6 @@ Six points need a decision or a change before or soon after go-live; the first i
 | 4 | Data Protection key ring is unencrypted when no certificate is configured | Anyone with database read access could decrypt cookies and authenticator keys | Configure `DataProtection:CertificateThumbprint` on both servers | Medium |
 | 5 | Health endpoints and the OpenAPI description are reachable without sign-in | Minor information disclosure (component status, API shape) | Restrict by network or IIS rule to monitoring and CRM | Low |
 | 6 | No data-retention rule; the application never deletes data | Personal data kept indefinitely | Define retention per data type and a DBA-run archive/purge procedure | Low |
+| 7 | TLS versions and cipher suites are not enforced by the deployment; Windows Server may still accept TLS 1.0/1.1 and weak ciphers | Browsers or clients could negotiate an outdated, breakable protocol | Disable SSL 3.0, TLS 1.0/1.1 and weak ciphers in SCHANNEL (group policy or script), enable TLS 1.3 where supported, verify with a TLS scan | Medium |
 
 Items that are decisions rather than defects: the production two-factor channel (TOTP today; email or SMS available) and the lockout policy (indefinite until an administrator unlocks) should be confirmed by the security team.
